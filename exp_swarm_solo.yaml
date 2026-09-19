@@ -1,0 +1,81 @@
+experiment_tag: coop-swarm-4drone-solo
+origin:
+  lat: 21.2970
+  lon: -157.8170
+geofence_miles: 2.0
+
+comms:
+  group: 239.255.0.1
+  port: 5005
+  comm_grid_radius: 20      # within 2 cells (Chebyshev distance ≤ 2)
+
+grid:
+  miles: .2
+  cells: 10
+  traverse_frac: 0.1      # edge-to-edge threshold
+  map_radius_m: 20
+  cell_complete_frac: 0.1  # ignored by TRAVERSE model but kept for compat
+
+timing:
+  end_when: all_done        # End when all cell are visited
+  max_seconds: 1200        # safety cap (20 min)
+
+fog_tracker:
+  enable: true
+  tick_rate_hz: 2
+  end_when: visited
+  max_seconds: 1200        # fog runs until all_done or timeout
+
+vehicle_defaults:
+  alt: 20
+  vxy_max: 6
+  vz_max: 1.5
+  axy_max: 2
+  az_max: 1
+  rate_hz: 10
+  
+agents:
+- name: A
+  conn: udp:127.0.0.1:14555
+  mission: grid_frontier
+  policy: random
+  strategy_tag: solo
+  comm_mode: 'off'
+  seed: 11
+  partition:
+    scheme: none
+    n: 1
+    id: 0
+- name: B
+  conn: udp:127.0.0.1:14556
+  mission: grid_frontier
+  policy: random
+  strategy_tag: solo
+  comm_mode: 'off'
+  seed: 22
+  partition:
+    scheme: none
+    n: 1
+    id: 0
+- name: C
+  conn: udp:127.0.0.1:14557
+  mission: grid_frontier
+  policy: random
+  strategy_tag: solo
+  comm_mode: 'off'
+  seed: 25
+  partition:
+    scheme: none
+    n: 1
+    id: 0
+- name: D
+  conn: udp:127.0.0.1:14558
+  mission: grid_frontier
+  policy: random
+  strategy_tag: solo
+  comm_mode: 'off'
+  seed: 30
+  partition:
+    scheme: none
+    n: 1
+    id: 0
