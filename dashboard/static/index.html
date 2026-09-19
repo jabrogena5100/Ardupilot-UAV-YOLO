@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Autonomous Wildfire Monitoring</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Autonomous Wildfire Monitoring</h1>
+      <div class="head-right">
+        <span id="oracle-badge" class="badge badge-warn" hidden
+          >ORACLE MODE — perception bypassed</span
+        >
+        <span id="conn" class="badge badge-bad">connecting</span>
+        <span id="clock" class="mono">t = 0.0 s</span>
+      </div>
+    </header>
+
+    <main>
+      <!-- ---------- left: the map ---------- -->
+      <section class="panel map-panel">
+        <div class="panel-head">
+          <h2>Monitoring region</h2>
+          <div class="layers">
+            <label
+              ><input type="checkbox" id="layer-coverage" checked />
+              coverage</label
+            >
+            <label
+              ><input type="checkbox" id="layer-fire" checked /> fire
+              truth</label
+            >
+            <label
+              ><input type="checkbox" id="layer-belief" /> probability</label
+            >
+            <label
+              ><input type="checkbox" id="layer-grid" checked /> grid</label
+            >
+          </div>
+        </div>
+
+        <canvas id="map" width="640" height="640"></canvas>
+
+        <div class="legend">
+          <span><i class="sw sw-visited"></i>visited</span>
+          <span><i class="sw sw-traverse"></i>traversed</span>
+          <span><i class="sw sw-burning"></i>burning</span>
+          <span><i class="sw sw-burnt"></i>burnt</span>
+          <span><i class="sw sw-belief"></i>P(fire)</span>
+          <span><i class="sw sw-drone"></i>UAV</span>
+        </div>
+
+        <div class="stats" id="stats"></div>
+      </section>
+
+      <!-- ---------- right: perception + fleet ---------- -->
+      <section class="side">
+        <div class="panel">
+          <div class="panel-head"><h2>AI perception</h2></div>
+          <div id="perception" class="perception">
+            <div class="empty">No detections yet.</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Detection feed</h2></div>
+          <div id="feed" class="feed">
+            <div class="empty">Waiting for the network to report.</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Fleet</h2></div>
+          <div id="fleet" class="fleet">
+            <div class="empty">No UAVs on the bus.</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="ended" class="ended" hidden></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
