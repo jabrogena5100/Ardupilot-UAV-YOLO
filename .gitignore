@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Virtual environments
+.venv/
+venv/
+
+# ML models
+*.pt
+*.pth
+*.onnx
+
+# YOLO / training outputs
+runs/
+
+# Logs
+*.log
+logs/
+
+# Environment / secrets
+.env
+
+# OS
+.DS_Store
+Thumbs.db
