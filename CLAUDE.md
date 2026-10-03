@@ -234,6 +234,21 @@ well-documented training runs over minimizing GPU cost.
 Record relevant training configuration, dataset split, model version,
 epochs, and metrics so experiments can be compared fairly.
 
+Training policy:
+- Local Ubuntu VM: development, testing, CPU inference.
+- RunPod: GPU-intensive YOLO training.
+- Never start a RunPod training job without telling me first.
+- Before training, report:
+  1. GPU type
+  2. estimated cost
+  3. dataset
+  4. model
+  5. epochs
+  6. output location
+- Ask for confirmation before starting.
+- Never create, resume, or extend a paid RunPod training job without explicit user confirmation.
+- Free/local training runs may be started without confirmation when they do not incur external compute costs.
+
 ## Hardware / environment constraints
 
 - No GPU on the development laptop — CPU-bound for inference and the 2.5D renderer.
