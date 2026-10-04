@@ -1,6 +1,6 @@
 # Project Status — ECE 496 AI-Enabled Autonomous Wildfire Monitoring
 
-**Last updated:** 2026-10-03
+**Last updated:** 2026-10-04
 
 ## Current objective
 
@@ -393,3 +393,19 @@ The project has substantial UAV/simulation/dashboard infrastructure, but the syn
 
 Produce the first reproducible Level 2 evaluation matrix using fixed datasets, fixed evaluation code, documented training configurations, and comparable model-training budgets.
 
+
+
+---
+
+## Training log
+
+### 2026-10-04 — Model B (real/Boreal) v1 trained and evaluated
+
+* YOLOv8s, 100 epochs, imgsz 640, batch 32, seed 0, deterministic, on RunPod 1x RTX 4090 (secure, US-IL-1).
+* Frozen Boreal split at `/workspace/splits/boreal_v1/` (existing video-disjoint split; not rebuilt).
+* Held-out test: P 0.937, R 0.933, mAP50 0.944, mAP50-95 0.669 (701 images, single class `smoke`).
+* Checkpoint `real_boreal_best_v1.pt` and all outputs are on the `wildfire-datasets` volume under `/workspace/runs/`; full details in `models/MODELS.md`.
+* Approx. cost ~ $0.60 total (Stage 1 inspection/smoke ~ $0.08, training+eval ~ $0.52). No pods left running.
+* Caveats: Boreal has no fire class; test has no negative images; 5 unlabeled raw images recorded, not fixed.
+* Not yet done: unified annotation schema, repo-side eval harness (`eval/`) running this same `(checkpoint, test-set)` path for all four matrix cells, Model A (synthetic) training with the identical recipe.
+* Scripts used are archived in `eval/runpod/`. They are one-off RunPod launchers, not yet the config-driven harness.
