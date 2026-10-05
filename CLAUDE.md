@@ -110,7 +110,11 @@ launch_sitl_swarm.py       spins up real ArduCopter SITL instances in tmux
 exp_swarm_*.yaml           experiment configs
 ```
 
-Not yet created: `sim/`, `synthgen/`, `eval/`, `models/`.
+Status of the ML-side directories: `models/MODELS.md` (checkpoint registry),
+`sim/camera.py` (the shared pinhole projection), `synthgen/` (2.5D generator, POC
+validated, see `docs/synthetic/poc_report.md`) and `eval/validate_dataset.py` exist.
+`eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`, `sim/frame_synth.py` and
+`perception/detector.py` are still empty stubs.
 
 **Dashboard stack note:** this is a plain `http.server` subscriber with the
 browser polling `/api/state` every 250ms, drawing to a `<canvas>` grid — not
@@ -281,12 +285,14 @@ Training policy:
    invocation of each file already works and is how everything above was
    tested.
 3. **`synthgen/`** — the 2.5D generator (pinhole projection, ground-plane
-   texture, sprite placement, auto-labels). This is the heaviest remaining
-   piece — open-ended content generation, not a spec-checkable implementation
-   like the rest of this list. Build the projection math so it is directly
-   reusable by (4).
+   texture, sprite placement, auto-labels). **POC done (2026-10-05):** 180-image
+   dataset generated and validated; full-scale generation awaits approval. See
+   `docs/synthetic/poc_report.md` for measured throughput, statistics vs Boreal and
+   known limitations.
 4. **`sim/camera.py`** — UAV pose + altitude + FOV → ground footprint in grid
-   cells, using the *same* projection as (3).
+   cells, using the *same* projection as (3). **Done**, with round-trip tests
+   (`tests/test_camera.py`). Confirm the `tilt_deg`/`fov_deg` conventions (see its
+   docstring) before Level 3 use.
 5. **`perception/detector.py`** — thin YOLO wrapper implementing `observe()`.
    Lightest item on this list; the trained checkpoint already exists.
 6. **`mapping/probability_map.py`** — log-odds belief grid. Blocked on (1)'s

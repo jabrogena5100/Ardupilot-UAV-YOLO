@@ -1,6 +1,6 @@
 # Project Status — ECE 496 AI-Enabled Autonomous Wildfire Monitoring
 
-**Last updated:** 2026-10-04
+**Last updated:** 2026-10-05
 
 ## Current objective
 
@@ -409,3 +409,10 @@ Produce the first reproducible Level 2 evaluation matrix using fixed datasets, f
 * Caveats: Boreal has no fire class; test has no negative images; 5 unlabeled raw images recorded, not fixed.
 * Not yet done: unified annotation schema, repo-side eval harness (`eval/`) running this same `(checkpoint, test-set)` path for all four matrix cells, Model A (synthetic) training with the identical recipe.
 * Scripts used are archived in `eval/runpod/`. They are one-off RunPod launchers, not yet the config-driven harness.
+
+### 2026-10-05 — Synthetic pipeline POC (no training, no full dataset)
+
+* Inspected the Boreal reference (14 train frames + train/val label statistics): `docs/synthetic/boreal_visual_analysis.md`. Boreal pixels stay outside the repo.
+* Implemented `sim/camera.py` (shared pinhole projection) and the `synthgen/` stubs (scene sampling, renderer, annotator, dataset writer), plus `eval/validate_dataset.py`. 31 unit tests pass (`python3 -m unittest discover -s tests -t .`).
+* Generated and validated a 180-image POC (1280x720, smoke only, 7.5% background): `docs/synthetic/poc_report.md`. Measured about 0.96 img/s on one core; a Boreal-sized set (4,954 images) is about 85 min.
+* Open items: edge-touching boxes (81% synthetic vs 30% Boreal), full-dataset size approval, `tilt_deg`/`fov_deg` convention for Level 3, eval harness (`eval/metrics.py`, `run_matrix.py`) still empty.
