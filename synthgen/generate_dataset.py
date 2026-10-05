@@ -36,22 +36,35 @@ import numpy as np
 import yaml
 from PIL import Image, ImageDraw
 
-from synthgen.annotate import box_area_frac, box_from_alpha, to_yolo_line
+from synthgen.annotate import box_area_frac, box_from_alpha, box_variants, to_yolo_line
 from synthgen.render import Renderer
 from synthgen.scene_params import SPLIT_IDS, load_config, sample_scene
 
 DEFAULT_CONFIG = os.path.join(os.path.dirname(__file__), "configs", "domain_rand.yaml")
 
 
-def parse_counts(s: str) -> Dict[str, int]:
-    out = {}
+def parse_counts(s: str) -> Dict[str, Any]:
+    """`train=3219:260,val=774:0,test=701:350` (positives:negatives) or `train=120` (negatives from the config fraction)."""
+    out: Dict[str, Any] = {}
     for part in s.split(","):
         k, v = part.split("=")
         k = k.strip()
         if k not in SPLIT_IDS:
             raise ValueError(f"unknown split {k!r}")
-        out[k] = int(v)
+        out[k] = tuple(int(x) for x in v.split(":")) if ":" in v else int(v)
     return out
+
+
+def resolve_counts(cfg, counts: Dict[str, Any]) -> Dict[str, tuple]:
+    """-> {split: (positives, negatives)}."""
+    res = {}
+    for split, v in counts.items():
+        if isinstance(v, tuple):
+            res[split] = (v[0], v[1])
+        else:
+            neg = int(round(float(cfg["negatives"]["fraction"][split]) * v))
+            res[split] = (v - neg, neg)
+    return res
 
 
 def _read(path: str) -> str:
@@ -74,20 +87,21 @@ def _git_info() -> Dict[str, Any]:
         return {"commit": None}
 
 
-def negative_indices(base_seed: int, split: str, n: int, frac: float) -> set:
-    """Exactly round(frac*n) background images, spread over the split by a seeded permutation."""
+def negative_indices(base_seed: int, split: str, n: int, frac: float = None, count: int = None) -> set:
+    """Exactly `count` (or round(frac*n)) background images, spread over the split by a seeded permutation."""
     rng = np.random.default_rng(np.random.SeedSequence([int(base_seed), SPLIT_IDS[split], 424242]))
-    k = int(round(frac * n))
+    k = int(count) if count is not None else int(round(frac * n))
     return set(int(i) for i in rng.permutation(n)[:k])
 
 
-def generate_split(cfg, renderer: Renderer, split: str, n: int, base_seed: int, out: str,
+def generate_split(cfg, renderer: Renderer, split: str, n_pos: int, n_neg: int, base_seed: int, out: str,
                    max_attempts: int, meta_f, log_every: int = 10) -> List[Dict[str, Any]]:
     bx = cfg["box"]
     W, H = cfg["image"]["width"], cfg["image"]["height"]
     os.makedirs(f"{out}/images/{split}", exist_ok=True)
     os.makedirs(f"{out}/labels/{split}", exist_ok=True)
-    neg = negative_indices(base_seed, split, n, float(cfg["negatives"]["fraction"][split]))
+    n = n_pos + n_neg
+    neg = negative_indices(base_seed, split, n, count=n_neg)
     records: List[Dict[str, Any]] = []
     t_split = time.time()
     for idx in range(n):
@@ -120,7 +134,10 @@ def generate_split(cfg, renderer: Renderer, split: str, n: int, base_seed: int, 
         with open(f"{out}/labels/{split}/{name}.txt", "w") as f:
             f.write((to_yolo_line(box, W, H) + "\n") if box else "")
         rec = sp.to_dict()
+        variants = box_variants(res.smoke_alpha, bx["variants"], bx["min_alpha_pixels"]) if positive else {}
         rec.update({"attempts_used": attempt + 1, "render_seconds": round(t_render, 3),
+                    "label_convention": "default",
+                    "box_variants": {k: ([round(float(x), 2) for x in v] if v else None) for k, v in variants.items()},
                     "box_xyxy": [round(v, 2) for v in box] if box else None,
                     "box_area_frac": round(box_area_frac(box, W, H), 5) if box else None,
                     "target_box_xyxy": [round(v, 2) for v in sp.smoke.target_box_xyxy] if sp.smoke else None,
@@ -157,7 +174,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description="Generate a synthetic smoke dataset (YOLO format).")
     ap.add_argument("--config", default=DEFAULT_CONFIG)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--counts", required=True, help="e.g. train=120,val=30,test=30")
+    ap.add_argument("--counts", required=True,
+                    help="positives:negatives per split, e.g. train=3219:260,val=774:0,test=701:350 "
+                         "(a plain number uses the config negatives.fraction)")
+    ap.add_argument("--dataset-id", default="synth_smoke_poc", help="name recorded in the manifest")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--max-attempts", type=int, default=8)
     ap.add_argument("--contact-sheet", type=int, default=0, help="write a contact sheet of the first K images")
@@ -168,8 +188,8 @@ def main() -> int:
         print(f"refusing to overwrite an existing dataset at {out}", file=sys.stderr)
         return 2
     os.makedirs(out, exist_ok=True)
-    counts = parse_counts(args.counts)
     cfg = load_config(args.config)
+    counts = resolve_counts(cfg, parse_counts(args.counts))
     with open(args.config) as f:
         cfg_text = f.read()
     renderer = Renderer(cfg, args.seed)
@@ -177,19 +197,44 @@ def main() -> int:
     t0 = time.time()
     all_records: List[Dict[str, Any]] = []
     with open(f"{out}/metadata.jsonl", "w") as meta_f:
-        for split, n in counts.items():
-            if n <= 0:
+        for split, (n_pos, n_neg) in counts.items():
+            if n_pos + n_neg <= 0:
                 continue
-            all_records += generate_split(cfg, renderer, split, n, args.seed, out, args.max_attempts, meta_f)
+            all_records += generate_split(cfg, renderer, split, n_pos, n_neg, args.seed, out, args.max_attempts, meta_f)
     elapsed = time.time() - t0
 
+    names_map = {int(k): v for k, v in cfg["classes"].items()}
     with open(f"{out}/data.yaml", "w") as f:
         yaml.safe_dump({"path": out, "train": "images/train", "val": "images/val", "test": "images/test",
-                        "names": {int(k): v for k, v in cfg["classes"].items()}}, f, sort_keys=False)
+                        "names": names_map}, f, sort_keys=False)
+
+    # Two explicitly separate synthetic test views (reported separately, never merged):
+    #   test_pos = smoke-positive images only (the primary comparison with the Boreal test composition)
+    #   test_all = test_pos plus the background images (false-positive analysis)
+    views: Dict[str, Any] = {}
+    test_recs = sorted((r for r in all_records if r["split"] == "test"), key=lambda r: r["image_id"])
+    if test_recs:
+        os.makedirs(f"{out}/lists", exist_ok=True)
+        for view, sel in (("test_pos", [r for r in test_recs if r["is_positive"]]), ("test_all", test_recs)):
+            paths = [f"{out}/images/test/{r['image_id']}.jpg" for r in sel]
+            with open(f"{out}/lists/{view}.txt", "w") as f:
+                f.write("\n".join(paths) + "\n")
+            with open(f"{out}/data_{view}.yaml", "w") as f:
+                yaml.safe_dump({"path": out, "train": "images/train", "val": "images/val",
+                                "test": f"lists/{view}.txt", "names": names_map}, f, sort_keys=False)
+            views[view] = {"images": len(sel), "positives": sum(r["is_positive"] for r in sel),
+                           "background_images": sum(not r["is_positive"] for r in sel),
+                           "list_sha256": _sha256_text(sorted(os.path.basename(x) for x in paths))}
 
     manifest: Dict[str, Any] = {
         "generator": "synthgen.generate_dataset", "config_path": os.path.abspath(args.config),
+        "dataset_id": args.dataset_id, "requested_counts": {k: {"positives": v[0], "negatives": v[1]} for k, v in counts.items()},
         "config_sha256": hashlib.sha256(cfg_text.encode()).hexdigest(), "base_seed": args.seed,
+        "seed_streams": {"scene": "[base_seed, split_id, index, attempt]", "split_ids": SPLIT_IDS,
+                         "texture_bank": "[base_seed, split_id, 10000+slot]", "puff_bank": "[base_seed, split_id, 20000]",
+                         "negative_selection": "[base_seed, split_id, 424242]"},
+        "bank_sizes": {"textures": cfg["background"]["bank_size"], "puff_sprites": cfg["smoke"]["puff_bank_size"]},
+        "test_views": views, "label_convention": "default (box.variants.default); alternatives in metadata.jsonl",
         "classes": cfg["classes"], "image_size": [cfg["image"]["width"], cfg["image"]["height"]],
         "splits": {}, "generation_seconds": round(elapsed, 2),
         "images_per_second": round(len(all_records) / max(elapsed, 1e-9), 4),
@@ -198,7 +243,7 @@ def main() -> int:
                      "pillow": Image.__version__, "git": _git_info()},
         "note": "synthetic data; no real imagery used. Smoke is rendered as flat billboards (no true volume).",
     }
-    for split, n in counts.items():
+    for split in counts:
         recs = [r for r in all_records if r["split"] == split]
         if not recs:
             continue
@@ -211,6 +256,8 @@ def main() -> int:
             "archetypes": dict(Counter(r["archetype"] for r in recs if r["is_positive"])),
             "mean_render_seconds": round(float(np.mean([r["render_seconds"] for r in recs])), 3),
         }
+    with open(f"{out}/metadata.jsonl", "rb") as f:
+        manifest["metadata_sha256"] = hashlib.sha256(f.read()).hexdigest()
     with open(f"{out}/manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
 

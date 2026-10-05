@@ -62,13 +62,25 @@ def validate(data_yaml: str, allow_missing_labels: bool = False, check_manifest:
     for split in ("train", "val", "test"):
         if split not in cfg:
             continue
-        img_dir = os.path.join(root, cfg[split])
-        lbl_dir = os.path.join(root, cfg[split].replace("images", "labels", 1))
-        if not os.path.isdir(img_dir):
-            errors.append(f"[{split}] image dir missing: {img_dir}")
-            continue
-        imgs = sorted(f for f in os.listdir(img_dir) if f.lower().endswith((".jpg", ".jpeg", ".png")))
-        lbls = set(os.listdir(lbl_dir)) if os.path.isdir(lbl_dir) else set()
+        entry = os.path.join(root, cfg[split])
+        if entry.endswith(".txt"):
+            # a list of image paths (e.g. the test_pos / test_all views); labels sit next to /images/ as /labels/
+            if not os.path.isfile(entry):
+                errors.append(f"[{split}] image list missing: {entry}")
+                continue
+            listed = [l.strip() for l in _read(entry).splitlines() if l.strip()]
+            img_dir = os.path.dirname(listed[0]) if listed else root
+            lbl_dir = img_dir.replace(os.sep + "images" + os.sep, os.sep + "labels" + os.sep, 1)
+            imgs = sorted(os.path.basename(p) for p in listed)
+            lbls = set()                                  # orphan check does not apply to lists
+        else:
+            img_dir = entry
+            lbl_dir = os.path.join(root, cfg[split].replace("images", "labels", 1))
+            if not os.path.isdir(img_dir):
+                errors.append(f"[{split}] image dir missing: {img_dir}")
+                continue
+            imgs = sorted(f for f in os.listdir(img_dir) if f.lower().endswith((".jpg", ".jpeg", ".png")))
+            lbls = set(os.listdir(lbl_dir)) if os.path.isdir(lbl_dir) else set()
         stems = {os.path.splitext(f)[0] for f in imgs}
         orphan = [l for l in lbls if os.path.splitext(l)[0] not in stems]
         if orphan:
@@ -141,7 +153,8 @@ def validate(data_yaml: str, allow_missing_labels: bool = False, check_manifest:
     report["image_sizes"] = {f"{w}x{h}": c for (w, h), c in sizes.items()}
 
     mpath = os.path.join(root, "manifest.json")
-    if check_manifest and os.path.exists(mpath):
+    list_based = any(str(cfg.get(sp, "")).endswith(".txt") for sp in ("train", "val", "test"))
+    if check_manifest and os.path.exists(mpath) and not list_based:
         man = json.loads(_read(mpath))
         for split, m in man.get("splits", {}).items():
             got = report["splits"].get(split)
@@ -157,6 +170,36 @@ def validate(data_yaml: str, allow_missing_labels: bool = False, check_manifest:
             if "labels_sha256" in m and _sha(texts) != m["labels_sha256"]:
                 errors.append(f"[{split}] label hash differs from manifest")
         report["manifest_checked"] = True
+    # Separate test views (lists/*.txt): test_pos must contain no background image and be a subset of test_all.
+    vdir = os.path.join(root, "lists")
+    if os.path.isdir(vdir):
+        views: Dict[str, Any] = {}
+        view_paths: Dict[str, List[str]] = {}
+        for f in sorted(os.listdir(vdir)):
+            if not f.endswith(".txt"):
+                continue
+            paths = [l.strip() for l in _read(os.path.join(vdir, f)).splitlines() if l.strip()]
+            view_paths[f[:-4]] = paths
+            missing = [p for p in paths if not os.path.exists(p)]
+            if missing:
+                errors.append(f"[view {f[:-4]}] {len(missing)} listed images missing, e.g. {missing[:1]}")
+            npos = 0
+            for p in paths:
+                lbl = os.path.splitext(p)[0].replace(os.sep + "images" + os.sep, os.sep + "labels" + os.sep, 1) + ".txt"
+                if os.path.exists(lbl) and _read(lbl).strip():
+                    npos += 1
+            views[f[:-4]] = {"images": len(paths), "positives": npos, "background_images": len(paths) - npos}
+        if "test_pos" in views and views["test_pos"]["background_images"]:
+            errors.append("view test_pos contains background images")
+        if "test_pos" in view_paths and "test_all" in view_paths and not set(view_paths["test_pos"]) <= set(view_paths["test_all"]):
+            errors.append("view test_pos is not a subset of test_all")
+        if check_manifest and os.path.exists(mpath) and not list_based:
+            for name, mv in json.loads(_read(mpath)).get("test_views", {}).items():
+                got = views.get(name)
+                if got is None or got["images"] != mv["images"] or got["positives"] != mv["positives"]:
+                    errors.append(f"view {name} differs from the manifest ({got} vs {mv})")
+        report["views"] = views
+
     report["errors"] = errors
     report["ok"] = not errors
     return report
@@ -190,6 +233,8 @@ def main() -> int:
         print(f"[{split}] images={s['images']} background={s['background_images']} boxes={s['boxes']} "
               f"area P50={s['box_area_frac'].get('P50')} edge-touch={s['frac_boxes_touching_image_edge']}")
     print("image sizes:", rep["image_sizes"])
+    for name, v in rep.get("views", {}).items():
+        print(f"[view {name}] images={v['images']} positives={v['positives']} background={v['background_images']}")
     if args.reference and "train" in rep["splits"]:
         print()
         print("\n".join(compare_with_reference(rep, args.reference)))

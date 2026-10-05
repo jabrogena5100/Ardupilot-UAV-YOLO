@@ -20,11 +20,14 @@ image:
   jpeg_quality: [85, 95]
 
 # --- positives / negatives -------------------------------------------------
-# Boreal train has 7.47% background images. Boreal val/test have (almost) none,
-# so the synthetic val/test also get negatives, otherwise false positives could
-# not be measured on them.
+# Boreal train has 7.47% background images and Boreal val has none, so synthetic train
+# matches 7.47% and synthetic val has none (identical checkpoint-selection pressure).
+# Boreal test is essentially all positives; the synthetic test adds 350 backgrounds that are
+# reported as a SEPARATE view (test_all) so false positives can be measured on empty scenes.
 negatives:
-  fraction: {train: 0.075, val: 0.075, test: 0.075}
+  # Used only when --counts gives a plain number. The official run passes explicit "positives:negatives"
+  # counts (see docs/synthetic/synth_smoke_v1_spec.md): train 3219:260, val 774:0, test 701:350.
+  fraction: {train: 0.0747, val: 0.0, test: 0.333}
 
 # --- label (box) definition -------------------------------------------------
 # Box = bounding box of the smoke layer's alpha mask above `alpha_threshold`,
@@ -39,6 +42,23 @@ box:
   min_alpha_pixels: 400
   dense_alpha: 0.30               # a plume must have a visibly dense core ...
   min_dense_frac: 0.04            # ... at least this fraction of the box with alpha >= dense_alpha
+  # Alternative label conventions, recorded in metadata.jsonl for every positive image so a
+  # label-convention ablation needs no re-render. The labels written to disk use `default`.
+  variants:
+    tight:        {alpha_threshold: 0.30, pad_frac: 0.00}
+    default:      {alpha_threshold: 0.08, pad_frac: 0.02}
+    haze:         {alpha_threshold: 0.02, pad_frac: 0.05}
+    padded:       {alpha_threshold: 0.08, pad_frac: 0.10}
+  # Edge-touching prior. Boreal train: 30.4% of boxes touch/are clipped by the image edge (pooled
+  # statistic, train+val range 0.30-0.43; per-scene-type rates are unknown). Each scene draws
+  # touch ~ Bernoulli(p_touch) and its target box is re-sampled until it agrees (a target "touches"
+  # when it comes within `margin` of an edge as a fraction of the image size). One parameter, no
+  # per-archetype tuning against Boreal.
+  edge_policy: {p_touch: 0.30, margin: 0.03, max_tries: 200}
+  # The edge policy rejects large boxes more often (they touch more), which shifted the pooled area
+  # median below Boreal's. One global multiplier on the sampled archetype medians restores it
+  # (single parameter; set once against the pooled Boreal train area median 0.338, not per scene type).
+  area_scale: 1.25
 
 # --- scene archetypes --------------------------------------------------------
 # Weights follow the per-site share of Boreal train boxes (Ruokolahti 36%,
@@ -64,7 +84,7 @@ archetypes:
     box_cx: {mean: 0.60, sd: 0.14}
     box_cy: {mean: 0.40, sd: 0.08}
     ground_kinds: {canopy: 0.8, mixed: 0.2}
-    lean: [0.0, 0.25]
+    lean: [0.0, 0.30]
     opacity: [0.55, 0.9]
     cloud_cover: [0.0, 0.5]
   wide_horizon:
@@ -78,7 +98,7 @@ archetypes:
     box_cx: {mean: 0.60, sd: 0.15}
     box_cy: {mean: 0.40, sd: 0.07}
     ground_kinds: {canopy: 0.7, mixed: 0.3}
-    lean: [0.2, 0.9]
+    lean: [0.3, 1.6]
     opacity: [0.45, 0.85]
     cloud_cover: [0.0, 0.6]
   wide_steep:
@@ -92,7 +112,7 @@ archetypes:
     box_cx: {mean: 0.52, sd: 0.15}
     box_cy: {mean: 0.38, sd: 0.10}
     ground_kinds: {canopy: 0.9, mixed: 0.1}
-    lean: [0.2, 1.0]
+    lean: [0.3, 1.4]
     opacity: [0.45, 0.85]
     cloud_cover: [0.0, 0.3]
   curtain_close:
@@ -119,13 +139,16 @@ camera:
 # A texture bank is generated once per split from split-specific seeds, so no
 # ground texture is shared between train, val and test.
 background:
-  bank_size: {train: 6, val: 3, test: 3}
+  bank_size: {train: 16, val: 6, test: 6}
   texture_px: 1024
   texel_m: 0.5                    # metres per texel of the tileable ground texture (tile = texture_px * texel_m)
   scale: [0.7, 1.6]
   lake_fraction: [0.0, 0.08]
   clouds_in_negatives_bias: 0.25  # extra cloud cover added to negatives (hard negatives)
   max_ground_range_m: 9000
+  # Per-texture palette jitter (a texture's whole palette is shifted, so the bank covers different
+  # seasons/stands): overall brightness, and red/blue relative to green.
+  palette_jitter: {brightness: [0.85, 1.18], red_vs_green: [0.88, 1.28], blue_vs_green: [0.85, 1.15]}
 
 # --- atmosphere / lighting ---------------------------------------------------------
 atmosphere:
@@ -142,6 +165,8 @@ smoke:
   puff_alpha: [0.10, 0.34]
   style_alpha_gain: {column: 1.0, plume: 1.0, curtain: 1.3}
   max_puff_radius_px: 520
+  puff_bank_size: {train: 48, val: 16, test: 16}   # sprite banks are split-specific (independent seeds)
+  max_drift_over_height: 2.0      # cap on along-wind drift / plume height (physically extreme beyond this)
   render_scale: 0.5               # smoke layer rendered at this fraction of 1280x720, then upsampled (YOLO sees 640 wide anyway)
   calib_scale: 0.25               # plume size is calibrated to the target box at this scale
   calib_iters: 5

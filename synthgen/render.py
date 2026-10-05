@@ -70,16 +70,26 @@ def _lerp(a, b, t):
 # ground texture bank (procedural, tileable, built once per split)
 # ----------------------------------------------------------------------
 
-BANK_PATTERN = ["canopy", "mixed", "clearcut", "canopy", "canopy", "mixed", "canopy", "clearcut"]
+BANK_PATTERN = ["canopy", "mixed", "clearcut", "canopy", "clearcut", "mixed", "canopy", "canopy"]
 
 
 def bank_kinds(size: int) -> List[str]:
     return [BANK_PATTERN[i % len(BANK_PATTERN)] for i in range(size)]
 
 
-def build_ground_texture(rng: np.random.Generator, kind: str, size: int, lake_fraction: float) -> List[np.ndarray]:
-    """RGBA uint8 mip pyramid. RGB = sun-lit albedo with baked relief shading, A = water mask."""
+def build_ground_texture(rng: np.random.Generator, kind: str, size: int, lake_fraction: float,
+                         jitter: Optional[Dict[str, Any]] = None) -> List[np.ndarray]:
+    """RGBA uint8 mip pyramid. RGB = sun-lit albedo with baked relief shading, A = water mask.
+
+    `jitter` shifts the whole palette of this texture (overall brightness, red and blue relative to
+    green), so the bank covers different stands/seasons instead of one shared green."""
     forest_frac = {"canopy": 1.0, "mixed": 0.6, "clearcut": 0.22}[kind]
+    if jitter:
+        br = float(rng.uniform(*jitter["brightness"]))
+        tint = np.array([br * float(rng.uniform(*jitter["red_vs_green"])), br,
+                         br * float(rng.uniform(*jitter["blue_vs_green"]))], np.float32)
+    else:
+        tint = np.ones(3, np.float32)
 
     # --- conifer crowns: sparse impulses blurred at two scales (tileable by FFT convolution)
     imp1 = (rng.random((size, size)) < 0.014).astype(np.float32) * rng.uniform(0.6, 1.0, (size, size)).astype(np.float32)
@@ -92,17 +102,17 @@ def build_ground_texture(rng: np.random.Generator, kind: str, size: int, lake_fr
     ao = np.clip(0.30 + 0.55 * smoothstep(-1.0, 0.9, height), 0.18, 1.2)        # dark gaps between crowns
 
     patch = smoothstep(-0.4, 0.6, fft_noise(rng, size, 1.3))               # light (deciduous) patches
-    dark = np.array([0.030, 0.085, 0.040], np.float32)
-    mid = np.array([0.075, 0.170, 0.070], np.float32)
-    light = np.array([0.170, 0.300, 0.110], np.float32)
+    dark = np.array([0.030, 0.085, 0.040], np.float32) * tint
+    mid = np.array([0.075, 0.170, 0.070], np.float32) * tint
+    light = np.array([0.170, 0.300, 0.110], np.float32) * tint
     canopy = _lerp(dark[None, None, :], mid[None, None, :], np.clip(0.5 + 0.25 * height, 0, 1)[..., None])
     canopy = _lerp(canopy, light[None, None, :], (0.55 * patch * np.clip(0.4 + 0.3 * height, 0, 1))[..., None])
     canopy = canopy * (shade * ao)[..., None]
 
     # --- open ground (clearcut / mossy): brown-olive with mottling and sparse debris
     mott = fft_noise(rng, size, 1.2)
-    brown = np.array([0.20, 0.175, 0.105], np.float32)
-    moss = np.array([0.15, 0.215, 0.095], np.float32)
+    brown = np.array([0.20, 0.175, 0.105], np.float32) * tint
+    moss = np.array([0.15, 0.215, 0.095], np.float32) * tint
     ground = _lerp(brown[None, None, :], moss[None, None, :], smoothstep(-0.3, 0.7, mott)[..., None])
     speck = _conv_fft((rng.random((size, size)) < 0.01).astype(np.float32), 0.9) * 6.0
     ground = ground * (0.85 + 0.10 * fft_noise(rng, size, 0.3)[..., None]) * (1.0 - 0.35 * np.clip(speck, 0, 1))[..., None]
@@ -194,7 +204,16 @@ class Renderer:
         self.cfg = cfg
         self.base_seed = int(base_seed)
         self._banks: Dict[str, List[Tuple[str, List[np.ndarray]]]] = {}
-        self._puffs = make_puff_bank(np.random.default_rng(np.random.SeedSequence([self.base_seed, 777])))
+        self._puff_banks: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
+
+    def _puffs(self, split: str) -> Tuple[np.ndarray, np.ndarray]:
+        """Smoke sprite bank of a split. Seeded per split ([base_seed, split_id, 20000]), so train, val and
+        test never share a sprite; sizes come from smoke.puff_bank_size."""
+        if split not in self._puff_banks:
+            from synthgen.scene_params import SPLIT_IDS
+            rng = np.random.default_rng(np.random.SeedSequence([self.base_seed, SPLIT_IDS[split], 20000]))
+            self._puff_banks[split] = make_puff_bank(rng, int(self.cfg["smoke"]["puff_bank_size"][split]))
+        return self._puff_banks[split]
 
     # ---------------- texture bank ----------------
 
@@ -206,7 +225,7 @@ class Renderer:
             for slot, kind in enumerate(bank_kinds(n)):
                 rng = bank_rng(self.base_seed, split, slot)
                 lake = float(rng.uniform(*bgc["lake_fraction"]))
-                items.append((kind, build_ground_texture(rng, kind, int(bgc["texture_px"]), lake)))
+                items.append((kind, build_ground_texture(rng, kind, int(bgc["texture_px"]), lake, bgc.get("palette_jitter"))))
             self._banks[split] = items
         return self._banks[split]
 
@@ -357,7 +376,7 @@ class Renderer:
             u["zj"] = rng.normal(0, 0.3, N)
             u["fade"] = np.where(front, 1.0, rng.uniform(0.40, 0.85, N))
             u["hf"] = np.clip(u["t"] / 1.6, 0, 1)
-        u["kb"] = rng.integers(0, self._puffs[0].shape[0], N)
+        u["kb"] = rng.integers(0, self._puffs(sp.split)[0].shape[0], N)
         u["flip"] = rng.random(N) < 0.5
         u["pa"] = 0.6 + 0.8 * rng.random(N)
         mode = smk.color_mode
@@ -420,7 +439,7 @@ class Renderer:
         gain = float(self.cfg["smoke"].get("style_alpha_gain", {}).get(smk.style, 1.0))
         pa_all = np.clip(smk.puff_alpha * smk.opacity * u["fade"] * u["pa"] * 1.7 * gain, 0.0, 0.95)
 
-        alpha_bank, lum_bank = self._puffs
+        alpha_bank, lum_bank = self._puffs(sp.split)
         ps = alpha_bank.shape[1]
         C = np.zeros((Hs, Ws, 3), np.float32)
         A = np.zeros((Hs, Ws), np.float32)
@@ -470,7 +489,7 @@ class Renderer:
             if m.sum() < 6:
                 S *= 1.5
                 Hp *= 1.5
-                drift *= 1.5
+                drift = smk.lean * Hp
                 history.append({"iter": it, "empty": True})
                 continue
             rows, cols_ = np.flatnonzero(m.any(1)), np.flatnonzero(m.any(0))
@@ -480,10 +499,10 @@ class Renderer:
             rw, rh = tw / max(mw, 1.0), th / max(mh, 1.0)
             if abs(rw - 1) < 0.07 and abs(rh - 1) < 0.07:
                 break
-            fw = float(np.clip(rw, 0.4, 2.5)) ** 0.9
-            S *= fw
-            drift *= fw
+            # width is corrected through the cross-section (S) only; drift stays lean x height (<= the cap)
+            S *= float(np.clip(rw, 0.4, 2.5)) ** 0.9
             Hp *= float(np.clip(rh, 0.4, 2.5)) ** 0.9
+            drift = smk.lean * Hp
         pos, rad = self._plume_world(u, smk, S, Hp, drift)
         rs = float(scfg.get("render_scale", 0.5))
         C, A = self._composite(sp, smk, u, pos, rad, hor, sun_el, exposure, rs)

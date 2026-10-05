@@ -27,7 +27,8 @@ def small_cfg():
     cfg = load_config(CFG_PATH)
     cfg = copy.deepcopy(cfg)
     cfg["image"].update(width=320, height=180)
-    cfg["background"].update(bank_size={"train": 3, "val": 3, "test": 3}, texture_px=256)
+    cfg["background"].update(bank_size={"train": 4, "val": 3, "test": 3}, texture_px=256)
+    cfg["smoke"]["puff_bank_size"] = {"train": 6, "val": 4, "test": 4}
     return cfg
 
 
@@ -126,8 +127,8 @@ class EndToEndTests(unittest.TestCase):
             for out in (d1, d2):
                 r = Renderer(cfg, 5)
                 with open(os.path.join(out, "metadata.jsonl"), "w") as mf:
-                    for split, n in (("train", 8), ("val", 4), ("test", 4)):
-                        gd.generate_split(cfg, r, split, n, 5, out, 8, mf, log_every=0)
+                    for split, npos, nneg in (("train", 7, 1), ("val", 4, 0), ("test", 3, 1)):
+                        gd.generate_split(cfg, r, split, npos, nneg, 5, out, 8, mf, log_every=0)
                 import yaml
                 with open(os.path.join(out, "data.yaml"), "w") as yf:
                     yaml.safe_dump({"path": out, "train": "images/train", "val": "images/val", "test": "images/test",
@@ -135,7 +136,8 @@ class EndToEndTests(unittest.TestCase):
             rep = validate(os.path.join(d1, "data.yaml"))
             self.assertTrue(rep["ok"], rep["errors"])
             self.assertEqual(rep["splits"]["train"]["images"], 8)
-            self.assertEqual(rep["splits"]["train"]["background_images"], round(0.075 * 8))
+            self.assertEqual(rep["splits"]["train"]["background_images"], 1)
+            self.assertEqual(rep["splits"]["val"]["background_images"], 0)
             self.assertEqual(rep["image_sizes"], {"320x180": 16})
             # same seed -> byte-identical images and labels
             for split in ("train", "val", "test"):
@@ -149,7 +151,7 @@ class EndToEndTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             r = Renderer(cfg, 5)
             with open(os.path.join(d, "metadata.jsonl"), "w") as mf:
-                gd.generate_split(cfg, r, "train", 4, 5, d, 8, mf, log_every=0)
+                gd.generate_split(cfg, r, "train", 4, 0, 5, d, 8, mf, log_every=0)
             import yaml
             with open(os.path.join(d, "data.yaml"), "w") as yf:
                 yaml.safe_dump({"path": d, "train": "images/train", "names": {0: "smoke"}}, yf)
@@ -164,6 +166,118 @@ class EndToEndTests(unittest.TestCase):
             self.assertTrue(any("missing label" in e for e in rep["errors"]))
             rep = validate(os.path.join(d, "data.yaml"), allow_missing_labels=True)
             self.assertFalse(any("missing label" in e for e in rep["errors"]))
+
+
+class ApprovedChangeTests(unittest.TestCase):
+    """The pre-scaling changes approved for synth_smoke_v1."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.cfg = small_cfg()
+
+    # --- 1. split-specific, larger sprite banks --------------------------------------
+    def test_puff_sprite_banks_are_independent_across_splits(self):
+        r = Renderer(self.cfg, 1001)
+        banks = {s: r._puffs(s) for s in ("train", "val", "test")}
+        for s, n in self.cfg["smoke"]["puff_bank_size"].items():
+            self.assertEqual(banks[s][0].shape[0], n)
+        for a, b in (("train", "val"), ("train", "test"), ("val", "test")):
+            k = min(banks[a][0].shape[0], banks[b][0].shape[0])
+            self.assertFalse(np.allclose(banks[a][0][:k], banks[b][0][:k]), (a, b))     # different seeds -> different sprites
+            # no sprite of one split appears (even approximately) in another
+            for i in range(banks[a][0].shape[0]):
+                for j in range(banks[b][0].shape[0]):
+                    self.assertGreater(float(np.abs(banks[a][0][i] - banks[b][0][j]).mean()), 1e-3)
+        # same split + seed -> identical sprites (reproducible); different base seed -> different
+        np.testing.assert_array_equal(Renderer(self.cfg, 1001)._puffs("val")[0], banks["val"][0])
+        self.assertFalse(np.allclose(Renderer(self.cfg, 7)._puffs("val")[0], banks["val"][0]))
+
+    def test_default_banks_are_larger(self):
+        cfg = load_config(CFG_PATH)
+        self.assertEqual(cfg["smoke"]["puff_bank_size"], {"train": 48, "val": 16, "test": 16})
+        self.assertEqual(cfg["background"]["bank_size"], {"train": 16, "val": 6, "test": 6})
+
+    # --- 2. drift cap, independent of the width target --------------------------------
+    def test_drift_is_capped_and_not_tied_to_width(self):
+        cfg = self.cfg
+        cap = cfg["smoke"]["max_drift_over_height"]
+        per = {}
+        for i in range(400):
+            sp = sample_scene(cfg, "train", i, 1001, 0, True)
+            if sp.smoke.style == "curtain":
+                self.assertEqual(sp.smoke.lean, 0.0)
+                continue
+            self.assertLessEqual(sp.smoke.lean, cap + 1e-9)
+            w = sp.smoke.target_box_xyxy[2] - sp.smoke.target_box_xyxy[0]
+            per.setdefault(sp.archetype, []).append((sp.smoke.lean, w))
+        for arch, v in per.items():
+            lean = np.array([a for a, _ in v])
+            wid = np.array([b for _, b in v])
+            lo, hi = cfg["archetypes"][arch]["lean"]
+            # drawn from the archetype's own range (the width bound essentially never binds) ...
+            self.assertGreaterEqual(float(lean.min()), lo - 1e-9, arch)
+            self.assertLessEqual(float(lean.max()), hi + 1e-9, arch)
+            # ... and independent of the width target within an archetype
+            self.assertLess(abs(float(np.corrcoef(lean, wid)[0, 1])), 0.35, arch)
+
+    # --- 3. box variants recorded ---------------------------------------------------------
+    def test_box_variants_recorded_and_ordered(self):
+        r = Renderer(self.cfg, 1001)
+        sp = sample_scene(self.cfg, "train", 2, 1001, 0, True)
+        res = r.render(sp)
+        from synthgen.annotate import box_variants
+        v = box_variants(res.smoke_alpha, self.cfg["box"]["variants"], 1)
+        self.assertEqual(set(v), {"tight", "default", "haze", "padded"})
+        area = {k: box_area_frac(b, 320, 180) for k, b in v.items() if b}
+        self.assertLessEqual(area["tight"], area["default"] + 1e-9)       # lower alpha threshold / more padding only grow the box
+        self.assertLessEqual(area["default"], area["haze"] + 1e-9)
+        self.assertLessEqual(area["default"], area["padded"] + 1e-9)
+
+    # --- 4. per-texture palette jitter ---------------------------------------------------
+    def test_palette_jitter_varies_across_the_bank(self):
+        r = Renderer(self.cfg, 1001)
+        means = []
+        for slot, (kind, pyr) in enumerate(r._bank("train")):
+            if kind == "canopy":
+                means.append(pyr[0][..., :3].reshape(-1, 3).mean(0))
+        self.assertGreaterEqual(len(means), 2)
+        spread = np.std(np.array(means), axis=0)
+        self.assertGreater(float(spread.max()), 0.4)                       # texture-to-texture palette shift (0-255 scale)
+        # jitter off -> the same kind has (much) less palette variation
+        cfg2 = copy.deepcopy(self.cfg)
+        cfg2["background"]["palette_jitter"] = {"brightness": [1, 1], "red_vs_green": [1, 1], "blue_vs_green": [1, 1]}
+        means2 = [pyr[0][..., :3].reshape(-1, 3).mean(0) for k, pyr in Renderer(cfg2, 1001)._bank("train") if k == "canopy"]
+        self.assertLess(float(np.std(np.array(means2), axis=0).max()), float(spread.max()))
+
+    # --- 5. edge policy ---------------------------------------------------------------------
+    def test_edge_policy_hits_the_target_touch_rate(self):
+        from synthgen.scene_params import _touches
+        ep = self.cfg["box"]["edge_policy"]
+        W, H = self.cfg["image"]["width"], self.cfg["image"]["height"]
+        touch = []
+        agree = []
+        for i in range(500):
+            sp = sample_scene(self.cfg, "train", i, 1001, 0, True)
+            t = _touches(sp.smoke.target_box_xyxy, W, H, ep["margin"])
+            touch.append(t)
+            agree.append(t == sp.edge_touch_wanted)
+        self.assertGreater(float(np.mean(agree)), 0.90)                    # most scenes honour the draw within max_tries
+        self.assertAlmostEqual(float(np.mean(touch)), ep["p_touch"], delta=0.08)
+
+    def test_explicit_pos_neg_counts_and_test_views(self):
+        cfg = self.cfg
+        self.assertEqual(gd.parse_counts("train=3219:260,val=774:0,test=701:350"),
+                         {"train": (3219, 260), "val": (774, 0), "test": (701, 350)})
+        self.assertEqual(gd.resolve_counts(cfg, {"train": (5, 1), "val": 10})["train"], (5, 1))
+        with tempfile.TemporaryDirectory() as d:
+            r = Renderer(cfg, 11)
+            with open(os.path.join(d, "metadata.jsonl"), "w") as mf:
+                gd.generate_split(cfg, r, "test", 4, 2, 11, d, 8, mf, log_every=0)
+            with open(os.path.join(d, "metadata.jsonl")) as mf:
+                recs = [json.loads(l) for l in mf]
+            self.assertEqual(sum(1 for x in recs if not x["is_positive"]), 2)
+            self.assertTrue(all(x["box_variants"] for x in recs if x["is_positive"]))
+            self.assertTrue(all(x["label_convention"] == "default" for x in recs))
 
 
 if __name__ == "__main__":

@@ -100,6 +100,8 @@ class SceneParams:
     blur_sigma_px: float
     jpeg_quality: int
     smoke: Optional[SmokeParams] = None
+    edge_touch_wanted: Optional[bool] = None    # edge policy draw for this scene (positives only)
+    edge_policy_tries: int = 0                  # target-box re-samples needed to agree with the draw
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -144,15 +146,20 @@ def _tnormal(rng, mean, sd, lo, hi) -> float:
 # main entry point
 # ----------------------------------------------------------------------
 
-def sample_scene(cfg: Dict[str, Any], split: str, index: int, base_seed: int, attempt: int = 0,
-                 is_positive: bool = True) -> SceneParams:
-    rng = scene_rng(base_seed, split, index, attempt)
-    W, H = int(cfg["image"]["width"]), int(cfg["image"]["height"])
-    arch_cfg = cfg["archetypes"]
-    arch = _pick(rng, {k: v["weight"] for k, v in arch_cfg.items()})
-    a = arch_cfg[arch]
+def _target_box(style: str, cx: float, cy: float, w: float, h: float, base_v: float):
+    """Intended pixel box (x1, y1, x2, y2): horizon/plume styles hang from the smoke base, curtains are centred."""
+    if style == "curtain":
+        return (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+    return (cx - w / 2, base_v - h, cx + w / 2, base_v)
 
-    # ---- camera -------------------------------------------------------
+
+def _touches(box, W: int, H: int, margin: float) -> bool:
+    x1, y1, x2, y2 = box
+    return bool(x1 <= margin * W or x2 >= (1.0 - margin) * W or y1 <= margin * H or y2 >= (1.0 - margin) * H)
+
+
+def _sample_camera_and_target(rng, cfg, a, W, H):
+    """Camera pose and the intended smoke box for one draw. Returns None if the draw is unusable."""
     hfov = _u(rng, cfg["camera"]["hfov_deg"])
     intr = CameraIntrinsics(W, H, hfov)
     alt = _u(rng, a["alt_m"])
@@ -165,6 +172,60 @@ def sample_scene(cfg: Dict[str, Any], split: str, index: int, base_seed: int, at
     pitch = float(np.clip(pitch, -40.0, 89.0))
     cam = Camera(intr, CameraPose(0.0, 0.0, alt, heading, pitch))
     horizon_row = cam.horizon_row()
+    out = dict(hfov=hfov, intr=intr, alt=alt, heading=heading, pitch=pitch, cam=cam, horizon_row=horizon_row)
+    if "box_area" not in a:
+        return out
+    area = _lognormal_clipped(rng, a["box_area"]["median"] * float(cfg["box"].get("area_scale", 1.0)),
+                              a["box_area"]["sigma"], a["box_area"]["lo"], a["box_area"]["hi"])
+    asp = _lognormal_clipped(rng, a["box_aspect_wh"]["median"], a["box_aspect_wh"]["sigma"], 0.4, 4.5)
+    w_px = math.sqrt(area * W * H * asp)
+    h_px = w_px / asp
+    if w_px > 0.98 * W:
+        w_px = 0.98 * W
+        h_px = area * W * H / w_px
+    if h_px > 0.98 * H:
+        h_px = 0.98 * H
+        w_px = area * W * H / h_px
+    cx = _tnormal(rng, a["box_cx"]["mean"], a["box_cx"]["sd"], 0.10, 0.92) * W
+    cy = _tnormal(rng, a["box_cy"]["mean"], a["box_cy"]["sd"], 0.15, 0.80) * H
+    if a.get("base_below_horizon_px") is not None:        # horizon archetypes: base just under the horizon
+        base_v = horizon_row + _u(rng, a["base_below_horizon_px"])
+    else:                                                  # steep views: base at the bottom of the box
+        base_v = min(cy + h_px / 2.0, H - 6.0)
+    base_v = float(np.clip(base_v, max(horizon_row + 6.0, 4.0), H - 4.0))
+    base_u = float(np.clip(cx, 0.08 * W, 0.95 * W))
+    out.update(w_px=w_px, h_px=h_px, cx=cx, cy=cy, base_u=base_u, base_v=base_v,
+               box=_target_box(a["style"], cx, cy, w_px, h_px, base_v))
+    return out
+
+
+def sample_scene(cfg: Dict[str, Any], split: str, index: int, base_seed: int, attempt: int = 0,
+                 is_positive: bool = True) -> SceneParams:
+    rng = scene_rng(base_seed, split, index, attempt)
+    W, H = int(cfg["image"]["width"]), int(cfg["image"]["height"])
+    arch_cfg = cfg["archetypes"]
+    arch = _pick(rng, {k: v["weight"] for k, v in arch_cfg.items()})
+    a = arch_cfg[arch]
+    ep = cfg["box"]["edge_policy"]
+
+    # ---- camera (+ target box for positives, re-drawn until it agrees with the edge-touch draw) ----
+    want_touch: Optional[bool] = None
+    tries = 0
+    if is_positive:
+        want_touch = bool(rng.random() < ep["p_touch"])
+        for tries in range(1, int(ep["max_tries"]) + 1):
+            d = _sample_camera_and_target(rng, cfg, a, W, H)
+            n0, e0, ok = d["cam"].unproject_ground(np.array(d["base_u"]), np.array(d["base_v"]))
+            if not bool(ok):
+                continue
+            if _touches(d["box"], W, H, ep["margin"]) == want_touch:
+                break
+        else:                                              # keep the last usable draw (rare; recorded via tries)
+            if not bool(ok):
+                raise RuntimeError("smoke base is above the horizon; check config ranges")
+    else:
+        d = _sample_camera_and_target(rng, cfg, {k: v for k, v in a.items() if k not in ("box_area",)}, W, H)
+    intr, cam, hfov, alt, heading, pitch, horizon_row = d["intr"], d["cam"], d["hfov"], d["alt"], d["heading"], d["pitch"], d["horizon_row"]
 
     # ---- environment --------------------------------------------------
     at = cfg["atmosphere"]
@@ -195,35 +256,14 @@ def sample_scene(cfg: Dict[str, Any], split: str, index: int, base_seed: int, at
         grade=tuple(float(x) for x in rng.uniform(0.94, 1.06, size=3)),
         noise_sigma=_u(rng, cfg["post"]["noise_sigma"]), blur_sigma_px=_u(rng, cfg["post"]["blur_sigma_px"]),
         jpeg_quality=int(rng.integers(cfg["image"]["jpeg_quality"][0], cfg["image"]["jpeg_quality"][1] + 1)),
-        smoke=None,
+        smoke=None, edge_touch_wanted=want_touch, edge_policy_tries=int(tries),
     )
     if not is_positive:
         return SceneParams(**p)
 
-    # ---- target box (image space) ----------------------------------------
-    area = _lognormal_clipped(rng, a["box_area"]["median"], a["box_area"]["sigma"], a["box_area"]["lo"], a["box_area"]["hi"])
-    asp = _lognormal_clipped(rng, a["box_aspect_wh"]["median"], a["box_aspect_wh"]["sigma"], 0.4, 4.5)
-    w_px = math.sqrt(area * W * H * asp)
-    h_px = w_px / asp
-    if w_px > 0.98 * W:
-        w_px = 0.98 * W
-        h_px = area * W * H / w_px
-    if h_px > 0.98 * H:
-        h_px = 0.98 * H
-        w_px = area * W * H / h_px
-    cx = _tnormal(rng, a["box_cx"]["mean"], a["box_cx"]["sd"], 0.10, 0.92) * W
-    cy = _tnormal(rng, a["box_cy"]["mean"], a["box_cy"]["sd"], 0.15, 0.80) * H
-
-    if a.get("base_below_horizon_px") is not None:        # horizon archetypes: base just under the horizon
-        base_v = horizon_row + _u(rng, a["base_below_horizon_px"])
-    else:                                                  # steep views: base at the bottom of the box
-        base_v = min(cy + h_px / 2.0, H - 6.0)
-    base_v = float(np.clip(base_v, max(horizon_row + 6.0, 4.0), H - 4.0))
-    base_u = float(np.clip(cx, 0.08 * W, 0.95 * W))
-
+    # ---- smoke -------------------------------------------------------------------
+    w_px, h_px, cx, cy, base_u, base_v = d["w_px"], d["h_px"], d["cx"], d["cy"], d["base_u"], d["base_v"]
     n0, e0, ok = cam.unproject_ground(np.array(base_u), np.array(base_v))
-    if not bool(ok):
-        raise RuntimeError("smoke base is above the horizon; check config ranges")
     an, ae = float(n0), float(e0)
     _, depth = cam.project(np.array([an, ae, 0.0]))
     scale = float(depth) / intr.fx                                       # metres per pixel at the smoke
@@ -248,11 +288,13 @@ def sample_scene(cfg: Dict[str, Any], split: str, index: int, base_seed: int, at
         lean = 0.0
         wind = float(rng.uniform(0, 360))
     else:
-        # drift across the view: ~half the target width comes from the plume leaning with the wind
-        # (columns lean little, wide plumes lean a lot); wind is mostly perpendicular to the camera heading
-        drift_w = w_world * (0.15 if style == "column" else 0.55)
-        lean = float(np.clip(drift_w / max(ph, 1.0), 0.0, 3.0)) * float(rng.uniform(0.8, 1.2))
-        Wd = max(3.0, 0.5 * (w_world - drift_w) * 0.7)
+        # Drift (along-wind lean of the plume top) is drawn independently of the width target and capped
+        # (physically extreme beyond max_drift_over_height x plume height). It may not exceed 85% of the
+        # target width; the rest of the width comes from the cross-section (spread_m) and puff size.
+        lean = _u(rng, a["lean"])
+        lean = float(min(lean, sm["max_drift_over_height"], 0.85 * w_world / max(ph, 1.0)))
+        drift = lean * ph
+        Wd = max(3.0, 0.5 * (w_world - drift) * 0.7)
         height_m = ph
         side = 1.0 if rng.random() < 0.5 else -1.0
         wind = float((heading + side * rng.uniform(50.0, 130.0)) % 360.0)
@@ -264,8 +306,7 @@ def sample_scene(cfg: Dict[str, Any], split: str, index: int, base_seed: int, at
         opacity=_u(rng, a["opacity"]), puff_alpha=_u(rng, sm["puff_alpha"]),
         n_puffs=int(rng.integers(sm["puffs"][style][0], sm["puffs"][style][1] + 1)),
         color_mode=_pick(rng, sm["color_modes"]), shape_seed=int(rng.integers(0, 2**31 - 1)),
-        target_box_xyxy=(float(cx - w_px / 2), float(base_v - h_px if style != "curtain" else cy - h_px / 2),
-                         float(cx + w_px / 2), float(base_v if style != "curtain" else cy + h_px / 2)),
+        target_box_xyxy=tuple(float(v) for v in d["box"]),
         line_len_m=0.0,
     )
     p["smoke"] = smoke

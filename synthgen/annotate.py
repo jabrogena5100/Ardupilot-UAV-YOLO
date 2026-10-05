@@ -16,7 +16,7 @@ same as the Boreal YOLO labels). Negatives get an empty label file.
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
@@ -55,3 +55,10 @@ def yolo_line_to_box(line: str, width: int, height: int) -> Tuple[int, Tuple[flo
     cls, cx, cy, w, h = line.split()
     cx, cy, w, h = float(cx) * width, float(cy) * height, float(w) * width, float(h) * height
     return int(cls), (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+
+
+def box_variants(alpha: np.ndarray, variants: Dict[str, Dict[str, float]],
+                 min_pixels: int = 1) -> Dict[str, Optional[Tuple[float, float, float, float]]]:
+    """The same mask boxed under several label conventions (config `box.variants`), so a label-convention
+    ablation can rewrite labels from metadata without re-rendering any image."""
+    return {name: box_from_alpha(alpha, v["alpha_threshold"], v["pad_frac"], min_pixels) for name, v in variants.items()}
