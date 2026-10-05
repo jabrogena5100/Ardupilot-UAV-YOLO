@@ -416,3 +416,11 @@ Produce the first reproducible Level 2 evaluation matrix using fixed datasets, f
 * Implemented `sim/camera.py` (shared pinhole projection) and the `synthgen/` stubs (scene sampling, renderer, annotator, dataset writer), plus `eval/validate_dataset.py`. 31 unit tests pass (`python3 -m unittest discover -s tests -t .`).
 * Generated and validated a 180-image POC (1280x720, smoke only, 7.5% background): `docs/synthetic/poc_report.md`. Measured about 0.96 img/s on one core; a Boreal-sized set (4,954 images) is about 85 min.
 * Open items: edge-touching boxes (81% synthetic vs 30% Boreal), full-dataset size approval, `tilt_deg`/`fov_deg` convention for Level 3, eval harness (`eval/metrics.py`, `run_matrix.py`) still empty.
+
+### 2026-10-05 — Phase 5: synth_smoke_v1 pre-scaling changes (candidate, not frozen)
+
+* Implemented the approved changes: split-specific sprite banks (48/16/16), capped and decoupled plume drift, alternative box conventions in metadata, larger texture banks (16/6/6) with palette jitter, explicit positive/negative counts and separate `test_pos`/`test_all` views. Spec: `docs/synthetic/synth_smoke_v1_spec.md`.
+* Fixed a sampling bias introduced during this work (retries re-drew archetype/size); archetype mix and box-area marginal are preserved.
+* Edge-touch rate is NOT corrected (0.80 vs Boreal 0.30); evidence and options in the spec. Awaiting a decision before freezing.
+* Verified Model B's optimizer: AdamW, lr0 0.002 (from `results.csv` and the Ultralytics 8.4.173 source). Model A will pin it explicitly.
+* Small POC regenerated and validated; two runs are byte-identical. Full dataset not generated; Model A not trained.

@@ -2,6 +2,8 @@
 
 Date: 2026-10-05. Status: **POC complete and validated; full-scale generation and Model A training NOT started.**
 
+Update: the approved Phase 5 pre-scaling changes and their results are in `docs/synthetic/synth_smoke_v1_spec.md` (second POC contact sheet: `poc_v2_contact_sheet.jpg`).
+
 Scope: build the 2.5D synthetic smoke pipeline (`sim/camera.py`, `synthgen/`, `eval/validate_dataset.py`), generate a
 180-image proof of concept, validate it automatically and visually, and measure throughput. No YOLO training, no
 RunPod training, no change to the frozen Boreal split or `real_boreal_v1`.
