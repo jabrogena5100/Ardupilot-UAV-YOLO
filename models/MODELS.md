@@ -4,8 +4,15 @@ Checkpoints live on the RunPod network volume `wildfire-datasets` (`sej40ez3ia`,
 
 ## real_boreal_best_v1.pt — Model B (real / Boreal), v1
 
-- Location: `/workspace/runs/real_boreal/real_boreal_best_v1.pt` (copy of `weights/best.pt`)
+- Experiment: Real Boreal smoke detector (summary: `docs/experiments/real_boreal_v1.md`)
+- Architecture: YOLOv8s
+- Training: 100 epochs, imgsz 640, batch 32, seed 0
+- Test mAP50: 0.944
+- Test mAP50-95: 0.669
 - SHA-256: `1dc35ef293b6b35bb2dadaf5b6d5887ece89ca9d55a445bfdde258286c8355b6`
+- RunPod copy: `/workspace/runs/real_boreal/real_boreal_best_v1.pt` (copy of `weights/best.pt`)
+- Local backup: `~/backups/real_boreal_v1/real_boreal_v1_backup/real_boreal_best_v1.pt` (verified against the SHA-256 above on 2026-10-05, together with `train_config_v1.json`, `test_metrics_v1.json`, `args.yaml`, `results.csv`, `manifest.json` and a `SHA256SUMS` file)
+- Git status: checkpoint intentionally excluded by `.gitignore` (`*.pt`); not tracked
 - Full config + environment (pip freeze): `/workspace/runs/real_boreal/train_config_v1.json`
 - Trained: 2026-10-04, RunPod secure 1x RTX 4090, US-IL-1, wall time 2268 s (100 epochs, ~22 s/epoch)
 
