@@ -1,6 +1,6 @@
 # Model registry
 
-Checkpoints live on the RunPod network volume `wildfire-datasets` (`sej40ez3ia`, US-IL-1), not in git.
+Checkpoints are never committed to git (`*.pt` is gitignored). The primary copy lives on the RunPod network volume `wildfire-datasets` (`sej40ez3ia`, US-IL-1); a verified backup is kept on the local Ubuntu machine under `~/backups/`. Each entry below lists both locations and the SHA-256.
 
 ## real_boreal_best_v1.pt — Model B (real / Boreal), v1
 
