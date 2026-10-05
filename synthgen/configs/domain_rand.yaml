@@ -1,0 +1,153 @@
+# Synthetic smoke dataset: domain-randomisation and distribution parameters.
+#
+# Every number that shapes the dataset lives here, nothing is hard-coded in the
+# renderer. Ranges are [low, high] sampled uniformly unless a distribution is
+# named. The dataset is DESIGNED TO BE COMPARABLE TO Boreal, not to look
+# impressive: the targets below come from docs/synthetic/boreal_visual_analysis.md
+# (train/val label statistics). Which statistics are matched and which are only
+# approximate is tabulated there.
+#
+# Task / class space: smoke only, class 0 (identical to the Boreal baseline).
+
+version: 1
+
+classes:
+  0: smoke
+
+image:
+  width: 1280
+  height: 720                     # 16:9, matching Boreal's ~1.87 mean aspect
+  jpeg_quality: [85, 95]
+
+# --- positives / negatives -------------------------------------------------
+# Boreal train has 7.47% background images. Boreal val/test have (almost) none,
+# so the synthetic val/test also get negatives, otherwise false positives could
+# not be measured on them.
+negatives:
+  fraction: {train: 0.075, val: 0.075, test: 0.075}
+
+# --- label (box) definition -------------------------------------------------
+# Box = bounding box of the smoke layer's alpha mask above `alpha_threshold`,
+# grown by `pad_frac` of the box size per side, clipped to the image. A low
+# threshold includes the thin translucent haze, as Boreal annotators did.
+# NOT matched to Boreal: Boreal boxes are loose and subjective, these are exact.
+box:
+  alpha_threshold: 0.08
+  pad_frac: 0.02
+  min_area_frac: 0.01             # reject scenes whose visible smoke is smaller than this
+  max_area_frac: 0.92
+  min_alpha_pixels: 400
+  dense_alpha: 0.30               # a plume must have a visibly dense core ...
+  min_dense_frac: 0.04            # ... at least this fraction of the box with alpha >= dense_alpha
+
+# --- scene archetypes --------------------------------------------------------
+# Weights follow the per-site share of Boreal train boxes (Ruokolahti 36%,
+# Karkkila 23%, Heinola 22%, Evo 19%), with Evo+Heinola split into a horizon
+# and a steep-oblique archetype. Site is only a proxy for archetype.
+#
+# box_area : lognormal(median, sigma) of box area / image area, clipped [lo, hi]
+# box_aspect_wh : lognormal(median, sigma) of pixel width / height
+# box_cx, box_cy : normal(mean, sd) of the box centre as image fractions
+# horizon_row : image-height fraction of the horizon line (null = pitch sampled)
+# pitch_deg   : optical axis below the horizon, used when horizon_row is null
+# base_below_horizon_px : smoke base distance below the horizon (horizon archetypes)
+# style: column | plume | curtain (plume geometry, see synthgen/render.py)
+archetypes:
+  column:
+    weight: 0.23
+    style: column
+    horizon_row: [0.38, 0.56]
+    alt_m: [90, 260]
+    base_below_horizon_px: [25, 80]
+    box_area: {median: 0.22, sigma: 0.40, lo: 0.08, hi: 0.50}
+    box_aspect_wh: {median: 0.75, sigma: 0.30}
+    box_cx: {mean: 0.60, sd: 0.14}
+    box_cy: {mean: 0.40, sd: 0.08}
+    ground_kinds: {canopy: 0.8, mixed: 0.2}
+    lean: [0.0, 0.25]
+    opacity: [0.55, 0.9]
+    cloud_cover: [0.0, 0.5]
+  wide_horizon:
+    weight: 0.20
+    style: plume
+    horizon_row: [0.22, 0.48]
+    alt_m: [120, 320]
+    base_below_horizon_px: [30, 110]
+    box_area: {median: 0.30, sigma: 0.40, lo: 0.10, hi: 0.60}
+    box_aspect_wh: {median: 1.9, sigma: 0.30}
+    box_cx: {mean: 0.60, sd: 0.15}
+    box_cy: {mean: 0.40, sd: 0.07}
+    ground_kinds: {canopy: 0.7, mixed: 0.3}
+    lean: [0.2, 0.9]
+    opacity: [0.45, 0.85]
+    cloud_cover: [0.0, 0.6]
+  wide_steep:
+    weight: 0.21
+    style: plume
+    horizon_row: null
+    pitch_deg: [28, 46]
+    alt_m: [120, 300]
+    box_area: {median: 0.34, sigma: 0.45, lo: 0.12, hi: 0.70}
+    box_aspect_wh: {median: 1.45, sigma: 0.30}
+    box_cx: {mean: 0.52, sd: 0.15}
+    box_cy: {mean: 0.38, sd: 0.10}
+    ground_kinds: {canopy: 0.9, mixed: 0.1}
+    lean: [0.2, 1.0]
+    opacity: [0.45, 0.85]
+    cloud_cover: [0.0, 0.3]
+  curtain_close:
+    weight: 0.36
+    style: curtain
+    horizon_row: null
+    pitch_deg: [30, 50]
+    alt_m: [60, 170]
+    box_area: {median: 0.74, sigma: 0.20, lo: 0.40, hi: 0.90}
+    box_aspect_wh: {median: 1.55, sigma: 0.20}
+    box_cx: {mean: 0.62, sd: 0.10}
+    box_cy: {mean: 0.45, sd: 0.07}
+    ground_kinds: {clearcut: 0.7, mixed: 0.3}
+    lean: [0.0, 0.5]
+    opacity: [0.35, 0.8]
+    cloud_cover: [0.0, 0.2]
+
+# --- camera -------------------------------------------------------------------
+# Boreal has no pose metadata; hfov is a plausible wide-angle drone value.
+camera:
+  hfov_deg: [72, 86]
+
+# --- procedural background ------------------------------------------------------
+# A texture bank is generated once per split from split-specific seeds, so no
+# ground texture is shared between train, val and test.
+background:
+  bank_size: {train: 6, val: 3, test: 3}
+  texture_px: 1024
+  texel_m: 0.5                    # metres per texel of the tileable ground texture (tile = texture_px * texel_m)
+  scale: [0.7, 1.6]
+  lake_fraction: [0.0, 0.08]
+  clouds_in_negatives_bias: 0.25  # extra cloud cover added to negatives (hard negatives)
+  max_ground_range_m: 9000
+
+# --- atmosphere / lighting ---------------------------------------------------------
+atmosphere:
+  haze_per_m: [0.00010, 0.00055]  # extinction coefficient; 1/k ~ visibility
+  sun_elevation_deg: [22, 70]
+  exposure: [0.75, 1.25]
+  backlit_probability: 0.25       # dark forest against bright sky
+  backlit_ground_gain: [0.35, 0.6]
+
+# --- smoke (2.5D billboard puffs, no true volume) ---------------------------------
+smoke:
+  color_modes: {white: 0.40, grey: 0.30, tan: 0.10, mixed: 0.20}
+  puffs: {column: [160, 320], plume: [200, 420], curtain: [500, 900]}
+  puff_alpha: [0.10, 0.34]
+  style_alpha_gain: {column: 1.0, plume: 1.0, curtain: 1.3}
+  max_puff_radius_px: 520
+  render_scale: 0.5               # smoke layer rendered at this fraction of 1280x720, then upsampled (YOLO sees 640 wide anyway)
+  calib_scale: 0.25               # plume size is calibrated to the target box at this scale
+  calib_iters: 5
+  flames: {enabled: false}        # flames are unlabelled and disabled by default
+
+# --- camera/sensor post-processing -----------------------------------------------
+post:
+  noise_sigma: [0.0, 0.012]
+  blur_sigma_px: [0.0, 0.8]

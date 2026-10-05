@@ -36,6 +36,8 @@ class IntrinsicsTests(unittest.TestCase):
             cam(alt=0.0)
         with self.assertRaises(ValueError):
             cam(pitch=95.0)
+        with self.assertRaises(ValueError):
+            cam(pitch=-50.0)
 
 
 class ProjectionTests(unittest.TestCase):
@@ -107,6 +109,16 @@ class ProjectionTests(unittest.TestCase):
         uv, _ = c.project_ground(np.array(1e6), np.array(0.0))
         self.assertAlmostEqual(float(uv[1]), h, delta=0.2)
         self.assertEqual(cam(pitch=90.0).horizon_row(), -math.inf)
+
+    def test_negative_pitch_horizon_below_centre(self):
+        c = cam(alt=100.0, hdg=0.0, pitch=-5.0)
+        h = c.horizon_row()
+        self.assertGreater(h, 360.0)                                   # horizon below the image centre
+        self.assertAlmostEqual(h, 360.0 + INTR.fy * math.tan(math.radians(5.0)), places=9)
+        _, _, ok_centre = c.unproject_ground(np.array(640.0), np.array(360.0))
+        self.assertFalse(bool(ok_centre))                              # centre ray points above the horizon
+        _, _, ok_low = c.unproject_ground(np.array(640.0), np.array(h + 2.0))
+        self.assertTrue(bool(ok_low))
 
     def test_ground_grid_matches_pointwise(self):
         c = cam(alt=90.0, hdg=120.0, pitch=50.0)

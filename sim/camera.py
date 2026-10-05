@@ -23,7 +23,8 @@ Pose:  position (n, e, alt) with alt = height above the flat ground.
        heading_deg: compass bearing of the camera's horizontal look direction
                     (0 = north, 90 = east).
        pitch_deg:   how far the optical axis points BELOW the horizon
-                    (0 = horizontal, 90 = straight down / nadir). Roll is not modelled.
+                    (0 = horizontal, 90 = straight down / nadir; slightly negative
+                    values look above the horizon). Roll is not modelled.
        This is an explicit convention because the repo's `camera: {tilt_deg: 30}`
        does not say whether 30 is measured from nadir or from the horizon. Convert
        before use, do not assume.
@@ -97,7 +98,7 @@ class CameraPose:
     e: float
     alt: float                       # metres above the flat ground plane (must be > 0)
     heading_deg: float = 0.0         # compass bearing of the look direction
-    pitch_deg: float = 30.0          # optical axis below the horizon (0 horizon, 90 nadir)
+    pitch_deg: float = 30.0          # optical axis below the horizon (0 horizon, 90 nadir, <0 above)
 
 
 @dataclass(frozen=True)
@@ -132,8 +133,8 @@ class Camera:
     def __init__(self, intrinsics: CameraIntrinsics, pose: CameraPose):
         if not pose.alt > 0:
             raise ValueError(f"camera altitude must be > 0 (got {pose.alt})")
-        if not 0.0 <= pose.pitch_deg <= 90.0:
-            raise ValueError(f"pitch_deg must be in [0, 90] (got {pose.pitch_deg})")
+        if not -45.0 <= pose.pitch_deg <= 90.0:
+            raise ValueError(f"pitch_deg must be in [-45, 90] (got {pose.pitch_deg})")
         self.intr = intrinsics
         self.pose = pose
         h = math.radians(pose.heading_deg)
