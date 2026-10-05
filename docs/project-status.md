@@ -29,7 +29,7 @@ Level 3 then compares how the resulting perception models affect autonomous moni
 
 **Real dataset:** Boreal Forest dataset.
 
-**Synthetic dataset:** Not yet completed. Planned approach is the project's 2.5D synthetic image generator using:
+**Synthetic dataset:** `synth_smoke_v1` generation is **COMPLETE and validated** (5,304 images, 2026-10-05; record in `docs/datasets/synth_smoke_v1.md`). Local copy: `~/datasets/synth_smoke_v1/`. The RunPod generation pod is deleted, the dataset is not yet on the RunPod volume, and **no Model A training has started**. It was built with the project's 2.5D synthetic image generator using:
 
 * ground-plane forest texture
 * pinhole camera projection
@@ -248,6 +248,8 @@ These should point directly to the current files in the repository.
 
 Implement the 2.5D synthetic image generator and reusable projection math.
 
+**Status: done.** Generator frozen at `9cb0f1a` (tag `synth-v1`); full `synth_smoke_v1` dataset generated and validated 2026-10-05 (`docs/datasets/synth_smoke_v1.md`). Next decision: review the synthetic edge-touch distribution before Model A training (see Latest checkpoint).
+
 ### Priority 4 — Build `sim/camera.py`
 
 Use the same projection model as the synthetic generator.
@@ -381,6 +383,8 @@ Continue from the existing repository state rather than restarting or recreating
 
 ## Latest checkpoint
 
+**Update 2026-10-05 (end of session):** `synth_smoke_v1` generation is COMPLETE and validated; the RunPod CPU pod is deleted; no Model A training has started. **Next decision:** review the synthetic edge-touch distribution (about 0.76 train / 0.76 val / 0.77 test vs about 0.30 in Boreal train) before spending GPU money on Model A. The spec (Option A) had already accepted this gap as a documented limitation with a pre-declared diagnostic, so the review is about whether to proceed as-is or to make a post-hoc v2; do not change `synth_smoke_v1` itself. Also before any upload or training: the generated YAML/list files contain the pod's absolute paths and need path-rewritten copies. Details: `docs/datasets/synth_smoke_v1.md`.
+
 **Current highest-priority task:**
 
 Build the unified annotation schema and evaluation harness before expanding the UAV/dashboard system further.
@@ -424,3 +428,11 @@ Produce the first reproducible Level 2 evaluation matrix using fixed datasets, f
 * Edge-touch rate is NOT corrected (0.80 vs Boreal 0.30); evidence and options in the spec. Awaiting a decision before freezing.
 * Verified Model B's optimizer: AdamW, lr0 0.002 (from `results.csv` and the Ultralytics 8.4.173 source). Model A will pin it explicitly.
 * Small POC regenerated and validated; two runs are byte-identical. Full dataset not generated; Model A not trained.
+
+### 2026-10-05 — synth_smoke_v1 full generation (complete, validated; no training)
+
+* Generated on a RunPod CPU pod (`synth-v1-cpu-gen`, about $0.07/hr, about $0.13 total) from frozen commit `9cb0f1a`, seed 1001, 5,304 images (train 3,479 / val 774 / test 1,051) in 2,781 s. Pod deleted afterwards.
+* First run aborted at `val_000737` (no valid scene in the default 40 attempts; faint `wide_steep` plume). Clean rerun with the existing runtime flag `--max-attempts 500` succeeded; max `attempts_used` = 66. No generator code changed. All 4,216 images from the partial run were byte-identical in the rerun.
+* Validator passed on `data.yaml`, `data_test_pos.yaml`, `data_test_all.yaml`; tarball and all 10,616 file hashes verified after transfer to `~/datasets/synth_smoke_v1/`.
+* Measured edge-touch fractions 0.76 / 0.76 / 0.77 vs Boreal 0.30: still open, to be reviewed before Model A training. Absolute-path caveat in the YAML/list files documented.
+* Full record: `docs/datasets/synth_smoke_v1.md`. Spec status line updated.

@@ -3,9 +3,10 @@
 Condition name: **`Boreal-prior-matched`**. Boreal train/val statistics informed the synthetic box-geometry priors
 (`docs/synthetic/boreal_visual_analysis.md`); Boreal **test** was never used. No Boreal pixel is used anywhere.
 
-Status (2026-10-05): **design approved; edge-touch decision recorded (Option A); freeze preparation done.** Final
-generation, tagging, Model A training and any push are separate steps that each need explicit approval. Nothing at
-full scale has been generated and Model A has not been trained. POC v2 (110 images, `~/synth_poc_v2`, not committed)
+Status (2026-10-05, updated at end of day): **frozen at `9cb0f1a` (tag `synth-v1`); full dataset GENERATED and
+validated** (see `docs/datasets/synth_smoke_v1.md`). Model A has not been trained, and the dataset has not been
+uploaded to the RunPod volume; both need separate approval. The text below describes the plan as written before
+generation (including "Nothing at full scale has been generated", which is now outdated). POC v2 (110 images, `~/synth_poc_v2`, not committed)
 validates and is byte-reproducible.
 
 ## 1. Approved dataset design
