@@ -3,9 +3,10 @@
 Condition name: **`Boreal-prior-matched`**. Boreal train/val statistics informed the synthetic box-geometry priors
 (`docs/synthetic/boreal_visual_analysis.md`); Boreal **test** was never used. No Boreal pixel is used anywhere.
 
-Status (2026-10-05): approved Phase 5 changes implemented and validated on a small POC (`~/synth_poc_v2`, 110 images,
-not committed). **Not frozen**: freezing is a separate step awaiting approval (see "Freeze procedure"). **Nothing at full
-scale has been generated; Model A has not been trained.**
+Status (2026-10-05): **design approved; edge-touch decision recorded (Option A); freeze preparation done.** Final
+generation, tagging, Model A training and any push are separate steps that each need explicit approval. Nothing at
+full scale has been generated and Model A has not been trained. POC v2 (110 images, `~/synth_poc_v2`, not committed)
+validates and is byte-reproducible.
 
 ## 1. Approved dataset design
 
@@ -55,53 +56,71 @@ retry attempt. A first version of the edge-touch work re-drew them on every retr
 4,000 sampled scenes, intended 0.23 / 0.20 / 0.21 / 0.36) and the box-area marginal (P5/P50/P95 0.127 / 0.324 / 0.771 vs
 Boreal 0.121 / 0.338 / 0.815).
 
-## 4. Edge-touching: NOT corrected (open item)
+## 4. Known limitation of synth_smoke_v1: edge-touching (Option A, approved)
 
-Target: Boreal train 30.4% of boxes touch an image edge (train-val range 0.30-0.43; per-scene-type rates unknown).
+**Decision (frozen before Model A is trained and before any Synth->Real result is seen): accept and document the
+mismatch. It is a known synthetic-to-real domain gap of `synth_smoke_v1`, not something to be optimised away.**
 
-| Set (smoke images) | n | edge-touch | area P5 / P50 / P95 | w50 | h50 | cx50 | cy50 |
-|---|---|---|---|---|---|---|---|
-| Boreal train (reference) | 3,219 | 0.304 | 0.121 / 0.338 / 0.815 | 0.62 | 0.62 | 0.58 | 0.40 |
-| Before: POC v1 | 167 | 0.814 | 0.133 / 0.336 / 0.776 | 0.56 | 0.67 | 0.58 | 0.43 |
-| After: POC v2 (final config) | 97 | 0.804 | 0.121 / 0.329 / 0.806 | 0.56 | 0.77 | 0.59 | 0.50 |
+| Quantity | Boreal train | synth_smoke_v1 (POC v2) |
+|---|---|---|
+| Fraction of boxes touching an image edge | **about 0.304** (train-val range 0.30-0.43) | **about 0.804** (97 smoke images) |
+| Box area / image, P5 / P50 / P95 | 0.121 / 0.338 / 0.815 | 0.121 / 0.329 / 0.806 |
+| Smoke images with 1 box | 99.6% | 100% |
+| Background fraction (train) | 0.075 | 0.075 (260 / 3,479) |
 
-What was tried and measured (POC metadata, no extra renders unless stated):
-- **Target-level policy** (a box touches only when geometry forces it): the intended decision rate is 0.44-0.46, but of 53
-  scenes whose target did not touch, 36 still produced a touching label. The rendered smoke extends well past its target
-  box (median 0.10 of the image height below the target bottom, P90 0.29), so target placement does not control the label.
-- **Label-level gate** (calibrate the plume, reject scenes whose predicted label disagrees, before any expensive
-  rendering): label touch fell only to 0.69, fell back on 23% of images after 10 attempts each, and cost about 4 attempts
-  per positive. Kept in the code, **off by default** (`edge_policy.enforce_on_labels: false`).
-- **Plume alignment** (shift the smoke base so the rendered box centre matches the target; tested on 30 scenes):
-  centre error roughly halved with vertical moves but some plumes collapsed (area ratio P10 0.13); horizontal-only gave
-  little. **Reverted**; not in the code.
-- **Label convention** does not rescue it: even the tight convention (0.30, no padding) touches 69% (default 80%).
-- **Margins and area scaling** only trade edge-touch against the box-area median (it fell to 0.23-0.28 when touching was
-  pushed down). Geometry alone forces about 44% of boxes to touch because the column and curtain size priors (taken from
-  Boreal percentiles) are large relative to the frame.
+The box-area distribution matches closely. Forcing the edge-touch frequency toward Boreal's would have distorted that
+well-matched area distribution or required increasingly Boreal-specific generator tuning, so it is deliberately not
+done. Options B (shrink column/curtain size priors) and C (joint position-and-size calibration) are **not** implemented
+for v1.
 
-Options, none applied (all need your approval):
-- A. **Accept and document** (recommended for v1): label-touch 0.80 vs Boreal 0.30. Effect is on box regression near
-  frame borders; it can be examined afterwards by evaluating Model A on Boreal test boxes stratified by touching/not
-  touching (analysis only, no tuning).
-- B. Shrink the column/curtain size priors until labels reach about 0.30-0.45. This moves the box-area marginal away from
-  Boreal's (a different mismatch).
-- C. A proper joint position-and-size calibration in image space. Two simple attempts failed; a robust version is a real
-  piece of work with uncertain payoff.
+Evidence (POC metadata): the target-level touch policy does not control labels (36 of 53 non-touching targets gave a
+touching label; the rendered smoke extends a median 0.10 of the image height below its target box, P90 0.29); even the
+tight convention (alpha 0.30, no padding) touches 69% of the time; geometry alone forces about 44% of boxes to touch
+under the size priors taken from Boreal percentiles. The label-level gate exists in the code but is **off by default**
+(`edge_policy.enforce_on_labels: false`); plume alignment was tried and reverted.
 
-## 5. Model A training specification (to match Model B)
+### Pre-declared diagnostic (analysis only, fixed now)
 
-Verified from local artifacts and the installed-version source for Ultralytics 8.4.173: Model B used `optimizer: auto`,
-which resolved to **AdamW, lr0 = 0.002, betas (0.9, 0.999)** (the `auto` rule gives AdamW when
-`ceil(N/64) x epochs <= 10,000`, otherwise MuSGD; for 3,479 images that is 5,500 iterations). Evidence: the learning rate
-in `results.csv` implies lr0 = 0.002 exactly (epoch 100: 3.98e-5 = 0.002 x 0.0199). Training log with the optimizer line
-is on the volume only and was not needed.
+After Model A exists, evaluate it on the Boreal test set grouped into **edge-touching** and **non-edge-touching**
+ground-truth boxes (a Boreal box touches when it is within 0.2% of the image border, the same definition used for the
+statistics above) using the same evaluation code path, and report mAP50, mAP50-95, precision and recall for each group,
+plus the false-positive/false-negative breakdown by group. This is a description of the domain gap only. **The result
+will not be used to modify, re-tune or regenerate `synth_smoke_v1`**; any later generator change is a new version
+(v2) reported as post-hoc. The same grouping may also be applied to Model B for reference.
 
-Pin for Model A (explicit, not `auto`): `model=yolov8s.pt imgsz=640 batch=32 epochs=100 patience=100 seed=0
-deterministic=True workers=8 optimizer=AdamW lr0=0.002 momentum=0.9 warmup_bias_lr=0.0 weight_decay=0.0005 lrf=0.01
-warmup_epochs=3 close_mosaic=10` with every other argument at the Ultralytics 8.4.173 defaults recorded in
-`~/backups/real_boreal_v1/.../args.yaml` (mosaic 1.0, hsv 0.015/0.7/0.4, translate 0.1, scale 0.5, fliplr 0.5,
-randaugment, erasing 0.4, amp). Explicit `AdamW` takes `lr0` and `momentum` from the arguments, so they must be set as above.
+## 5. Model A training specification (matched to Model B)
+
+Verified from local artifacts and the Ultralytics 8.4.173 source: Model B used `optimizer: auto`, which resolved at run
+time to **AdamW, lr0 0.002, betas (0.9, 0.999), warmup bias lr 0.0** (the `auto` rule gives AdamW when
+`ceil(N/64) x epochs <= 10,000`, otherwise MuSGD; for 3,479 images that is 5,500). The learning rate in `results.csv`
+implies lr0 = 0.002 exactly (epoch 100: 3.98e-5 = 0.002 x 0.0199). Model A has the same train size, so `auto` would give
+the same result, but the optimizer is pinned explicitly anyway.
+
+Exact differences between the Model B arguments (`args.yaml`) and the Model A arguments; **everything else is identical**
+(`imgsz 640`, `epochs 100`, `batch 32`, `patience 100`, `seed 0`, `deterministic True`, `workers 8`, pretrained
+`yolov8s.pt`, `single_cls False` with one class `0 = smoke`, `lrf 0.01`, `weight_decay 0.0005`, `warmup_epochs 3`,
+`close_mosaic 10`, `nbs 64`, `amp`, mosaic 1.0, hsv 0.015/0.7/0.4, translate 0.1, scale 0.5, fliplr 0.5, randaugment,
+erasing 0.4, `cos_lr False`, `rect False`):
+
+| Argument | Model B (args.yaml, nominal) | Model B (effective at run time) | Model A (explicit) |
+|---|---|---|---|
+| data | `/workspace/splits/boreal_v1/data.yaml` | same | `/workspace/synth_smoke_v1/data.yaml` |
+| optimizer | auto | AdamW | **AdamW** |
+| lr0 | 0.01 | 0.002 | **0.002** |
+| momentum (AdamW beta1) | 0.937 | 0.9 | **0.9** |
+| warmup_bias_lr | 0.1 | 0.0 | **0.0** |
+| run name | real_boreal | | synth_smoke_a_v1 |
+
+Planned command (to be run on the pod only after separate approval of cost, GPU, dataset, model, epochs and output location):
+
+```
+yolo detect train model=yolov8s.pt data=/workspace/synth_smoke_v1/data.yaml epochs=100 patience=100 imgsz=640 \
+  batch=32 seed=0 deterministic=True workers=8 plots=True optimizer=AdamW lr0=0.002 momentum=0.9 \
+  warmup_bias_lr=0.0 project=/workspace/runs name=synth_smoke_a_v1 exist_ok=False
+```
+
+Checkpoint selection uses the synthetic **val** split (best fitness, like Model B on Boreal val). The checkpoint is
+exported as `synth_smoke_best_v1.pt` and evaluated once per cell.
 
 ## 6. Pre-declared evaluation
 
@@ -122,12 +141,33 @@ randaugment, erasing 0.4, amp). Explicit `AdamW` takes `lr0` and `momentum` from
   time, i.e. memory-allocation overhead, not CPU steal). At the healthy speed the 5,304-image dataset is about
   1.7-1.8 hours; at today's speed it would be about 6-7 hours. Re-measure before the full run.
 - Storage about 0.8 GB; peak memory about 0.54 GB.
+- Slowdown check at freeze preparation (idle machine): a 3M-iteration pure-Python loop takes about 1.35 s against about
+  0.3 s expected on a healthy core, with no competing process. Recommendation: restart the VM and re-run that check
+  before the full generation; proceed on the current VM only if the restart does not restore normal speed, in which case
+  the run needs about 6-7 hours and should be launched in a persistent session (tmux or nohup), because the generator
+  is not resumable.
 
-## 8. Freeze procedure (needs approval)
+## 8. Freeze and generation plan (each step needs approval)
 
-1. Decide the edge-touch option above.
-2. Full tests pass; small POC validates; contact sheet reviewed.
-3. Commit with a clean tree, tag `synth-v1`, record the commit and config hash.
-4. Generate the full dataset from that tag; run the validator; record the manifest hashes in a short
-   `docs/datasets/synth_smoke_v1.md`; only then evaluate Model A on Boreal test.
-5. After that, any generator change is v2 and must be reported as post-hoc.
+1. Full test suite passes (41 tests) and POC v2 validates (see below). Done at freeze preparation.
+2. Commit the spec with a clean tree; that commit defines the frozen generator and config. Tag name: **`synth-v1`**
+   (annotated). The tag is created only after approval; the exact commit hash is reported before tagging.
+3. Generate from the tag, in a clean checkout of that tag:
+
+```
+python3 -m synthgen.generate_dataset --config synthgen/configs/domain_rand.yaml \
+  --out ~/datasets/synth_smoke_v1 --counts train=3219:260,val=774:0,test=701:350 \
+  --seed 1001 --dataset-id synth_smoke_v1 --contact-sheet 24
+```
+
+   Destination: `~/datasets/synth_smoke_v1` on the local VM (outside the repository; never committed). The generator
+   refuses to overwrite an existing `manifest.json`. Expected output: 5,304 images (about 0.8 GB), `data.yaml`,
+   `data_test_pos.yaml`, `data_test_all.yaml`, `lists/`, `metadata.jsonl`, `manifest.json`.
+4. Run the validator on `data.yaml`, `data_test_pos.yaml` and `data_test_all.yaml`; compare against the reference
+   statistics; record the manifest hashes in `docs/datasets/synth_smoke_v1.md`.
+5. Upload to the RunPod volume only with separate approval (cost stated first); then train Model A, then evaluate.
+6. After that, any generator change is v2 and must be reported as post-hoc.
+
+Generation caveat: the generator is not resumable; a crash or a stopped terminal loses the run. Per-image generation is
+deterministic and independent, so a skip-existing resume option would not change any output, but it would be a code
+change and, if wanted, should be made and tested **before** the freeze commit.
