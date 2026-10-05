@@ -62,3 +62,10 @@ def box_variants(alpha: np.ndarray, variants: Dict[str, Dict[str, float]],
     """The same mask boxed under several label conventions (config `box.variants`), so a label-convention
     ablation can rewrite labels from metadata without re-rendering any image."""
     return {name: box_from_alpha(alpha, v["alpha_threshold"], v["pad_frac"], min_pixels) for name, v in variants.items()}
+
+
+def edge_gap(box: Tuple[float, float, float, float], width: int, height: int) -> float:
+    """Smallest distance from the box to any image edge, as a fraction of that dimension (0 = touching)."""
+    x1, y1, x2, y2 = box
+    return min(max(x1, 0.0) / width, (width - min(x2, float(width))) / width,
+               max(y1, 0.0) / height, (height - min(y2, float(height))) / height)

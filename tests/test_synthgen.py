@@ -32,6 +32,13 @@ def small_cfg():
     return cfg
 
 
+def gated_cfg():
+    """small_cfg with the (default-off) label-level edge gate switched on, for the tests that exercise it."""
+    cfg = small_cfg()
+    cfg["box"]["edge_policy"]["enforce_on_labels"] = True
+    return cfg
+
+
 class SceneTests(unittest.TestCase):
     def test_sampling_is_deterministic_and_split_disjoint(self):
         cfg = small_cfg()
@@ -128,7 +135,7 @@ class EndToEndTests(unittest.TestCase):
                 r = Renderer(cfg, 5)
                 with open(os.path.join(out, "metadata.jsonl"), "w") as mf:
                     for split, npos, nneg in (("train", 7, 1), ("val", 4, 0), ("test", 3, 1)):
-                        gd.generate_split(cfg, r, split, npos, nneg, 5, out, 8, mf, log_every=0)
+                        gd.generate_split(cfg, r, split, npos, nneg, 5, out, 40, mf, log_every=0)
                 import yaml
                 with open(os.path.join(out, "data.yaml"), "w") as yf:
                     yaml.safe_dump({"path": out, "train": "images/train", "val": "images/val", "test": "images/test",
@@ -151,7 +158,7 @@ class EndToEndTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             r = Renderer(cfg, 5)
             with open(os.path.join(d, "metadata.jsonl"), "w") as mf:
-                gd.generate_split(cfg, r, "train", 4, 0, 5, d, 8, mf, log_every=0)
+                gd.generate_split(cfg, r, "train", 4, 0, 5, d, 40, mf, log_every=0)
             import yaml
             with open(os.path.join(d, "data.yaml"), "w") as yf:
                 yaml.safe_dump({"path": d, "train": "images/train", "names": {0: "smoke"}}, yf)
@@ -250,19 +257,39 @@ class ApprovedChangeTests(unittest.TestCase):
         self.assertLess(float(np.std(np.array(means2), axis=0).max()), float(spread.max()))
 
     # --- 5. edge policy ---------------------------------------------------------------------
-    def test_edge_policy_hits_the_target_touch_rate(self):
+    def test_image_level_draws_do_not_change_with_the_attempt(self):
+        """Archetype, box size and the touch draw are fixed per image index, so retries cannot bias the mix."""
+        for i in range(30):
+            a0 = sample_scene(self.cfg, "train", i, 1001, 0, True)
+            a3 = sample_scene(self.cfg, "train", i, 1001, 3, True)
+            self.assertEqual(a0.archetype, a3.archetype)
+            self.assertEqual(a0.edge_touch_wanted, a3.edge_touch_wanted)
+            self.assertEqual(a0.edge_touch_forced, a3.edge_touch_forced)
+            w0 = a0.smoke.target_box_xyxy[2] - a0.smoke.target_box_xyxy[0]
+            w3 = a3.smoke.target_box_xyxy[2] - a3.smoke.target_box_xyxy[0]
+            h0 = a0.smoke.target_box_xyxy[3] - a0.smoke.target_box_xyxy[1]
+            h3 = a3.smoke.target_box_xyxy[3] - a3.smoke.target_box_xyxy[1]
+            self.assertAlmostEqual(w0, w3, places=6)
+            self.assertAlmostEqual(h0, h3, places=6)
+            self.assertNotEqual(a0.cam_alt_m, a3.cam_alt_m)            # nuisance variables do change
+
+    def test_edge_policy_rates_and_archetype_mix(self):
         from synthgen.scene_params import _touches
-        ep = self.cfg["box"]["edge_policy"]
-        W, H = self.cfg["image"]["width"], self.cfg["image"]["height"]
-        touch = []
-        agree = []
-        for i in range(500):
-            sp = sample_scene(self.cfg, "train", i, 1001, 0, True)
-            t = _touches(sp.smoke.target_box_xyxy, W, H, ep["margin"])
-            touch.append(t)
-            agree.append(t == sp.edge_touch_wanted)
-        self.assertGreater(float(np.mean(agree)), 0.90)                    # most scenes honour the draw within max_tries
-        self.assertAlmostEqual(float(np.mean(touch)), ep["p_touch"], delta=0.08)
+        cfg = load_config(CFG_PATH)                  # sampling only (no rendering), so the real 1280x720 config is cheap
+        ep = cfg["box"]["edge_policy"]
+        W, H = cfg["image"]["width"], cfg["image"]["height"]
+        N = 1500
+        touch, wanted, arch = [], [], []
+        for i in range(N):
+            sp = sample_scene(cfg, "train", i, 1001, 0, True)
+            touch.append(_touches(sp.smoke.target_box_xyxy, W, H, ep["margin"]))
+            wanted.append(sp.edge_touch_wanted)
+            arch.append(sp.archetype)
+        self.assertGreater(float(np.mean(np.array(touch) == np.array(wanted))), 0.90)    # targets honour the draw
+        self.assertGreater(float(np.mean(wanted)), 0.25)                                # pooled touch rate: far below the
+        self.assertLess(float(np.mean(wanted)), 0.55)                                   # old 0.81, near Boreal's 0.30-0.43
+        for k, v in cfg["archetypes"].items():                                         # mix not distorted by the policy
+            self.assertAlmostEqual(arch.count(k) / N, v["weight"], delta=0.04, msg=k)
 
     def test_explicit_pos_neg_counts_and_test_views(self):
         cfg = self.cfg
@@ -272,12 +299,45 @@ class ApprovedChangeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             r = Renderer(cfg, 11)
             with open(os.path.join(d, "metadata.jsonl"), "w") as mf:
-                gd.generate_split(cfg, r, "test", 4, 2, 11, d, 8, mf, log_every=0)
+                gd.generate_split(cfg, r, "test", 4, 2, 11, d, 40, mf, log_every=0)
             with open(os.path.join(d, "metadata.jsonl")) as mf:
                 recs = [json.loads(l) for l in mf]
             self.assertEqual(sum(1 for x in recs if not x["is_positive"]), 2)
             self.assertTrue(all(x["box_variants"] for x in recs if x["is_positive"]))
             self.assertTrue(all(x["label_convention"] == "default" for x in recs))
+
+    # --- 6. label-level edge enforcement -------------------------------------------------
+    def test_rendered_labels_follow_the_edge_touch_draw(self):
+        cfg = gated_cfg()
+        with tempfile.TemporaryDirectory() as d:
+            r = Renderer(cfg, 21)
+            with open(os.path.join(d, "metadata.jsonl"), "w") as mf:
+                gd.generate_split(cfg, r, "train", 24, 0, 21, d, 60, mf, log_every=0)
+            with open(os.path.join(d, "metadata.jsonl")) as mf:
+                recs = [json.loads(l) for l in mf]
+        self.assertEqual(len(recs), 24)
+        for rec in recs:
+            if not rec["edge_gate_fallback"]:                      # every gated image follows its draw exactly
+                self.assertEqual(rec["box_touches_edge"], rec["edge_touch_wanted"], rec["image_id"])
+        self.assertGreaterEqual(sum(not r["edge_gate_fallback"] for r in recs), 8)   # the gate succeeds for a good share
+
+    def test_gate_rejects_before_rendering_the_background(self):
+        cfg = gated_cfg()
+        r = Renderer(cfg, 21)
+        # find a scene and force the draw to disagree with its predicted label: render() must return None
+        seen_none = seen_ok = False
+        for i in range(40):
+            sp = sample_scene(cfg, "train", i, 21, 0, True)
+            res = r.render(sp, enforce_edge=True)
+            if res is None:
+                seen_none = True
+            else:
+                seen_ok = True
+            if seen_none and seen_ok:
+                break
+        self.assertTrue(seen_none and seen_ok)
+        # without enforcement a positive scene always renders
+        self.assertIsNotNone(r.render(sample_scene(cfg, "train", 0, 21, 0, True)))
 
 
 if __name__ == "__main__":

@@ -100,8 +100,9 @@ class SceneParams:
     blur_sigma_px: float
     jpeg_quality: int
     smoke: Optional[SmokeParams] = None
-    edge_touch_wanted: Optional[bool] = None    # edge policy draw for this scene (positives only)
-    edge_policy_tries: int = 0                  # target-box re-samples needed to agree with the draw
+    edge_touch_wanted: Optional[bool] = None    # edge policy draw for this image (positives only; fixed per image index)
+    edge_touch_forced: bool = False             # True when the box is too large to fit inside the margins
+    edge_policy_tries: int = 0                  # camera/position re-draws needed to agree with the draw
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -158,8 +159,31 @@ def _touches(box, W: int, H: int, margin: float) -> bool:
     return bool(x1 <= margin * W or x2 >= (1.0 - margin) * W or y1 <= margin * H or y2 >= (1.0 - margin) * H)
 
 
-def _sample_camera_and_target(rng, cfg, a, W, H):
-    """Camera pose and the intended smoke box for one draw. Returns None if the draw is unusable."""
+def image_rng(base_seed: int, split: str, index: int) -> np.random.Generator:
+    """Per-IMAGE stream, independent of the retry attempt: archetype, box size and the edge-touch draw come
+    from here, so rejecting and re-rendering a scene can never reshuffle (and thereby bias) the dataset's
+    archetype mix, size distribution or touch rate. Retries only re-draw nuisance variables."""
+    return np.random.default_rng(np.random.SeedSequence([int(base_seed), SPLIT_IDS[split], int(index), 777000]))
+
+
+def _sample_size(rng, cfg, a, W, H):
+    """Target box size in pixels (width, height) from the archetype's area and aspect priors."""
+    area = _lognormal_clipped(rng, a["box_area"]["median"] * float(cfg["box"].get("area_scale", 1.0)),
+                              a["box_area"]["sigma"], a["box_area"]["lo"], a["box_area"]["hi"])
+    asp = _lognormal_clipped(rng, a["box_aspect_wh"]["median"], a["box_aspect_wh"]["sigma"], 0.4, 4.5)
+    w_px = math.sqrt(area * W * H * asp)
+    h_px = w_px / asp
+    if w_px > 0.98 * W:
+        w_px = 0.98 * W
+        h_px = area * W * H / w_px
+    if h_px > 0.98 * H:
+        h_px = 0.98 * H
+        w_px = area * W * H / h_px
+    return float(w_px), float(h_px)
+
+
+def _sample_camera_and_target(rng, cfg, a, W, H, size=None):
+    """Camera pose and the intended smoke box for one draw (box size fixed by `size` for positives)."""
     hfov = _u(rng, cfg["camera"]["hfov_deg"])
     intr = CameraIntrinsics(W, H, hfov)
     alt = _u(rng, a["alt_m"])
@@ -173,19 +197,9 @@ def _sample_camera_and_target(rng, cfg, a, W, H):
     cam = Camera(intr, CameraPose(0.0, 0.0, alt, heading, pitch))
     horizon_row = cam.horizon_row()
     out = dict(hfov=hfov, intr=intr, alt=alt, heading=heading, pitch=pitch, cam=cam, horizon_row=horizon_row)
-    if "box_area" not in a:
+    if size is None:
         return out
-    area = _lognormal_clipped(rng, a["box_area"]["median"] * float(cfg["box"].get("area_scale", 1.0)),
-                              a["box_area"]["sigma"], a["box_area"]["lo"], a["box_area"]["hi"])
-    asp = _lognormal_clipped(rng, a["box_aspect_wh"]["median"], a["box_aspect_wh"]["sigma"], 0.4, 4.5)
-    w_px = math.sqrt(area * W * H * asp)
-    h_px = w_px / asp
-    if w_px > 0.98 * W:
-        w_px = 0.98 * W
-        h_px = area * W * H / w_px
-    if h_px > 0.98 * H:
-        h_px = 0.98 * H
-        w_px = area * W * H / h_px
+    w_px, h_px = size
     cx = _tnormal(rng, a["box_cx"]["mean"], a["box_cx"]["sd"], 0.10, 0.92) * W
     cy = _tnormal(rng, a["box_cy"]["mean"], a["box_cy"]["sd"], 0.15, 0.80) * H
     if a.get("base_below_horizon_px") is not None:        # horizon archetypes: base just under the horizon
@@ -201,30 +215,45 @@ def _sample_camera_and_target(rng, cfg, a, W, H):
 
 def sample_scene(cfg: Dict[str, Any], split: str, index: int, base_seed: int, attempt: int = 0,
                  is_positive: bool = True) -> SceneParams:
-    rng = scene_rng(base_seed, split, index, attempt)
     W, H = int(cfg["image"]["width"]), int(cfg["image"]["height"])
     arch_cfg = cfg["archetypes"]
-    arch = _pick(rng, {k: v["weight"] for k, v in arch_cfg.items()})
-    a = arch_cfg[arch]
     ep = cfg["box"]["edge_policy"]
 
-    # ---- camera (+ target box for positives, re-drawn until it agrees with the edge-touch draw) ----
+    # ---- image-level draws: fixed per image index, whatever the attempt ------------------------
+    ri = image_rng(base_seed, split, index)
+    arch = _pick(ri, {k: v["weight"] for k, v in arch_cfg.items()})
+    a = arch_cfg[arch]
+    size = None
     want_touch: Optional[bool] = None
+    forced = False
+    if is_positive:
+        size = _sample_size(ri, cfg, a, W, H)
+        u_touch = float(ri.random())
+        m = float(ep["margin"])
+        forced = not (size[0] <= (1.0 - 2 * m) * W and size[1] <= (1.0 - 2 * m) * H)   # cannot fit inside the margins
+        want_touch = True if forced else bool(u_touch < float(ep["p_touch_if_fits"]))
+
+    # ---- nuisance draws (re-drawn on every attempt): camera, position, appearance, smoke shape ----
+    rng = scene_rng(base_seed, split, index, attempt)
     tries = 0
     if is_positive:
-        want_touch = bool(rng.random() < ep["p_touch"])
         for tries in range(1, int(ep["max_tries"]) + 1):
-            d = _sample_camera_and_target(rng, cfg, a, W, H)
+            d = _sample_camera_and_target(rng, cfg, a, W, H, size)
             n0, e0, ok = d["cam"].unproject_ground(np.array(d["base_u"]), np.array(d["base_v"]))
             if not bool(ok):
                 continue
             if _touches(d["box"], W, H, ep["margin"]) == want_touch:
                 break
-        else:                                              # keep the last usable draw (rare; recorded via tries)
+        else:                                              # keep the last usable draw (recorded via tries)
             if not bool(ok):
                 raise RuntimeError("smoke base is above the horizon; check config ranges")
+            if not want_touch:
+                # no camera/position clears the edges for this box (e.g. a tall column hanging from the
+                # horizon): geometry forces the touch, and the decision is recorded as such
+                want_touch = True
+                forced = True
     else:
-        d = _sample_camera_and_target(rng, cfg, {k: v for k, v in a.items() if k not in ("box_area",)}, W, H)
+        d = _sample_camera_and_target(rng, cfg, a, W, H, None)
     intr, cam, hfov, alt, heading, pitch, horizon_row = d["intr"], d["cam"], d["hfov"], d["alt"], d["heading"], d["pitch"], d["horizon_row"]
 
     # ---- environment --------------------------------------------------
@@ -256,7 +285,7 @@ def sample_scene(cfg: Dict[str, Any], split: str, index: int, base_seed: int, at
         grade=tuple(float(x) for x in rng.uniform(0.94, 1.06, size=3)),
         noise_sigma=_u(rng, cfg["post"]["noise_sigma"]), blur_sigma_px=_u(rng, cfg["post"]["blur_sigma_px"]),
         jpeg_quality=int(rng.integers(cfg["image"]["jpeg_quality"][0], cfg["image"]["jpeg_quality"][1] + 1)),
-        smoke=None, edge_touch_wanted=want_touch, edge_policy_tries=int(tries),
+        smoke=None, edge_touch_wanted=want_touch, edge_touch_forced=bool(forced), edge_policy_tries=int(tries),
     )
     if not is_positive:
         return SceneParams(**p)

@@ -28,6 +28,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import cv2
 import numpy as np
 
+from synthgen.annotate import edge_gap
 from synthgen.scene_params import SceneParams, bank_rng
 
 # ----------------------------------------------------------------------
@@ -236,11 +237,24 @@ class Renderer:
 
     # ---------------- main entry ----------------
 
-    def render(self, sp: SceneParams) -> RenderResult:
+    def render(self, sp: SceneParams, enforce_edge: bool = False) -> Optional[RenderResult]:
+        """Render one scene. With enforce_edge=True the plume is calibrated first (cheap) and the scene is
+        rejected (returns None) when its predicted label disagrees with the scene's edge-touch draw,
+        before any expensive rendering is done."""
         W, H = sp.width, sp.height
         cam = sp.camera
         bgc = self.cfg["background"]
         texel_m = float(bgc["texel_m"])
+
+        smoke_layer = None
+        info = None
+        if sp.smoke is not None:
+            gate = self._edge_gate(sp) if enforce_edge else None
+            C, A, info = self._smoke(sp, np.array(sp.sky_horizon, np.float32), math.radians(sp.sun_el_deg),
+                                     sp.exposure, gate)
+            if C is None:
+                return None
+            smoke_layer = (C, A)
 
         gn, ge, ok = cam.ground_grid()
         gn = gn.astype(np.float32)
@@ -289,11 +303,10 @@ class Renderer:
         # soften the horizon seam (ground ends at the horizon row)
         bg = bg.astype(np.float32)
 
-        # --- smoke
+        # --- smoke (rendered above)
         smoke_alpha = np.zeros((H, W), np.float32)
-        info = None
-        if sp.smoke is not None:
-            C, A, info = self._smoke(sp, hor, sun_el, exposure)
+        if smoke_layer is not None:
+            C, A = smoke_layer
             bg = bg * (1.0 - A[..., None]) + C
             smoke_alpha = A
 
@@ -467,7 +480,25 @@ class Renderer:
             roiA += a
         return C, A
 
-    def _smoke(self, sp: SceneParams, hor: np.ndarray, sun_el: float, exposure: float):
+    def _edge_gate(self, sp: SceneParams):
+        """Predicate on the predicted (unpadded) label box: does its edge-touch state match the scene's draw?"""
+        ep = self.cfg["box"]["edge_policy"]
+        if not ep.get("enforce_on_labels") or sp.edge_touch_wanted is None:
+            return None
+        tol = float(ep.get("label_tol", 0.002))
+        pad = float(self.cfg["box"]["pad_frac"])
+        W, H, wanted = sp.width, sp.height, bool(sp.edge_touch_wanted)
+
+        def gate(box) -> bool:
+            if box is None:
+                return False
+            x1, y1, x2, y2 = box
+            bw, bh = x2 - x1, y2 - y1
+            padded = (x1 - pad * bw, y1 - pad * bh, x2 + pad * bw, y2 + pad * bh)
+            return (edge_gap(padded, W, H) <= tol) == wanted
+        return gate
+
+    def _smoke(self, sp: SceneParams, hor: np.ndarray, sun_el: float, exposure: float, gate=None):
         """Calibrate the plume size at 1/4 resolution so the rendered box matches the sampled target
         box, then render it at `smoke.render_scale` and upsample. Returns (premult RGB, alpha, info)."""
         smk = sp.smoke
@@ -504,6 +535,15 @@ class Renderer:
             Hp *= float(np.clip(rh, 0.4, 2.5)) ** 0.9
             drift = smk.lean * Hp
         pos, rad = self._plume_world(u, smk, S, Hp, drift)
+        if gate is not None:
+            _, Aq = self._composite(sp, smk, u, pos, rad, hor, sun_el, exposure, cs)
+            mq = Aq >= thr
+            pred = None
+            if mq.sum() >= 6:
+                rq, cq = np.flatnonzero(mq.any(1)), np.flatnonzero(mq.any(0))
+                pred = (cq[0] / cs, rq[0] / cs, (cq[-1] + 1) / cs, (rq[-1] + 1) / cs)
+            if not gate(pred):
+                return None, None, {"gated": True}
         rs = float(scfg.get("render_scale", 0.5))
         C, A = self._composite(sp, smk, u, pos, rad, hor, sun_el, exposure, rs)
         if C.shape[:2] != (H, W):

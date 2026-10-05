@@ -36,7 +36,7 @@ import numpy as np
 import yaml
 from PIL import Image, ImageDraw
 
-from synthgen.annotate import box_area_frac, box_from_alpha, box_variants, to_yolo_line
+from synthgen.annotate import box_area_frac, box_from_alpha, box_variants, edge_gap, to_yolo_line
 from synthgen.render import Renderer
 from synthgen.scene_params import SPLIT_IDS, load_config, sample_scene
 
@@ -109,8 +109,13 @@ def generate_split(cfg, renderer: Renderer, split: str, n_pos: int, n_neg: int, 
         for attempt in range(max_attempts):
             t0 = time.time()
             sp = sample_scene(cfg, split, idx, base_seed, attempt, positive)
-            res = renderer.render(sp)
+            # the last attempt drops the edge gate (rare), so a hard-to-satisfy scene never aborts a run;
+            # such an image is flagged edge_gate_fallback in its metadata
+            enforce = positive and attempt < min(max_attempts - 1, int(bx["edge_policy"].get("gate_attempts", 10)))
+            res = renderer.render(sp, enforce_edge=enforce)
             t_render = time.time() - t0
+            if res is None:                        # predicted label disagrees with the edge-touch draw
+                continue
             box = None
             if positive:
                 box = box_from_alpha(res.smoke_alpha, bx["alpha_threshold"], bx["pad_frac"], bx["min_alpha_pixels"])
@@ -123,6 +128,10 @@ def generate_split(cfg, renderer: Renderer, split: str, n_pos: int, n_neg: int, 
                 dense = float((res.smoke_alpha[y1:y2, x1:x2] >= bx["dense_alpha"]).mean())
                 if dense < bx["min_dense_frac"]:        # smoke too faint to be a meaningful label
                     continue
+                ep = bx["edge_policy"]
+                if enforce and ep.get("enforce_on_labels") and sp.edge_touch_wanted is not None \
+                        and (edge_gap(box, W, H) <= ep.get("label_tol", 0.002)) != sp.edge_touch_wanted:
+                    continue                            # final label disagrees with the draw (rare after the gate)
             break
         else:
             raise RuntimeError(f"{sp.image_id}: no valid scene after {max_attempts} attempts")
@@ -136,10 +145,11 @@ def generate_split(cfg, renderer: Renderer, split: str, n_pos: int, n_neg: int, 
         rec = sp.to_dict()
         variants = box_variants(res.smoke_alpha, bx["variants"], bx["min_alpha_pixels"]) if positive else {}
         rec.update({"attempts_used": attempt + 1, "render_seconds": round(t_render, 3),
-                    "label_convention": "default",
+                    "label_convention": "default", "edge_gate_fallback": bool(positive and not enforce),
                     "box_variants": {k: ([round(float(x), 2) for x in v] if v else None) for k, v in variants.items()},
                     "box_xyxy": [round(v, 2) for v in box] if box else None,
                     "box_area_frac": round(box_area_frac(box, W, H), 5) if box else None,
+                    "box_touches_edge": bool(edge_gap(box, W, H) <= bx["edge_policy"].get("label_tol", 0.002)) if box else None,
                     "target_box_xyxy": [round(v, 2) for v in sp.smoke.target_box_xyxy] if sp.smoke else None,
                     "bank_slot": renderer.bank_slot(sp), "smoke_calibration": res.info})
         meta_f.write(json.dumps(rec) + "\n")
@@ -179,7 +189,7 @@ def main() -> int:
                          "(a plain number uses the config negatives.fraction)")
     ap.add_argument("--dataset-id", default="synth_smoke_poc", help="name recorded in the manifest")
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--max-attempts", type=int, default=8)
+    ap.add_argument("--max-attempts", type=int, default=40)
     ap.add_argument("--contact-sheet", type=int, default=0, help="write a contact sheet of the first K images")
     args = ap.parse_args()
 
@@ -256,8 +266,10 @@ def main() -> int:
             "archetypes": dict(Counter(r["archetype"] for r in recs if r["is_positive"])),
             "mean_render_seconds": round(float(np.mean([r["render_seconds"] for r in recs])), 3),
         }
-    with open(f"{out}/metadata.jsonl", "rb") as f:
-        manifest["metadata_sha256"] = hashlib.sha256(f.read()).hexdigest()
+    # hash of the metadata WITHOUT wall-clock fields (render_seconds), so it is reproducible across runs
+    stable = [json.dumps({k: v for k, v in r.items() if k != "render_seconds"}, sort_keys=True) for r in all_records]
+    manifest["metadata_sha256"] = hashlib.sha256("\n".join(stable).encode()).hexdigest()
+    manifest["metadata_sha256_note"] = "sha256 of metadata records (sorted keys, one per line) without render_seconds"
     with open(f"{out}/manifest.json", "w") as f:
         json.dump(manifest, f, indent=2)
 

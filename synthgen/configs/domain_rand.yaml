@@ -49,16 +49,21 @@ box:
     default:      {alpha_threshold: 0.08, pad_frac: 0.02}
     haze:         {alpha_threshold: 0.02, pad_frac: 0.05}
     padded:       {alpha_threshold: 0.08, pad_frac: 0.10}
-  # Edge-touching prior. Boreal train: 30.4% of boxes touch/are clipped by the image edge (pooled
-  # statistic, train+val range 0.30-0.43; per-scene-type rates are unknown). Each scene draws
-  # touch ~ Bernoulli(p_touch) and its target box is re-sampled until it agrees (a target "touches"
-  # when it comes within `margin` of an edge as a fraction of the image size). One parameter, no
-  # per-archetype tuning against Boreal.
-  edge_policy: {p_touch: 0.30, margin: 0.03, max_tries: 200}
-  # The edge policy rejects large boxes more often (they touch more), which shifted the pooled area
-  # median below Boreal's. One global multiplier on the sampled archetype medians restores it
-  # (single parameter; set once against the pooled Boreal train area median 0.338, not per scene type).
-  area_scale: 1.25
+  # Edge-touching prior. Boreal train: 30.4% of boxes touch/are clipped by the image edge (train+val range
+  # 0.30-0.43; per-scene-type rates are unknown). Archetype, box size and the touch decision are fixed per
+  # image index (never re-drawn on a retry, which would bias the mix). A box touches an edge only when
+  # geometry forces it: it cannot fit inside `margin` of every edge, or no camera/position found by
+  # max_tries keeps it clear (e.g. a tall column hanging from the horizon). p_touch_if_fits = 0 means no
+  # voluntary touching. With the current archetype size priors this forces ~44% of boxes to touch, above
+  # Boreal's train 0.30 and inside its train-val range; lowering it further would mean reshaping the column
+  # and curtain size priors against Boreal, which is deliberately not done (see docs/synthetic/).
+  # enforce_on_labels (default OFF) would also enforce the decision on the rendered label: the plume is calibrated
+  # first and the scene retried before any expensive rendering, for at most gate_attempts attempts, after which
+  # the gate is dropped for that image (flagged edge_gate_fallback). Measured on the POC it fell back on 23% of
+  # images and cost ~4 attempts per positive without lowering the label touch rate (0.69 vs 0.65), because the
+  # rendered smoke's faint halo, not placement, is what reaches the frame edge. Kept for reference, off by default.
+  edge_policy: {margin: 0.03, max_tries: 200, p_touch_if_fits: 0.0, enforce_on_labels: false, label_tol: 0.002, gate_attempts: 10}
+  area_scale: 1.0
 
 # --- scene archetypes --------------------------------------------------------
 # Weights follow the per-site share of Boreal train boxes (Ruokolahti 36%,
