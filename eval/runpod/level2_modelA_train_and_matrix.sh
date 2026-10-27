@@ -16,8 +16,8 @@ for p in "$RUN" "$OUT" "$SYN" "$REPO"; do [ -e "$p" ] && { echo "ABORT: $p exist
 [ -f $RUNS/real_boreal/real_boreal_best_v1.pt ] || { echo "ABORT: Model B checkpoint missing"; exit 1; }
 
 echo "--- env"
-pip install -q "ultralytics==8.4.173" pyyaml 2>&1 | tail -2
-python3 - <<'PY'
+pip install -q --break-system-packages "ultralytics==8.4.173" pyyaml 2>&1 | tail -2
+python3 - <<'PY' || { echo "ABORT: ultralytics/torch import failed"; exit 1; }
 import ultralytics, torch, platform
 print("ultralytics", ultralytics.__version__, "torch", torch.__version__, "cuda", torch.version.cuda, "cudnn", torch.backends.cudnn.version(), "py", platform.python_version(), torch.cuda.get_device_name(0))
 PY
