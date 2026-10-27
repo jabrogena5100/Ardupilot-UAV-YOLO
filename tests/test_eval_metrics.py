@@ -85,6 +85,41 @@ class TestMetrics(unittest.TestCase):
         self.assertLessEqual(lo, point); self.assertGreaterEqual(hi, point)
         self.assertLess(hi - lo, 0.4)
 
+    def test_bootstrap_point_matches_full_metric(self):
+        rng = np.random.default_rng(5)
+        g, p = {}, {}
+        for i in range(40):
+            k = int(rng.integers(0, 3))
+            g[f"i{i}"] = gt(*[(0.1 * j, 0.1, 0.1 * j + 0.2, 0.4) for j in range(k)])
+            p[f"i{i}"] = pr(*[(0.1 * j + float(rng.normal(0, 0.01)), 0.1, 0.1 * j + 0.2, 0.4, float(rng.random()))
+                              for j in range(k)], (0.6, 0.6, 0.8, 0.9, float(rng.random())))
+        full = M.evaluate(p, g)
+        b = M.bootstrap_ci(p, g, n=5, seed=0)["point"]
+        self.assertAlmostEqual(b["mAP50"], full["mAP50"], places=9)
+        self.assertAlmostEqual(b["mAP50-95"], full["mAP50-95"], places=9)
+        self.assertAlmostEqual(b["recall"], full["at_conf"]["0.25"]["recall"], places=9)
+        self.assertAlmostEqual(b["precision"], full["at_conf"]["0.25"]["precision"], places=9)
+
+    def test_bootstrap_resample_equals_full_recompute(self):
+        # a resample must give exactly what the full metric gives on the resampled set (duplicated images included)
+        g = {"a": gt((0.2, 0.2, 0.4, 0.4)), "b": gt((0.5, 0.5, 0.9, 0.9)), "c": gt()}
+        p = {"a": pr((0.2, 0.2, 0.4, 0.4, 0.9)), "c": pr((0.1, 0.1, 0.2, 0.2, 0.8))}
+        per = M._per_image(p, g, ["a", "b", "c"])
+        got = M._headline([per[0], per[0], per[2]], 0.25)
+        full = M.evaluate({"x": p["a"], "y": p["a"], "z": p["c"]}, {"x": g["a"], "y": g["a"], "z": g["c"]})
+        self.assertAlmostEqual(got["mAP50"], full["mAP50"], places=9)
+        self.assertAlmostEqual(got["fp_per_image"], full["at_conf"]["0.25"]["fp_per_image"], places=9)
+
+    def test_cluster_bootstrap_keeps_clusters_whole(self):
+        g = {f"v{c}_{i}": gt((0.2, 0.2, 0.4, 0.4)) for c in range(4) for i in range(5)}
+        p = {k: pr((0.2, 0.2, 0.4, 0.4, 0.9)) for k in g if k.startswith(("v0", "v1"))}   # clusters 0,1 hit, 2,3 missed
+        cl = {k: k.split("_")[0] for k in g}
+        a = M.bootstrap_ci(p, g, n=200, seed=1, clusters=cl)
+        b = M.bootstrap_ci(p, g, n=200, seed=1)
+        self.assertIn("4 clusters", a["unit"])
+        wa = a["ci"]["recall"][1] - a["ci"]["recall"][0]; wb = b["ci"]["recall"][1] - b["ci"]["recall"][0]
+        self.assertGreater(wa, wb)        # correlated units -> wider interval than iid images
+
     def test_load_gt(self):
         import os, tempfile
         with tempfile.TemporaryDirectory() as d:

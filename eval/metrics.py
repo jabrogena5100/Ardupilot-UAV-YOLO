@@ -253,27 +253,68 @@ def _flat_pred_boxes(preds, names) -> np.ndarray:
     return np.concatenate(parts) if parts else np.zeros((0, 4))
 
 
-def bootstrap_ci(preds: Dict[str, np.ndarray], gts: Dict[str, np.ndarray], n: int = 1000, seed: int = 0,
-                 conf: float = 0.25, alpha: float = 0.05) -> Dict[str, Any]:
-    """Image-level bootstrap (resample images with replacement) percentile CIs for the headline metrics.
+def _per_image(preds, gts, names):
+    """Match every image once (all IoU thresholds) and keep the per-image pieces a resample needs."""
+    out = []
+    for n in names:
+        p = np.asarray(preds.get(n, np.zeros((0, 6))), float).reshape(-1, 6)
+        g = np.asarray(gts[n], float).reshape(-1, 5)
+        fl = np.stack([match_image(p, g, float(t))[0] for t in IOU_THRS], axis=1) if len(p) else np.zeros((0, len(IOU_THRS)), bool)
+        out.append((p[:, 4], p[:, 5], fl, g[:, 0].astype(int)))
+    return out
 
-    Captures test-set sampling variability only; it says nothing about training-seed variance (needs repeat runs)
-    and treats images as independent (Boreal frames from the same video are correlated, so its CIs are optimistic).
+
+def _headline(items, conf: float) -> Dict[str, Optional[float]]:
+    """Complete detection metric (AP50, AP50-95, P/R/FP-per-image at `conf`) for a list of per-image pieces."""
+    cf = np.concatenate([i[0] for i in items]) if items else np.zeros(0)
+    cl = np.concatenate([i[1] for i in items]) if items else np.zeros(0)
+    fl = np.concatenate([i[2] for i in items]) if items else np.zeros((0, len(IOU_THRS)), bool)
+    counts: Dict[int, int] = {}
+    for i in items:
+        for c in i[3]:
+            counts[int(c)] = counts.get(int(c), 0) + 1
+    n_gt = sum(counts.values())
+    ap50 = _ap_for(cf, cl, fl[:, 0], counts)[0]
+    ap = float(np.mean([_ap_for(cf, cl, fl[:, k], counts)[0] for k in range(len(IOU_THRS))]))
+    keep = cf >= conf
+    tp = int((fl[:, 0] & keep).sum()); fp = int((~fl[:, 0] & keep).sum())
+    return {"mAP50": ap50, "mAP50-95": ap, "precision": tp / (tp + fp) if tp + fp else None,
+            "recall": tp / n_gt if n_gt else None, "fp_per_image": fp / len(items) if items else None}
+
+
+def bootstrap_ci(preds: Dict[str, np.ndarray], gts: Dict[str, np.ndarray], n: int = 1000, seed: int = 0,
+                 conf: float = 0.25, alpha: float = 0.05,
+                 clusters: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
+    """Percentile bootstrap CIs for the headline metrics. Every resample recomputes the complete detection metric
+    (precision-recall curves, AP at 10 IoU thresholds, P/R/FP at `conf`) on the resampled set; only the per-image
+    greedy matching is cached, which is exact because matching is within-image and independent of resampling.
+
+    Unit of resampling: images (with replacement), or, when `clusters` maps image name -> cluster id (e.g. source
+    video), whole clusters (with replacement), which keeps correlated frames together.
+    Assumptions/limits: captures test-set sampling variability only. It says nothing about training-seed variance
+    (needs repeat runs), the model/threshold are held fixed, the test set is treated as a sample from a population of
+    images (or clusters), the operating `conf` is fixed in advance, and the percentile method is crude for very few
+    clusters (Boreal test has 5 videos) or at a metric ceiling (zero-width intervals).
     """
     names = sorted(gts)
+    per = _per_image(preds, gts, names)
     rng = np.random.default_rng(seed)
     keys = ["mAP50", "mAP50-95", "precision", "recall", "fp_per_image"]
     vals = {k: [] for k in keys}
+    if clusters is None:
+        units = [[i] for i in range(len(names))]
+    else:
+        cid = sorted({clusters[n_] for n_ in names})
+        units = [[i for i, n_ in enumerate(names) if clusters[n_] == c] for c in cid]
     for _ in range(n):
-        idx = rng.integers(0, len(names), len(names))
-        g = {f"{i}#{names[j]}": gts[names[j]] for i, j in enumerate(idx)}
-        p = {f"{i}#{names[j]}": preds[names[j]] for i, j in enumerate(idx) if names[j] in preds}
-        r = evaluate(p, g, conf_thresholds=(conf,))
-        o = r["at_conf"][f"{conf:g}"]
-        for k, v in (("mAP50", r["mAP50"]), ("mAP50-95", r["mAP50-95"]), ("precision", o["precision"]),
-                     ("recall", o["recall"]), ("fp_per_image", o["fp_per_image"])):
-            if v is not None:
-                vals[k].append(v)
+        pick = rng.integers(0, len(units), len(units))
+        items = [per[i] for u in pick for i in units[u]]
+        h = _headline(items, conf)
+        for k in keys:
+            if h[k] is not None:
+                vals[k].append(h[k])
     lo, hi = 100 * alpha / 2, 100 * (1 - alpha / 2)
     return {"n_resamples": n, "seed": seed, "conf_threshold": conf, "level": 1 - alpha,
+            "unit": "image" if clusters is None else f"cluster ({len(units)} clusters)",
+            "point": _headline(per, conf),
             "ci": {k: [float(np.percentile(v, lo)), float(np.percentile(v, hi))] if v else None for k, v in vals.items()}}

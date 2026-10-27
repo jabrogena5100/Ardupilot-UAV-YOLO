@@ -77,6 +77,8 @@ def load_dataset(name: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
         img = os.path.join(d, n)
         lp = label_path(img)
         items.append((n, img, lp))
+    if cfg.get("name_prefix"):
+        items = [t for t in items if t[0].startswith(cfg["name_prefix"])]
     if cfg.get("only_positive"):
         items = [t for t in items if os.path.exists(t[2]) and os.path.getsize(t[2]) > 0]
     kept = [t[0] for t in items]
@@ -89,11 +91,34 @@ def load_dataset(name: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
     if errs:
         raise SystemExit("DATASET PIN MISMATCH (refusing to evaluate):\n  " + "\n  ".join(errs))
     gts = {n: M.load_gt(lp) for n, _, lp in items}
+    return _finish_dataset(name, cfg, {n: img for n, img, _ in items}, gts, digest, len(kept))
+
+
+def _clusters(cfg: Dict[str, Any], names) -> Optional[Dict[str, str]]:
+    """Cluster id per image for the clustered bootstrap. `cluster: video` = file name up to `_frame<N>` (Boreal)."""
+    if cfg.get("cluster") != "video":
+        return None
+    return {n: (n.rsplit("_frame", 1)[0] if "_frame" in n else n) for n in names}
+
+
+def load_dataset_offline(name: str, cfg: Dict[str, Any], gts_dir: str) -> Dict[str, Any]:
+    """Same pin checks, but ground truth comes from a saved gts/<name>.json.gz (no images needed)."""
+    gts = load_gts(os.path.join(gts_dir, f"{name}.json.gz"))
+    kept = sorted(gts)
+    digest = hashlib.sha256("\n".join(kept).encode()).hexdigest()
+    if cfg.get("n_images") is not None and len(kept) != cfg["n_images"]:
+        raise SystemExit(f"DATASET PIN MISMATCH: {name}: {len(kept)} images, pinned {cfg['n_images']}")
+    if cfg.get("filelist_sha256") and digest != cfg["filelist_sha256"]:
+        raise SystemExit(f"DATASET PIN MISMATCH: {name}: file-list sha256 {digest}, pinned {cfg['filelist_sha256']}")
+    return _finish_dataset(name, cfg, {}, gts, digest, len(kept))
+
+
+def _finish_dataset(name, cfg, images, gts, digest, n) -> Dict[str, Any]:
     bad = {int(c) for g in gts.values() for c in g[:, 0]} - {0}
     if bad:
         raise SystemExit(f"{name}: unexpected class ids {sorted(bad)}; unified format is single class 0 = smoke")
-    return {"name": name, "images": {n: img for n, img, _ in items}, "gts": gts,
-            "filelist_sha256": digest, "n_images": len(kept)}
+    return {"name": name, "images": images, "gts": gts, "filelist_sha256": digest, "n_images": n,
+            "clusters": _clusters(cfg, list(gts)), "pinned": bool(cfg.get("filelist_sha256"))}
 
 
 # ----------------------------------------------------------------------------- prediction
@@ -186,9 +211,11 @@ def run_cell(model_name: str, model: Dict[str, Any], ds: Dict[str, Any], setting
         print(f"[{tag}] predicted {len(preds)} images in {time.time() - t0:.1f}s")
     res = M.evaluate(preds, ds["gts"], conf_thresholds=settings["report_conf"])
     if bootstrap:
-        res["bootstrap"] = M.bootstrap_ci(preds, ds["gts"], n=bootstrap, seed=int(settings["seed"]),
-                                          conf=float(settings["report_conf"][0]))
-    if not preds_from:   # ground truth is saved next to predictions so every number can be recomputed offline
+        kw = dict(n=bootstrap, seed=int(settings["seed"]), conf=float(settings["report_conf"][0]))
+        res["bootstrap"] = M.bootstrap_ci(preds, ds["gts"], **kw)
+        if ds.get("clusters"):
+            res["bootstrap_cluster"] = M.bootstrap_ci(preds, ds["gts"], clusters=ds["clusters"], **kw)
+    if not preds_from or not os.path.exists(os.path.join(out_dir, "gts", f"{ds['name']}.json.gz")):   # ground truth is saved next to predictions so every number can be recomputed offline
         os.makedirs(os.path.join(out_dir, "gts"), exist_ok=True)
         save_gts(os.path.join(out_dir, "gts", f"{ds['name']}.json.gz"), ds["gts"])
     cell = {"cell": tag, "model": model_name, "train_domain": model.get("train_domain"), "dataset": ds["name"],
@@ -239,10 +266,11 @@ def write_summary(cells: List[Dict[str, Any]], cfg: Dict[str, Any], out_dir: str
                   "video are correlated, so its intervals are optimistic):", "",
                   "| cell | mAP50 | mAP50-95 | R@op | P@op | FP/img@op |", "|---|---|---|---|---|---|"]
         for c in cells:
-            b = c["metrics"].get("bootstrap")
-            if b:
-                f2 = lambda k: "n/a" if not b["ci"][k] else f"[{b['ci'][k][0]:.3f}, {b['ci'][k][1]:.3f}]"
-                lines.append(f"| {c['cell']} | {f2('mAP50')} | {f2('mAP50-95')} | {f2('recall')} | {f2('precision')} | {f2('fp_per_image')} |")
+            for key, lab in (("bootstrap", "images"), ("bootstrap_cluster", "videos")):
+                b = c["metrics"].get(key)
+                if b:
+                    f2 = lambda k: "n/a" if not b["ci"][k] else f"[{b['ci'][k][0]:.3f}, {b['ci'][k][1]:.3f}]"
+                    lines.append(f"| {c['cell']} ({lab}) | {f2('mAP50')} | {f2('mAP50-95')} | {f2('recall')} | {f2('precision')} | {f2('fp_per_image')} |")
     lines += ["", "Edge-touch diagnostic (recall at the same operating point, GT boxes touching the image border vs not):", "",
               "| cell | recall edge-touching | recall not edge-touching |", "|---|---|---|"]
     for r in rows:
@@ -273,19 +301,27 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--cells", help="comma list model:dataset (default: all cells in the config)")
     ap.add_argument("--dry-run", action="store_true", help="verify dataset pins and checkpoint hashes only")
     ap.add_argument("--bootstrap", type=int, default=0, help="image-level bootstrap resamples for 95%% CIs (0 = off)")
+    ap.add_argument("--gts-from", help="directory with saved gts/<dataset>.json.gz (offline recompute, no images needed)")
     ap.add_argument("--preds-from", help="recompute metrics from saved predictions in this directory (no model needed)")
     a = ap.parse_args(argv)
     env = {**{k: v for k, v in os.environ.items()}, **dict(v.split("=", 1) for v in a.var)}
     cfg = expand(yaml.safe_load(open(a.config)), env)
     want = {tuple(c.split(":")) for c in a.cells.split(",")} if a.cells else None
-    cells_cfg = [c for c in cfg["cells"] if want is None or (c["model"], c["dataset"]) in want]
+    cells_all = cfg["cells"]
+    if isinstance(cells_all, dict):   # {models: [...], datasets: [...]} -> cross product
+        cells_all = [{"model": m, "dataset": d} for m in cells_all["models"] for d in cells_all["datasets"]]
+    cells_cfg = [c for c in cells_all if want is None or (c["model"], c["dataset"]) in want]
     if not cells_cfg:
         raise SystemExit("no cells selected")
     dsets: Dict[str, Dict] = {}
     for c in cells_cfg:
         if c["dataset"] not in dsets:
-            dsets[c["dataset"]] = load_dataset(c["dataset"], cfg["datasets"][c["dataset"]])
-            print(f"dataset {c['dataset']}: {dsets[c['dataset']]['n_images']} images, pin OK")
+            dc = cfg["datasets"][c["dataset"]]
+            dsets[c["dataset"]] = (load_dataset_offline(c["dataset"], dc, a.gts_from) if a.gts_from
+                                   else load_dataset(c["dataset"], dc))
+            d_ = dsets[c["dataset"]]
+            print(f"dataset {c['dataset']}: {d_['n_images']} images, " + ("pin OK" if d_["pinned"] else
+                  f"UNPINNED (file-list sha256 {d_['filelist_sha256']})"))
     for c in cells_cfg:
         m = cfg["models"][c["model"]]
         if not a.preds_from and os.path.exists(m["checkpoint"]):
