@@ -1,0 +1,63 @@
+# Config for eval/run_matrix.py — the only place the 2x2 cells are defined.
+# ${VAR} are expanded from the environment or `--var KEY=VAL`. On the RunPod volume:
+#   BOREAL_SPLIT=/workspace/splits/boreal_v1  SYNTH_ROOT=/workspace/synth_smoke_v1  RUNS=/workspace/runs
+# Datasets are directories of images with sibling labels/ (YOLO txt, class 0 = smoke). Each is pinned by
+# image count and the sha256 of "\n".join(sorted(image file names)) (same definition as the dataset manifests);
+# a mismatch aborts the run. Test sets are never edited to improve a score.
+
+settings:
+  imgsz: 640
+  conf: 0.001            # inference confidence floor (needed for AP); same for every cell
+  nms_iou: 0.7
+  max_det: 300
+  batch: 32
+  seed: 0
+  report_conf: [0.25]    # fixed operating point(s) for P/R/FP/FN/confidence/localisation
+
+datasets:
+  boreal_test:
+    domain: real
+    images_dir: ${BOREAL_SPLIT}/images/test
+    n_images: 701
+    filelist_sha256: d2a610deddfd0053e046efb42e9aaa9e22158164d7b89a0c63e4789d159fc41b
+    note: 700 labelled + 1 background image; no usable negatives, so empty-scene FP rate is not measurable here.
+  synth_test_pos:
+    domain: synthetic
+    images_dir: ${SYNTH_ROOT}/images/test
+    only_positive: true  # images with a non-empty label file (the test_pos view)
+    n_images: 701
+    filelist_sha256: 487ecc6146b2b99be2b396830bbdb88768972f0adfc989c26b4d7da0627b576b
+  synth_test_all:
+    domain: synthetic
+    images_dir: ${SYNTH_ROOT}/images/test
+    n_images: 1051
+    filelist_sha256: 893d17ed7eb396bb0fe9b1e2026d0f162d0a96b7f3f244c8cde30a8db536dae2
+    note: test_pos plus 350 background images; used for the empty-scene false-positive rate.
+
+models:
+  model_b:
+    train_domain: real
+    checkpoint: ${RUNS}/real_boreal/real_boreal_best_v1.pt
+    sha256: 1dc35ef293b6b35bb2dadaf5b6d5887ece89ca9d55a445bfdde258286c8355b6
+  model_a:
+    train_domain: synthetic
+    checkpoint: ${RUNS}/synth_smoke_a_v1/synth_smoke_best_v1.pt
+    sha256: null         # PIN after training (record in models/MODELS.md); unpinned runs are flagged in the output
+
+# model x dataset pairs. The four primary cells are the 2x2; the last two are the pre-declared FP view.
+cells:
+  - {model: model_a, dataset: synth_test_pos}   # Synth -> Synth
+  - {model: model_a, dataset: boreal_test}      # Synth -> Real
+  - {model: model_b, dataset: synth_test_pos}   # Real  -> Synth
+  - {model: model_b, dataset: boreal_test}      # Real  -> Real
+  - {model: model_a, dataset: synth_test_all}
+  - {model: model_b, dataset: synth_test_all}
+
+# Reproduction check (reported, never used to alter results): Model B's one-off Ultralytics test numbers
+# (models/MODELS.md). The harness' P/R use raw max-F1 and its own matching, so small differences are expected.
+reference_checks:
+  - model: model_b
+    dataset: boreal_test
+    source: models/MODELS.md (Ultralytics val, conf=0.001, iou=0.7)
+    expect: {mAP50: 0.9442, mAP50-95: 0.6688}
+    tolerance: {mAP50: 0.01, mAP50-95: 0.02}

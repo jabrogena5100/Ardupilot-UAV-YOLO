@@ -75,9 +75,9 @@ If the matrix is not trustworthy, nothing downstream matters. The eval harness m
    (Model A reuses Model B's recipe in `models/MODELS.md`, with the differences pinned in
    `docs/synthetic/synth_smoke_v1_spec.md` section 5).
 
-The harness (`eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`) is still empty. Model B was
-trained and tested with one-off scripts (`eval/runpod/`), which are not the harness. See
-`docs/project-status.md` for the current state and next task.
+The harness is `eval/metrics.py` (numpy metrics), `eval/run_matrix.py` (runner) and `eval/datasets.yaml` (pinned
+cells). Model B was trained and tested with one-off scripts (`eval/runpod/`), which are not the harness.
+Harness status (e.g. whether it has been validated against Model B on the real data) is in `docs/project-status.md`.
 
 ## Decisions that matter
 
@@ -102,9 +102,8 @@ trained and tested with one-off scripts (`eval/runpod/`), which are not the harn
 
 - Flight/ground side: `fog_tracker.py` + `fog/`, `swarm_agent.py`, `mission/`, `mapping/bitmap.py`, `planning/`,
   `comms/`, `dashboard/`, `wildfire_sim.py`, `launch_*.py`, `exp_swarm_*.yaml`.
-- ML side: `sim/camera.py`, `synthgen/`, `eval/validate_dataset.py`, `eval/runpod/` (archived one-off launchers), `models/`, `tests/`.
-- Still empty stubs (verify with `wc -l`): `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`,
-  `perception/detector.py`, `sim/frame_synth.py`, `mapping/probability_map.py`.
+- ML side: `sim/camera.py`, `synthgen/`, `eval/` (`validate_dataset.py`, harness), `eval/runpod/` (archived one-off launchers), `models/`, `tests/`.
+- Still empty stubs (verify with `wc -l`): `perception/detector.py`, `sim/frame_synth.py`, `mapping/probability_map.py`.
 - Large local data (datasets, backups, POC outputs) is under gitignored `local_data/`; checkpoints (`*.pt`) are never committed.
 
 ## Autonomous Development and Compute Policy
@@ -159,8 +158,12 @@ autonomous budget; unresolved issues. Codex independently reviews experimental e
   domain gap, resolution, augmentation, capacity and thresholds. Prefer reproducible runs over minimal GPU cost.
 
 ### Active gates (owner decisions that outrank the authorization above until cleared)
-- Review the `synth_smoke_v1` edge-touch distribution (~0.76 vs Boreal ~0.30) before spending GPU money on
-  Model A. `synth_smoke_v1` itself must not be changed; any fix is a post-hoc v2. Details: `docs/datasets/synth_smoke_v1.md`.
+- **Edge-touch gate: CLEARED 2026-10-27 for baseline Model A training only**, on these conditions: `synth_smoke_v1`
+  stays exactly as frozen (no edits to data, splits or generator); its edge-touch mismatch with Boreal (~0.76 vs ~0.30)
+  is reported as an experimental limitation; Model A on `synth_smoke_v1` is a baseline, not evidence that the synthetic
+  domain is optimal; never overwrite existing checkpoints or change splits; any dataset improvement is a separately
+  versioned dataset (v2, post-hoc). Before launching paid resources, reconcile RunPod compute and storage charges
+  against the $100 allowance. Ordinary authorized experiments need no further approval.
 - Gates are listed and cleared in `docs/project-status.md`; if silent, ask.
 
 ## Scope — do not expand into

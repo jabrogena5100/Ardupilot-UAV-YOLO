@@ -55,12 +55,12 @@ Level 3 then compares how the resulting perception models affect autonomous moni
 
 ## Level 2 — Cross-domain evaluation
 
-The evaluation harness is not built. Partial pieces that exist:
+The evaluation harness is implemented (2026-10-27) but not yet validated on real checkpoints. State of the pieces:
 
 * De facto unified annotation format: YOLO txt (`cls cx cy w h`, normalized), single class `0: smoke`, enforced for both domains by `eval/validate_dataset.py`. There is no separate formal schema document or shared loader yet.
 * Frozen splits: Boreal (`/workspace/splits/boreal_v1/` on the RunPod volume, hashes in `models/MODELS.md`) and `synth_smoke_v1` (hashes in `docs/datasets/synth_smoke_v1.md`). Test views `test_pos` and `test_all` are reported separately.
 * Model B's test number came from one-off RunPod scripts (`eval/runpod/`), not the shared harness.
-* Empty stubs: `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`.
+* Harness: `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml` (2026-10-27).
 
 Required final evaluation:
 
@@ -78,7 +78,7 @@ Required final evaluation:
 * confidence
 * localization error
 
-**Status:** Harness not implemented (stubs only). This is the highest-priority overdue component.
+**Status:** Harness implemented and unit-tested 2026-10-27; not yet run on real checkpoints and the Boreal test set (Priority 1).
 
 ---
 
@@ -229,15 +229,27 @@ above the belief floor rather than transmitting a dense grid.
 
 ## Current known issues / TODO
 
-### Active gate before Model A training
+### Edge-touch gate — CLEARED 2026-10-27 (baseline Model A only)
 
-Review the `synth_smoke_v1` edge-touch distribution (about 0.76 / 0.76 / 0.77 vs Boreal train 0.30) and decide: proceed as-is (documented Option A limitation with pre-declared diagnostic) or make a post-hoc `synth_smoke_v2`. Do not modify `synth_smoke_v1`. The project owner asked for this review before any GPU money is spent on training; the autonomous budget below does not override it until the owner clears it here. Also required before upload or training: the generated YAML/list files contain the generation pod's absolute paths and need path-rewritten copies (`docs/datasets/synth_smoke_v1.md`).
+The owner cleared the `synth_smoke_v1` edge-touch review (about 0.76 / 0.76 / 0.77 vs Boreal train 0.30) for baseline Model A training, with conditions:
 
-### Priority 1 — Unified evaluation system (overdue; start here)
+1. `synth_smoke_v1` is preserved exactly as frozen (tag `synth-v1`, `9cb0f1a`).
+2. The edge-touch mismatch with Boreal is documented as an experimental limitation in every write-up.
+3. Model A on `synth_smoke_v1` is the **baseline** experiment, not proof the synthetic domain is optimal.
+4. Frozen train/val/test splits are not modified and no existing checkpoint is overwritten.
+5. Synthetic dataset improvements are separately versioned (`synth_smoke_v2`, reported as post-hoc).
+6. RunPod compute and storage charges are reconciled against the $100 autonomous allowance before paid resources are launched.
+7. Ordinary authorized experiments proceed within the `CLAUDE.md` limits without further approval.
 
-Implement `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`: one `(checkpoint, test-set) -> metrics` path for all four cells, config-driven, fixed seeds, logged settings, precision/recall/mAP/FP-FN rates/confidence/localization error. Re-evaluate Model B's checkpoint through it and check it reproduces the one-off numbers (P 0.937, R 0.933, mAP50 0.944, mAP50-95 0.669) before trusting it. Mind the Boreal test set's lack of negative images (false-positive rate needs `synth test_all` or another negative source).
+Still required before upload or training: the generated YAML/list files contain the generation pod's absolute paths, so use path-rewritten copies (`docs/datasets/synth_smoke_v1.md`); never edit the hashed originals. The pre-declared diagnostic (Model A on Boreal test, grouped by edge-touching vs not) still applies after training.
 
-### Priority 2 — Train Model A (after the gate and Priority 1)
+### Priority 1 — Unified evaluation system (implemented 2026-10-27; real-data validation pending)
+
+Built: `eval/metrics.py` (pure-numpy metrics: mAP50, mAP50-95, P/R/F1 at max-F1 and fixed conf, FN/FP counts and rates, empty-scene image FP rate, mean confidence of TP/FP, IoU and centre-error localisation, recall split by edge-touching vs not), `eval/run_matrix.py` (config-driven runner; verifies dataset image-count and file-list hash pins and checkpoint SHA-256 pins, saves predictions, writes per-cell JSON with provenance plus `matrix.md`/`matrix.csv`), `eval/datasets.yaml` (the datasets, models and cells), and `tests/test_eval_metrics.py` + `tests/test_run_matrix.py` (13 tests, all passing; includes the frozen `synth_smoke_v1` test pins and a recompute-from-saved-predictions identity check). Conventions are documented in the `eval/metrics.py` docstring (a perfect detector scores 0.995, as in Ultralytics).
+
+Not yet done: (a) run on the real Boreal test set and reproduce Model B's one-off numbers (mAP50 0.9442, mAP50-95 0.6688) within tolerance — this needs a pod, since the Boreal split lives on the RunPod volume; (b) pin Model A's checkpoint SHA-256 in `eval/datasets.yaml` after training; (c) the Boreal test set has no usable negatives, so the empty-scene FP rate comes only from `synth_test_all`.
+
+### Priority 2 — Train Model A (gate cleared; follows Priority 1 per the harness-first rule)
 
 Use Model B's recipe with only the differences pinned in `docs/synthetic/synth_smoke_v1_spec.md` §5. Requires uploading the dataset to the RunPod volume with rewritten paths. Stay within the budget in `CLAUDE.md`; record spend in the ledger below.
 
@@ -271,7 +283,7 @@ A `SimVehicle` matching `CustomVehicle`'s public surface via a `sim:lat,lon,offs
 ### Open contradictions (unresolved, do not guess)
 
 * **Legacy 3-epoch checkpoint:** claimed in older docs, no registry entry, provenance unrecorded (above). Needs the owner to say what it was, or to be dropped from the narrative.
-* **Approval wording:** `docs/datasets/synth_smoke_v1.md` and the spec say upload and Model A training "need separate approval". `CLAUDE.md` now grants autonomous spending up to $100. Treated here as: the edge-touch review gate stands; routine spend within budget after the gate is cleared does not need a fresh per-run approval. Owner to confirm.
+* **Approval wording (resolved 2026-10-27):** the dataset doc and spec say upload and Model A training "need separate approval"; the owner has since cleared the gate and authorized ordinary experiments within the `CLAUDE.md` limits, which supersedes that wording.
 * **Spend ledger gaps:** RunPod volume `wildfire-datasets` storage charges have not been recorded anywhere in the repo.
 * **`tilt_deg`/`fov_deg` conventions** in `sim/camera.py` still need confirmation before Level 3 use.
 
@@ -394,7 +406,7 @@ Continue from the existing repository state rather than restarting or recreating
 
 **Current highest-priority task:**
 
-Build the evaluation harness (Priority 1) and clear the edge-touch gate; Model A training follows both.
+Validate the harness on real data (reproduce Model B), then train Model A (gate cleared 2026-10-27) and run the 2x2.
 
 **Current research bottleneck:**
 
