@@ -93,11 +93,11 @@ local per-split image/label counts equal the table above.
 
 | What | Where |
 |---|---|
-| Dataset (local, not in git) | `~/datasets/synth_smoke_v1/` |
-| Run records | `~/datasets/synth_smoke_v1_run_records/` : `gen_cmd.txt`, `gen_full.log`, `gen_failed_run1.log`, `validate_*.json`, `synth_smoke_v1.tar`, `.tar.sha256`, `.SHA256SUMS` |
-| Transfer leftovers | `~/datasets/_incoming/` (tarball copy, safe to delete) |
+| Dataset (local, not in git) | `local_data/datasets/synth_smoke_v1/` |
+| Run records | `local_data/datasets/synth_smoke_v1_run_records/` : `gen_cmd.txt`, `gen_full.log`, `gen_failed_run1.log`, `validate_*.json`, `synth_smoke_v1.tar`, `.tar.sha256`, `.SHA256SUMS` |
+| Transfer leftovers | `local_data/datasets/_incoming/` (tarball copy, safe to delete) |
 | RunPod pod `ju9568emxzxr1a` (`synth-v1-cpu-gen`) | **deleted** 2026-10-05; `list-pods` returned empty afterwards |
-| RunPod volume | dataset **not yet uploaded** (needs separate approval with cost stated first) |
+| RunPod volume | uploaded 2026-10-27 to `/workspace/synth_smoke_v1/` (hashes verified before and after the Model A run); tarball at `/workspace/incoming/`. Model A trained on it: `docs/experiments/level2_v1.md` |
 
 ## Caveat: absolute paths in generated YAML and list files
 
@@ -116,7 +116,8 @@ pre-declared diagnostic (Model A on Boreal test grouped by edge-touching vs not)
 be used to modify or regenerate `synth_smoke_v1`; any generator change is v2, reported as post-hoc. The spec's
 geometric estimate was about 44% forced touching, and the measured rate is higher than that, so the project owner asked
 for a review of the edge-touch distribution versus Boreal before any GPU money is spent on training. That review has
-**not** been done, and nothing about edge-touch behavior was investigated or changed in this session.
+been resolved by the owner (2026-10-27): baseline Model A training may proceed with the dataset unchanged, the mismatch
+documented as a limitation, and any improvement versioned separately (`docs/project-status.md`).
 
 ## Limitations (carry into any write-up)
 

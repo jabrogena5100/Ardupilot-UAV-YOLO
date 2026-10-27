@@ -1,6 +1,6 @@
 # Project Status — ECE 496 AI-Enabled Autonomous Wildfire Monitoring
 
-**Last updated:** 2026-10-27 (documentation consolidation; no experiments since 2026-10-05)
+**Last updated:** 2026-10-27 (edge-touch gate cleared; harness built; Model A baseline trained; first 2x2 matrix produced)
 
 This file is the primary source for current progress and immediate next tasks. `CLAUDE.md` holds the rules; `models/MODELS.md` is authoritative for checkpoint provenance. Always verify claims here against the repo (`git status`, `wc -l`, hashes) before acting.
 
@@ -31,7 +31,7 @@ Level 3 then compares how the resulting perception models affect autonomous moni
 
 **Real dataset:** Boreal Forest dataset.
 
-**Synthetic dataset:** `synth_smoke_v1` generation is **COMPLETE and validated** (5,304 images, 2026-10-05; record in `docs/datasets/synth_smoke_v1.md`). Local copy: `local_data/datasets/synth_smoke_v1/`. The RunPod generation pod is deleted, the dataset is not yet on the RunPod volume, and **no Model A training has started**. It was built with the project's 2.5D synthetic image generator using:
+**Synthetic dataset:** `synth_smoke_v1` generation is **COMPLETE and validated** (5,304 images, 2026-10-05; record in `docs/datasets/synth_smoke_v1.md`). Local copy: `local_data/datasets/synth_smoke_v1/`; a hash-verified copy is on the RunPod volume at `/workspace/synth_smoke_v1/` (uploaded 2026-10-27). Model A was trained on it 2026-10-27 (below). It was built with the project's 2.5D synthetic image generator using:
 
 * ground-plane forest texture
 * pinhole camera projection
@@ -44,12 +44,12 @@ Level 3 then compares how the resulting perception models affect autonomous moni
 
 | Model | Checkpoint | State |
 |---|---|---|
-| Model A — synthetic-trained YOLO | `synth_smoke_best_v1.pt` (planned name, `docs/synthetic/synth_smoke_v1_spec.md` §5) | **Not trained.** Dataset ready; blocked on the edge-touch review gate. |
+| Model A — synthetic-trained YOLO | `synth_smoke_best_v1.pt`, SHA-256 `1da10c48…009564` | **Baseline trained** 2026-10-27 (100 epochs, 996 s, 1x RTX 4090). Synthetic val/test mAP50 0.995 (saturated); Boreal test mAP50 0.429. `docs/experiments/level2_v1.md`, `models/MODELS.md`. |
 | Model B — real/Boreal-trained YOLO | `real_boreal_best_v1.pt`, SHA-256 `1dc35ef2…8355b6` | **Trained and tested once** (2026-10-04): test mAP50 0.944, mAP50-95 0.669. Details: `models/MODELS.md`, `docs/experiments/real_boreal_v1.md`. |
 
 **Legacy "3-epoch demo checkpoint":** earlier versions of this file and `CLAUDE.md` said a 3-epoch demo checkpoint exists. No such file is in the working tree, and nothing in `models/MODELS.md` or the experiment record describes it. The only trace is git history: `models/real_boreal_bestv1.pt` (5,442,970 bytes, SHA-256 `05ef7d46…47a54`, commit `73dab87`, deleted in `23dc32a`) and a 0-byte `models/synthetic_best.pt` placeholder. The 5.4 MB blob is not Model B v1 (22.5 MB, different hash). Its epochs, architecture and data are **unrecorded**; do not call it Model A or B or cite it as a result. See "Open contradictions".
 
-**Status:** Model B done; Model A pending.
+**Status:** Both baseline models exist; first 2x2 matrix produced (single seed). Edge-touch mismatch remains a stated limitation.
 
 ---
 
@@ -78,7 +78,16 @@ Required final evaluation:
 * confidence
 * localization error
 
-**Status:** Harness implemented and unit-tested 2026-10-27; not yet run on real checkpoints and the Boreal test set (Priority 1).
+**Status:** Harness implemented, validated against Model B (reproduces its Ultralytics test mAP50 0.9442 / mAP50-95 0.6688 as 0.9511 / 0.6730), and used for the first 2x2 (2026-10-27, `docs/experiments/level2_v1.md`):
+
+| train -> test | mAP50 | mAP50-95 | R@0.25 | FP/img@0.25 |
+|---|---|---|---|---|
+| Synth -> Synth | 0.995 | 0.985 | 1.000 | 0.000 |
+| Synth -> Real | 0.429 | 0.216 | 0.572 | 0.424 |
+| Real -> Synth | 0.753 | 0.389 | 0.568 | 0.063 |
+| Real -> Real | 0.951 | 0.673 | 0.945 | 0.121 |
+
+Single seed, single run, no confidence intervals yet; the Synth -> Synth cell is saturated.
 
 ---
 
@@ -229,7 +238,7 @@ above the belief floor rather than transmitting a dense grid.
 
 ## Current known issues / TODO
 
-### Edge-touch gate — CLEARED 2026-10-27 (baseline Model A only)
+### Edge-touch gate — CLEARED 2026-10-27 (baseline Model A only; Model A baseline now trained)
 
 The owner cleared the `synth_smoke_v1` edge-touch review (about 0.76 / 0.76 / 0.77 vs Boreal train 0.30) for baseline Model A training, with conditions:
 
@@ -241,17 +250,22 @@ The owner cleared the `synth_smoke_v1` edge-touch review (about 0.76 / 0.76 / 0.
 6. RunPod compute and storage charges are reconciled against the $100 autonomous allowance before paid resources are launched.
 7. Ordinary authorized experiments proceed within the `CLAUDE.md` limits without further approval.
 
-Still required before upload or training: the generated YAML/list files contain the generation pod's absolute paths, so use path-rewritten copies (`docs/datasets/synth_smoke_v1.md`); never edit the hashed originals. The pre-declared diagnostic (Model A on Boreal test, grouped by edge-touching vs not) still applies after training.
+The generated YAML/list files contain the generation pod's absolute paths, so runs use path-rewritten copies (`data_rw.yaml`; the harness reads image directories directly); never edit the hashed originals. The pre-declared diagnostic (Model A on Boreal test, grouped by edge-touching vs not) was run: recall 0.873 edge-touching (n=142) vs 0.497 not (n=571), reported as consistent with, not proof of, the mismatch.
 
-### Priority 1 — Unified evaluation system (implemented 2026-10-27; real-data validation pending)
+### Priority 1 — Make the 2x2 trustworthy (next implementation task)
 
-Built: `eval/metrics.py` (pure-numpy metrics: mAP50, mAP50-95, P/R/F1 at max-F1 and fixed conf, FN/FP counts and rates, empty-scene image FP rate, mean confidence of TP/FP, IoU and centre-error localisation, recall split by edge-touching vs not), `eval/run_matrix.py` (config-driven runner; verifies dataset image-count and file-list hash pins and checkpoint SHA-256 pins, saves predictions, writes per-cell JSON with provenance plus `matrix.md`/`matrix.csv`), `eval/datasets.yaml` (the datasets, models and cells), and `tests/test_eval_metrics.py` + `tests/test_run_matrix.py` (13 tests, all passing; includes the frozen `synth_smoke_v1` test pins and a recompute-from-saved-predictions identity check). Conventions are documented in the `eval/metrics.py` docstring (a perfect detector scores 0.995, as in Ultralytics).
+The matrix exists but is one run per model. Before any Level 3 use or conclusion:
+1. **Uncertainty (no GPU needed):** image-level bootstrap confidence intervals for mAP50, mAP50-95, recall and FP/img, computed from the saved predictions (`eval/bootstrap.py`, `--preds-from`).
+2. **Seed variance (about $1 total):** repeat Model A (about 17 min) and Model B (about 38 min) with 2 additional seeds using the identical recipe; report the spread next to the bootstrap CIs. New seeds are new checkpoint names; never overwrite `synth_smoke_best_v1.pt` or `real_boreal_best_v1.pt`.
+3. **Saturated in-domain cell:** document that Synth -> Synth cannot discriminate; add harder diagnostics (per-archetype / per-size / low-contrast breakdowns from `metadata.jsonl`) rather than changing the frozen test set.
+4. Keep reporting the edge-touch diagnostic and the Boreal no-negatives limitation with every table.
+5. Feed the TP/FP/FN counts at the chosen operating point into the sensitivity/specificity needed by `mapping/probability_map.py` (Priority 5) only after 1-2 are in.
 
-Not yet done: (a) run on the real Boreal test set and reproduce Model B's one-off numbers (mAP50 0.9442, mAP50-95 0.6688) within tolerance — this needs a pod, since the Boreal split lives on the RunPod volume; (b) pin Model A's checkpoint SHA-256 in `eval/datasets.yaml` after training; (c) the Boreal test set has no usable negatives, so the empty-scene FP rate comes only from `synth_test_all`.
+Already built (2026-10-27): `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml` (with Model A pinned), 13 tests (`tests/test_eval_metrics.py`, `tests/test_run_matrix.py`), and the archived pod script `eval/runpod/level2_modelA_train_and_matrix.sh`. Conventions are in the `eval/metrics.py` docstring (a perfect detector scores 0.995, as in Ultralytics).
 
-### Priority 2 — Train Model A (gate cleared; follows Priority 1 per the harness-first rule)
+### Priority 2 — Model A improvements are a separate dataset version
 
-Use Model B's recipe with only the differences pinned in `docs/synthetic/synth_smoke_v1_spec.md` §5. Requires uploading the dataset to the RunPod volume with rewritten paths. Stay within the budget in `CLAUDE.md`; record spend in the ledger below.
+Anything that changes the synthetic data (for example reducing the edge-touch rate) is `synth_smoke_v2`, generated, hashed and reported as post-hoc, with its own Model A. `synth_smoke_v1` and its splits stay frozen.
 
 ### Priority 3 — Fix `launch_experiment.py`
 
@@ -336,11 +350,12 @@ Limits (from `CLAUDE.md`): $150 total project, $100 cumulative autonomous, $50 r
 |---|---|
 | Pods, 2026-10-04 (7 pods: Model B stage 1 / training / evaluation and short inspection pods) | $3.04 |
 | Pods, 2026-10-05 (5 pods incl. CPU generation pod `ju9568emxzxr1a` $0.134) | $0.30 |
-| Network volume `wildfire-datasets` (`sej40ez3ia`, 50 GB STANDARD, US-IL-1), 2026-10-01 to date | $2.78 (accrues about $0.10-0.12/day while it exists) |
-| **Total billed** | **$6.12** |
-| **Remaining autonomous allowance** ($100 - $6.12) | **$93.88** |
+| Network volume `wildfire-datasets` (`sej40ez3ia`, 50 GB STANDARD, US-IL-1), 2026-10-01 to 2026-10-27 | $2.79 (accrues about $0.10-0.12/day while it exists) |
+| Level 2 pod `h88h3d09647945` (1x RTX 4090, 22:57-about 23:27 UTC 2026-10-27, $0.89/hr) | about $0.45 **estimated; billing had not posted it yet** |
+| **Total (billed $6.12 + estimated $0.45)** | **about $6.57** |
+| **Remaining autonomous allowance** ($100 - about $6.57) | **about $93.43** |
 
-Corrections: the earlier per-experiment estimates in this file ("about $0.60" for Model B, "about $0.13" for generation) came from pod run time and undercount; billing shows about $3.04 for 2026-10-04 (two pods with $1.38 and $1.07 of GPU charges are not individually documented) and $0.30 for 2026-10-05. The experiment documents keep their original estimates; this ledger is authoritative for spend. Pod count at reconciliation: 0 running (`list-pods` empty).
+Corrections: the earlier per-experiment estimates in this file ("about $0.60" for Model B, "about $0.13" for generation) came from pod run time and undercount; billing shows about $3.04 for 2026-10-04 (two pods with $1.38 and $1.07 of GPU charges are not individually documented) and $0.30 for 2026-10-05. The experiment documents keep their original estimates; this ledger is authoritative for spend. Pod count after the 2026-10-27 run: 0 running (`list-pods` empty). Next session: re-read billing and replace the pod estimate with the billed figure.
 
 Update this ledger after every paid action, and re-run the billing reads before launching anything.
 
@@ -408,11 +423,13 @@ Continue from the existing repository state rather than restarting or recreating
 
 **Update 2026-10-05 (end of session):** `synth_smoke_v1` generation is COMPLETE and validated; the RunPod CPU pod is deleted; no Model A training has started. **Next decision:** review the synthetic edge-touch distribution (about 0.76 train / 0.76 val / 0.77 test vs about 0.30 in Boreal train) before spending GPU money on Model A. The spec (Option A) had already accepted this gap as a documented limitation with a pre-declared diagnostic, so the review is about whether to proceed as-is or to make a post-hoc v2; do not change `synth_smoke_v1` itself. Also before any upload or training: the generated YAML/list files contain the pod's absolute paths and need path-rewritten copies. Details: `docs/datasets/synth_smoke_v1.md`.
 
+**Update 2026-10-27 (later):** gate cleared by the owner; evaluation harness built and validated against Model B; Model A baseline trained and the first 2x2 produced (`docs/experiments/level2_v1.md`). Next: confidence intervals and seed variance (Priority 1).
+
 **Update 2026-10-27:** `CLAUDE.md` consolidated into a short operating manual; stale claims in this file corrected (generator, camera and Model B status, 3-epoch checkpoint, launcher bug status). Checkpoint, dataset and code were not touched, and no paid resources were used.
 
 **Current highest-priority task:**
 
-Validate the harness on real data (reproduce Model B), then train Model A (gate cleared 2026-10-27) and run the 2x2.
+Quantify uncertainty of the first 2x2 (bootstrap CIs, then extra seeds) before drawing or using any conclusion.
 
 **Current research bottleneck:**
 
@@ -461,3 +478,10 @@ Produce the first reproducible Level 2 evaluation matrix using fixed datasets, f
 * Validator passed on `data.yaml`, `data_test_pos.yaml`, `data_test_all.yaml`; tarball and all 10,616 file hashes verified after transfer to `local_data/datasets/synth_smoke_v1/`.
 * Measured edge-touch fractions 0.76 / 0.76 / 0.77 vs Boreal 0.30: still open, to be reviewed before Model A training. Absolute-path caveat in the YAML/list files documented.
 * Full record: `docs/datasets/synth_smoke_v1.md`. Spec status line updated.
+
+### 2026-10-27 — Level 2 v1: harness validation, Model A baseline, first 2x2
+
+* Gate cleared by the owner (7 conditions, above). Built `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`, 13 tests.
+* RunPod 1x RTX 4090 (US-IL-1, $0.89/hr, about 30 min, pod terminated and verified): dataset hashes verified (10,616 files, before and after), harness reproduced Model B (mAP50 0.9511 vs 0.9442), Model A trained with Model B's recipe (100 epochs, 996 s, SHA `1da10c48…009564`), full 2x2 produced.
+* First launch failed before training on PEP 668 (`pip` refused); fixed and rerun from a clean state (log kept in `docs/experiments/level2_v1/`).
+* Results, interpretation and limitations: `docs/experiments/level2_v1.md`. Checkpoint backed up locally with hashes (`local_data/backups/synth_smoke_a_v1/`). Model B untouched.

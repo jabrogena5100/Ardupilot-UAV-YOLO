@@ -2,15 +2,22 @@
 
 Checkpoints are never committed to git (`*.pt` is gitignored). The primary copy lives on the RunPod network volume `wildfire-datasets` (`sej40ez3ia`, US-IL-1); a verified backup is kept on the local Ubuntu machine under `local_data/backups/`. Each entry below lists both locations and the SHA-256.
 
-Naming: **Model B** (real / Boreal) is `real_boreal_best_v1.pt` below. **Model A** (synthetic) is not trained; its planned
-name is `synth_smoke_best_v1.pt` (dataset `synth_smoke_v1`, recipe in `docs/synthetic/synth_smoke_v1_spec.md` section 5). Add its entry
-here, with SHA-256, when it exists. Current project progress is in `docs/project-status.md`.
+Naming: **Model B** (real / Boreal) is `real_boreal_best_v1.pt` below. **Model A** (synthetic) is `synth_smoke_best_v1.pt` below
+(dataset `synth_smoke_v1`, recipe in `docs/synthetic/synth_smoke_v1_spec.md` section 5). Current project progress is in `docs/project-status.md`.
 
-## Model A (synthetic) — planned, not trained
+## synth_smoke_best_v1.pt — Model A (synthetic), v1 baseline
 
-- Checkpoint: `synth_smoke_best_v1.pt` (does not exist)
-- Dataset: `synth_smoke_v1`, generated and validated 2026-10-05, not yet on the RunPod volume (`docs/datasets/synth_smoke_v1.md`)
-- Gate: edge-touch review pending (see `docs/project-status.md`)
+- Experiment: `docs/experiments/level2_v1.md` (Model A baseline on `synth_smoke_v1`; limitation: edge-touch 0.76 vs Boreal 0.30)
+- Architecture: YOLOv8s (COCO-pretrained `yolov8s.pt`); AdamW, lr0 0.002, momentum 0.9, warmup_bias_lr 0.0; otherwise Model B's recipe
+- Training: 100 epochs, imgsz 640, batch 32, seed 0, deterministic; best epoch 99 (by synthetic val fitness)
+- Dataset: `synth_smoke_v1` (tag `synth-v1`), train 3,479 images; Model A never saw Boreal train/val/test
+- SHA-256: `1da10c4814a905d92deec2d9c36185f872eabea447d47c389b9b065468009564`
+- RunPod copy: `/workspace/runs/synth_smoke_a_v1/synth_smoke_best_v1.pt` (copy of `weights/best.pt`)
+- Local backup: `local_data/backups/synth_smoke_a_v1/synth_smoke_a_v1/synth_smoke_best_v1.pt` (hash verified after transfer; `SHA256SUMS` alongside)
+- Git status: excluded by `.gitignore` (`*.pt`); not tracked
+- Full config + environment (pip freeze): `docs/experiments/level2_v1/model_a_training/train_config_v1.json` (in git)
+- Trained: 2026-10-27, RunPod secure 1x RTX 4090, US-IL-1, wall time 996 s; ultralytics 8.4.173, torch 2.8.0+cu128
+- Harness results: synthetic val/test_pos mAP50 0.995 (saturated); Boreal test mAP50 0.429, mAP50-95 0.216 (`docs/experiments/level2_v1/matrix.md`)
 
 ## Legacy artifacts (not registry entries)
 

@@ -42,7 +42,7 @@ models:
   model_a:
     train_domain: synthetic
     checkpoint: ${RUNS}/synth_smoke_a_v1/synth_smoke_best_v1.pt
-    sha256: null         # PIN after training (record in models/MODELS.md); unpinned runs are flagged in the output
+    sha256: 1da10c4814a905d92deec2d9c36185f872eabea447d47c389b9b065468009564   # pinned 2026-10-27 (models/MODELS.md); the level2_v1 run pinned it via a config copy
 
 # model x dataset pairs. The four primary cells are the 2x2; the last two are the pre-declared FP view.
 cells:
