@@ -1,6 +1,27 @@
 # Model registry
 
-Checkpoints are never committed to git (`*.pt` is gitignored). The primary copy lives on the RunPod network volume `wildfire-datasets` (`sej40ez3ia`, US-IL-1); a verified backup is kept on the local Ubuntu machine under `~/backups/`. Each entry below lists both locations and the SHA-256.
+Checkpoints are never committed to git (`*.pt` is gitignored). The primary copy lives on the RunPod network volume `wildfire-datasets` (`sej40ez3ia`, US-IL-1); a verified backup is kept on the local Ubuntu machine under `local_data/backups/`. Each entry below lists both locations and the SHA-256.
+
+Naming: **Model B** (real / Boreal) is `real_boreal_best_v1.pt` below. **Model A** (synthetic) is not trained; its planned
+name is `synth_smoke_best_v1.pt` (dataset `synth_smoke_v1`, recipe in `docs/synthetic/synth_smoke_v1_spec.md` section 5). Add its entry
+here, with SHA-256, when it exists. Current project progress is in `docs/project-status.md`.
+
+## Model A (synthetic) — planned, not trained
+
+- Checkpoint: `synth_smoke_best_v1.pt` (does not exist)
+- Dataset: `synth_smoke_v1`, generated and validated 2026-10-05, not yet on the RunPod volume (`docs/datasets/synth_smoke_v1.md`)
+- Gate: edge-touch review pending (see `docs/project-status.md`)
+
+## Legacy artifacts (not registry entries)
+
+Present only in git history, in `models/`; both deleted in `23dc32a` ("renamed models .pt files", 2026-10-03):
+
+| Path | Size | SHA-256 | Notes |
+|---|---|---|---|
+| `models/real_boreal_bestv1.pt` (commit `73dab87`) | 5,442,970 B | `05ef7d467a638a5022e4d85e2089acb29a099530372e1b602dd5237fd8247a54` | Not Model B v1 (that file is 22,501,034 B with a different hash). Training provenance unrecorded; plausibly the "3-epoch demo checkpoint" mentioned in older docs, but nothing in the repo confirms it. |
+| `models/synthetic_best.pt` | 0 B | n/a | Empty placeholder; never a trained model. `perception/base.py`'s docstring example still names this path. |
+
+Do not cite either as Model A, Model B, or an experimental result.
 
 ## real_boreal_best_v1.pt — Model B (real / Boreal), v1
 
@@ -11,7 +32,7 @@ Checkpoints are never committed to git (`*.pt` is gitignored). The primary copy 
 - Test mAP50-95: 0.669
 - SHA-256: `1dc35ef293b6b35bb2dadaf5b6d5887ece89ca9d55a445bfdde258286c8355b6`
 - RunPod copy: `/workspace/runs/real_boreal/real_boreal_best_v1.pt` (copy of `weights/best.pt`)
-- Local backup: `~/backups/real_boreal_v1/real_boreal_v1_backup/real_boreal_best_v1.pt` (verified against the SHA-256 above on 2026-10-05, together with `train_config_v1.json`, `test_metrics_v1.json`, `args.yaml`, `results.csv`, `manifest.json` and a `SHA256SUMS` file)
+- Local backup: `local_data/backups/real_boreal_v1/real_boreal_v1_backup/real_boreal_best_v1.pt` (verified against the SHA-256 above on 2026-10-05, together with `train_config_v1.json`, `test_metrics_v1.json`, `args.yaml`, `results.csv`, `manifest.json` and a `SHA256SUMS` file)
 - Git status: checkpoint intentionally excluded by `.gitignore` (`*.pt`); not tracked
 - Full config + environment (pip freeze): `/workspace/runs/real_boreal/train_config_v1.json`
 - Trained: 2026-10-04, RunPod secure 1x RTX 4090, US-IL-1, wall time 2268 s (100 epochs, ~22 s/epoch)
