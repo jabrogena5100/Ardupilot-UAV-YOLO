@@ -126,6 +126,16 @@ def save_preds(path: str, preds: Dict[str, np.ndarray]) -> None:
         json.dump({k: np.round(v, 6).tolist() for k, v in preds.items()}, f)
 
 
+def save_gts(path: str, gts: Dict[str, np.ndarray]) -> None:
+    with gzip.open(path, "wt") as f:
+        json.dump({k: np.round(v, 6).tolist() for k, v in gts.items()}, f)
+
+
+def load_gts(path: str) -> Dict[str, np.ndarray]:
+    with gzip.open(path, "rt") as f:
+        return {k: np.asarray(v, float).reshape(-1, 5) for k, v in json.load(f).items()}
+
+
 def load_preds(path: str) -> Dict[str, np.ndarray]:
     with gzip.open(path, "rt") as f:
         return {k: np.asarray(v, float).reshape(-1, 6) for k, v in json.load(f).items()}
@@ -155,7 +165,8 @@ def versions() -> Dict[str, Any]:
 
 
 def run_cell(model_name: str, model: Dict[str, Any], ds: Dict[str, Any], settings: Dict[str, Any],
-             predictor: Callable, out_dir: str, preds_from: Optional[str], argv: List[str]) -> Dict[str, Any]:
+             predictor: Callable, out_dir: str, preds_from: Optional[str], argv: List[str],
+             bootstrap: int = 0) -> Dict[str, Any]:
     tag = f"{model_name}__{ds['name']}"
     ckpt = model["checkpoint"]
     pin = model.get("sha256")
@@ -174,6 +185,12 @@ def run_cell(model_name: str, model: Dict[str, Any], ds: Dict[str, Any], setting
         preds = load_preds(pred_file)   # evaluate exactly what was saved, so a recompute is bit-identical
         print(f"[{tag}] predicted {len(preds)} images in {time.time() - t0:.1f}s")
     res = M.evaluate(preds, ds["gts"], conf_thresholds=settings["report_conf"])
+    if bootstrap:
+        res["bootstrap"] = M.bootstrap_ci(preds, ds["gts"], n=bootstrap, seed=int(settings["seed"]),
+                                          conf=float(settings["report_conf"][0]))
+    if not preds_from:   # ground truth is saved next to predictions so every number can be recomputed offline
+        os.makedirs(os.path.join(out_dir, "gts"), exist_ok=True)
+        save_gts(os.path.join(out_dir, "gts", f"{ds['name']}.json.gz"), ds["gts"])
     cell = {"cell": tag, "model": model_name, "train_domain": model.get("train_domain"), "dataset": ds["name"],
             "checkpoint": ckpt, "checkpoint_sha256": ck_hash, "checkpoint_pinned": pinned,
             "dataset_n_images": ds["n_images"], "dataset_filelist_sha256": ds["filelist_sha256"],
@@ -217,6 +234,15 @@ def write_summary(cells: List[Dict[str, Any]], cfg: Dict[str, Any], out_dir: str
         lines.append(f"| {r['train']} -> {r['test']}{' (UNPINNED)' if r['unpinned'] else ''} | {r['images']} | {fmt(r['mAP50'])} | "
                      f"{fmt(r['mAP50-95'])} | {fmt(r['precision@op'])} | {fmt(r['recall@op'])} | {fmt(r['FNR@op'])} | "
                      f"{fmt(r['FP/img@op'])} | {fmt(r['empty_img_FP_rate@op'])} | {fmt(r['mean_conf_TP'])} | {fmt(r['mean_IoU_TP'])} |")
+    if any("bootstrap" in c["metrics"] for c in cells):
+        lines += ["", "Image-level bootstrap 95% CIs (test-set sampling only; not training-seed variance; Boreal frames from the same "
+                  "video are correlated, so its intervals are optimistic):", "",
+                  "| cell | mAP50 | mAP50-95 | R@op | P@op | FP/img@op |", "|---|---|---|---|---|---|"]
+        for c in cells:
+            b = c["metrics"].get("bootstrap")
+            if b:
+                f2 = lambda k: "n/a" if not b["ci"][k] else f"[{b['ci'][k][0]:.3f}, {b['ci'][k][1]:.3f}]"
+                lines.append(f"| {c['cell']} | {f2('mAP50')} | {f2('mAP50-95')} | {f2('recall')} | {f2('precision')} | {f2('fp_per_image')} |")
     lines += ["", "Edge-touch diagnostic (recall at the same operating point, GT boxes touching the image border vs not):", "",
               "| cell | recall edge-touching | recall not edge-touching |", "|---|---|---|"]
     for r in rows:
@@ -246,6 +272,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--var", action="append", default=[], help="NAME=VALUE for ${NAME} in the config")
     ap.add_argument("--cells", help="comma list model:dataset (default: all cells in the config)")
     ap.add_argument("--dry-run", action="store_true", help="verify dataset pins and checkpoint hashes only")
+    ap.add_argument("--bootstrap", type=int, default=0, help="image-level bootstrap resamples for 95%% CIs (0 = off)")
     ap.add_argument("--preds-from", help="recompute metrics from saved predictions in this directory (no model needed)")
     a = ap.parse_args(argv)
     env = {**{k: v for k, v in os.environ.items()}, **dict(v.split("=", 1) for v in a.var)}
@@ -276,7 +303,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     os.makedirs(a.out, exist_ok=True)
     argv_used = sys.argv if argv is None else argv
     cells = [run_cell(c["model"], cfg["models"][c["model"]], dsets[c["dataset"]], cfg["settings"],
-                      ultralytics_predictor, a.out, a.preds_from, list(argv_used)) for c in cells_cfg]
+                      ultralytics_predictor, a.out, a.preds_from, list(argv_used), a.bootstrap) for c in cells_cfg]
     write_summary(cells, cfg, a.out)
     print(open(os.path.join(a.out, "matrix.md")).read())
     return 0

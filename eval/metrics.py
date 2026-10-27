@@ -251,3 +251,29 @@ def evaluate(preds: Dict[str, np.ndarray], gts: Dict[str, np.ndarray],
 def _flat_pred_boxes(preds, names) -> np.ndarray:
     parts = [np.asarray(preds.get(n, np.zeros((0, 6))), float).reshape(-1, 6)[:, :4] for n in names]
     return np.concatenate(parts) if parts else np.zeros((0, 4))
+
+
+def bootstrap_ci(preds: Dict[str, np.ndarray], gts: Dict[str, np.ndarray], n: int = 1000, seed: int = 0,
+                 conf: float = 0.25, alpha: float = 0.05) -> Dict[str, Any]:
+    """Image-level bootstrap (resample images with replacement) percentile CIs for the headline metrics.
+
+    Captures test-set sampling variability only; it says nothing about training-seed variance (needs repeat runs)
+    and treats images as independent (Boreal frames from the same video are correlated, so its CIs are optimistic).
+    """
+    names = sorted(gts)
+    rng = np.random.default_rng(seed)
+    keys = ["mAP50", "mAP50-95", "precision", "recall", "fp_per_image"]
+    vals = {k: [] for k in keys}
+    for _ in range(n):
+        idx = rng.integers(0, len(names), len(names))
+        g = {f"{i}#{names[j]}": gts[names[j]] for i, j in enumerate(idx)}
+        p = {f"{i}#{names[j]}": preds[names[j]] for i, j in enumerate(idx) if names[j] in preds}
+        r = evaluate(p, g, conf_thresholds=(conf,))
+        o = r["at_conf"][f"{conf:g}"]
+        for k, v in (("mAP50", r["mAP50"]), ("mAP50-95", r["mAP50-95"]), ("precision", o["precision"]),
+                     ("recall", o["recall"]), ("fp_per_image", o["fp_per_image"])):
+            if v is not None:
+                vals[k].append(v)
+    lo, hi = 100 * alpha / 2, 100 * (1 - alpha / 2)
+    return {"n_resamples": n, "seed": seed, "conf_threshold": conf, "level": 1 - alpha,
+            "ci": {k: [float(np.percentile(v, lo)), float(np.percentile(v, hi))] if v else None for k, v in vals.items()}}

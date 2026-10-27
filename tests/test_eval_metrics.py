@@ -70,6 +70,21 @@ class TestMetrics(unittest.TestCase):
         self.assertEqual(e["edge_touching"]["recall"], 0.0)
         self.assertEqual(e["not_edge_touching"]["recall"], 1.0)
 
+    def test_bootstrap_ci(self):
+        rng = np.random.default_rng(1)
+        g, p = {}, {}
+        for i in range(60):
+            g[f"i{i}"] = gt((0.2, 0.2, 0.4, 0.4))
+            if rng.random() < 0.7:
+                p[f"i{i}"] = pr((0.2, 0.2, 0.4, 0.4, 0.9))
+        a = M.bootstrap_ci(p, g, n=60, seed=3)
+        b = M.bootstrap_ci(p, g, n=60, seed=3)
+        self.assertEqual(a, b)                               # deterministic
+        lo, hi = a["ci"]["recall"]
+        point = M.evaluate(p, g)["at_conf"]["0.25"]["recall"]
+        self.assertLessEqual(lo, point); self.assertGreaterEqual(hi, point)
+        self.assertLess(hi - lo, 0.4)
+
     def test_load_gt(self):
         import os, tempfile
         with tempfile.TemporaryDirectory() as d:

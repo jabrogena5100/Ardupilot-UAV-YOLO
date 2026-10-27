@@ -58,6 +58,7 @@ class TestRunMatrix(unittest.TestCase):
             again = R.run_cell("oracle", {"checkpoint": __file__}, pos, cfg["settings"], None,
                                out, os.path.join(out, "predictions"), ["test"])
             self.assertEqual(json.dumps(again["metrics"], sort_keys=True), json.dumps(m, sort_keys=True))
+            self.assertTrue(os.path.exists(os.path.join(out, "gts", "synth_test_pos.json.gz")))
             R.write_summary([cell], cfg, out)
             self.assertTrue(os.path.exists(os.path.join(out, "matrix.md")))
 
