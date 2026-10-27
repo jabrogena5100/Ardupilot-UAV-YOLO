@@ -284,7 +284,7 @@ A `SimVehicle` matching `CustomVehicle`'s public surface via a `sim:lat,lon,offs
 
 * **Legacy 3-epoch checkpoint:** claimed in older docs, no registry entry, provenance unrecorded (above). Needs the owner to say what it was, or to be dropped from the narrative.
 * **Approval wording (resolved 2026-10-27):** the dataset doc and spec say upload and Model A training "need separate approval"; the owner has since cleared the gate and authorized ordinary experiments within the `CLAUDE.md` limits, which supersedes that wording.
-* **Spend ledger gaps:** RunPod volume `wildfire-datasets` storage charges have not been recorded anywhere in the repo.
+* **Spend ledger (resolved 2026-10-27):** reconciled to billing; the undocumented 2026-10-04/05 pods (two with >$1 GPU charges) are still unexplained individually and the experiment docs' cost estimates are too low.
 * **`tilt_deg`/`fov_deg` conventions** in `sim/camera.py` still need confirmation before Level 3 use.
 
 ---
@@ -330,13 +330,19 @@ The four Level 2 matrix cells should use comparable training methodology and doc
 
 Limits (from `CLAUDE.md`): $150 total project, $100 cumulative autonomous, $50 reserve, $20 per experiment, one paid GPU pod at a time.
 
-| Date | Item | Cost | Source |
-|---|---|---|---|
-| 2026-10-04 | Model B: Stage 1 inspection/smoke (about $0.08) + training/eval on 1x RTX 4090 (about $0.52) | about $0.60 | estimated from pod run time, `docs/experiments/real_boreal_v1.md` |
-| 2026-10-05 | `synth-v1-cpu-gen` CPU pod, 2,781 s generation plus overhead | about $0.13 | `docs/datasets/synth_smoke_v1.md` |
-| ongoing | Network volume `wildfire-datasets` (`sej40ez3ia`, US-IL-1) storage | **not recorded** | check `list-network-volume-billing` before the next spend |
+**Reconciled 2026-10-27 against RunPod billing** (`list-billing`, `list-pod-billing`, `list-network-volume-billing`; the account has charges only in October 2026). All spend is counted against the allowance, including pre-policy runs.
 
-Known compute spend: about $0.73 of the $100 autonomous allowance (estimates, excluding storage). Update this ledger after every paid action.
+| Item | Billed |
+|---|---|
+| Pods, 2026-10-04 (7 pods: Model B stage 1 / training / evaluation and short inspection pods) | $3.04 |
+| Pods, 2026-10-05 (5 pods incl. CPU generation pod `ju9568emxzxr1a` $0.134) | $0.30 |
+| Network volume `wildfire-datasets` (`sej40ez3ia`, 50 GB STANDARD, US-IL-1), 2026-10-01 to date | $2.78 (accrues about $0.10-0.12/day while it exists) |
+| **Total billed** | **$6.12** |
+| **Remaining autonomous allowance** ($100 - $6.12) | **$93.88** |
+
+Corrections: the earlier per-experiment estimates in this file ("about $0.60" for Model B, "about $0.13" for generation) came from pod run time and undercount; billing shows about $3.04 for 2026-10-04 (two pods with $1.38 and $1.07 of GPU charges are not individually documented) and $0.30 for 2026-10-05. The experiment documents keep their original estimates; this ledger is authoritative for spend. Pod count at reconciliation: 0 running (`list-pods` empty).
+
+Update this ledger after every paid action, and re-run the billing reads before launching anything.
 
 ---
 
