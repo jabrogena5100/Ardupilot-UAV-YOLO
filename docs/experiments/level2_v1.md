@@ -60,6 +60,15 @@ is expected from the harness' own greedy matching and `predict` letterboxing ver
 Model A validation curve (`model_a_training/results.csv`): val mAP50 0.923 at epoch 1, 0.994 by epoch 5, 0.995 from epoch
 ~10; val mAP50-95 0.669 (epoch 1) -> 0.983 (epoch 100); best epoch 99.
 
+Bootstrap uncertainty (added later the same day; 300 image-level resamples, 95% percentile CIs, `bootstrap_synth_test_pos.md`).
+Only the synthetic-test cells could be done offline, because the Boreal labels live on the RunPod volume; the harness now saves
+ground truth with predictions, so the Boreal cells follow on the next pod run. Test-set sampling only, not training-seed variance:
+
+| cell | mAP50 | mAP50-95 | R@0.25 | P@0.25 |
+|---|---|---|---|---|
+| Model A on `synth_test_pos` | [0.995, 0.995] | [0.983, 0.988] | [1.000, 1.000] | [1.000, 1.000] |
+| Model B on `synth_test_pos` | [0.722, 0.779] | [0.367, 0.415] | [0.529, 0.601] | [0.876, 0.926] |
+
 ## Interpretation (what the evidence does and does not support)
 
 Supported by the measurements:

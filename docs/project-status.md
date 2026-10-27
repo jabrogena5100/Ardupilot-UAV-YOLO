@@ -255,7 +255,7 @@ The generated YAML/list files contain the generation pod's absolute paths, so ru
 ### Priority 1 — Make the 2x2 trustworthy (next implementation task)
 
 The matrix exists but is one run per model. Before any Level 3 use or conclusion:
-1. **Uncertainty (no GPU needed):** image-level bootstrap confidence intervals for mAP50, mAP50-95, recall and FP/img, computed from the saved predictions (`eval/bootstrap.py`, `--preds-from`).
+1. **Uncertainty:** image-level bootstrap CIs are implemented (`--bootstrap N`, `eval.metrics.bootstrap_ci`). Done for the synthetic-test cells (`docs/experiments/level2_v1/bootstrap_synth_test_pos.md`; Model B on synth mAP50 [0.722, 0.779]). Boreal cells still need the Boreal labels, which the harness now saves with predictions on the next pod run (about 10 min of CPU for 300 resamples per cell).
 2. **Seed variance (about $1 total):** repeat Model A (about 17 min) and Model B (about 38 min) with 2 additional seeds using the identical recipe; report the spread next to the bootstrap CIs. New seeds are new checkpoint names; never overwrite `synth_smoke_best_v1.pt` or `real_boreal_best_v1.pt`.
 3. **Saturated in-domain cell:** document that Synth -> Synth cannot discriminate; add harder diagnostics (per-archetype / per-size / low-contrast breakdowns from `metadata.jsonl`) rather than changing the frozen test set.
 4. Keep reporting the edge-touch diagnostic and the Boreal no-negatives limitation with every table.
