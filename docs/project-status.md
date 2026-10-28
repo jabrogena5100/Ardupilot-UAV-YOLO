@@ -1,6 +1,6 @@
 # Project Status — ECE 496 AI-Enabled Autonomous Wildfire Monitoring
 
-**Last updated:** 2026-10-27 (edge-touch gate cleared; harness built; Model A baseline trained; first 2x2 matrix produced)
+**Last updated:** 2026-10-28 (seed replication complete: 3 seeds per family, bootstrap CIs, protocol audit; Level 3 not started)
 
 This file is the primary source for current progress and immediate next tasks. `CLAUDE.md` holds the rules; `models/MODELS.md` is authoritative for checkpoint provenance. Always verify claims here against the repo (`git status`, `wc -l`, hashes) before acting.
 
@@ -44,12 +44,12 @@ Level 3 then compares how the resulting perception models affect autonomous moni
 
 | Model | Checkpoint | State |
 |---|---|---|
-| Model A — synthetic-trained YOLO | `synth_smoke_best_v1.pt`, SHA-256 `1da10c48…009564` | **Baseline trained** 2026-10-27 (100 epochs, 996 s, 1x RTX 4090). Synthetic val/test mAP50 0.995 (saturated); Boreal test mAP50 0.429. `docs/experiments/level2_v1.md`, `models/MODELS.md`. |
+| Model A — synthetic-trained YOLO | `synth_smoke_best_v1.pt` (seed 0, SHA `1da10c48…009564`) + `_seed1`, `_seed2` | **Three seeds trained** (2026-10-27/28, 100 epochs each). Synthetic test mAP50 0.995 (saturated); Boreal test mAP50 0.375 +- 0.059 (mean +- SD, n=3). `docs/experiments/level2_v2.md`, `models/MODELS.md`. |
 | Model B — real/Boreal-trained YOLO | `real_boreal_best_v1.pt`, SHA-256 `1dc35ef2…8355b6` | **Trained and tested once** (2026-10-04): test mAP50 0.944, mAP50-95 0.669. Details: `models/MODELS.md`, `docs/experiments/real_boreal_v1.md`. |
 
 **Legacy "3-epoch demo checkpoint":** earlier versions of this file and `CLAUDE.md` said a 3-epoch demo checkpoint exists. No such file is in the working tree, and nothing in `models/MODELS.md` or the experiment record describes it. The only trace is git history: `models/real_boreal_bestv1.pt` (5,442,970 bytes, SHA-256 `05ef7d46…47a54`, commit `73dab87`, deleted in `23dc32a`) and a 0-byte `models/synthetic_best.pt` placeholder. The 5.4 MB blob is not Model B v1 (22.5 MB, different hash). Its epochs, architecture and data are **unrecorded**; do not call it Model A or B or cite it as a result. See "Open contradictions".
 
-**Status:** Both baseline models exist; first 2x2 matrix produced (single seed). Edge-touch mismatch remains a stated limitation.
+**Status:** Three seeds of each family exist and are evaluated through the harness. Edge-touch mismatch remains a stated limitation.
 
 ---
 
@@ -78,16 +78,16 @@ Required final evaluation:
 * confidence
 * localization error
 
-**Status:** Harness implemented, validated against Model B (reproduces its Ultralytics test mAP50 0.9442 / mAP50-95 0.6688 as 0.9511 / 0.6730), and used for the first 2x2 (2026-10-27, `docs/experiments/level2_v1.md`):
+**Status:** Harness implemented, validated against Model B (reproduces its Ultralytics test mAP50 0.9442 / mAP50-95 0.6688 as 0.9511 / 0.6730), and used for the 3-seed 2x2 (2026-10-28, `docs/experiments/level2_v2.md`; seed 0 = `level2_v1`):
 
-| train -> test | mAP50 | mAP50-95 | R@0.25 | FP/img@0.25 |
-|---|---|---|---|---|
-| Synth -> Synth | 0.995 | 0.985 | 1.000 | 0.000 |
-| Synth -> Real | 0.429 | 0.216 | 0.572 | 0.424 |
-| Real -> Synth | 0.753 | 0.389 | 0.568 | 0.063 |
-| Real -> Real | 0.951 | 0.673 | 0.945 | 0.121 |
+| train -> test | mAP50 mean +- SD (n=3) | per seed | mAP50-95 mean | recall@0.25 mean | FP/img@0.25 mean |
+|---|---|---|---|---|---|
+| Synth -> Synth | 0.995 +- 0.000 | 0.995, 0.995, 0.995 | 0.986 | 1.000 | 0.000 |
+| Synth -> Real | 0.375 +- 0.059 | 0.429, 0.384, 0.313 | 0.164 | 0.519 | 0.436 |
+| Real -> Synth | 0.759 +- 0.107 | 0.753, 0.656, 0.869 | 0.390 | 0.627 | 0.093 |
+| Real -> Real | 0.954 +- 0.003 | 0.951, 0.956, 0.953 | 0.675 | 0.947 | 0.070 |
 
-Single seed, single run, no confidence intervals yet; the Synth -> Synth cell is saturated.
+SD is across seeds; bootstrap CIs (images; plus source videos for Boreal) are test-set sampling only and are reported separately. Synth -> Synth is saturated (cannot discriminate). Synth-trained models fire on 14-50% of real empty scenes (Boreal `Empty-Images`, train-split diagnostic) while giving 0% on synthetic negatives, so synthetic negatives alone overstate specificity. Boreal test has effectively no negatives. Protocol audit (equal epochs/steps/schedule, runtime gap is a data/host effect), bootstrap verification and limitations are in the experiment report.
 
 ---
 
@@ -252,16 +252,14 @@ The owner cleared the `synth_smoke_v1` edge-touch review (about 0.76 / 0.76 / 0.
 
 The generated YAML/list files contain the generation pod's absolute paths, so runs use path-rewritten copies (`data_rw.yaml`; the harness reads image directories directly); never edit the hashed originals. The pre-declared diagnostic (Model A on Boreal test, grouped by edge-touching vs not) was run: recall 0.873 edge-touching (n=142) vs 0.497 not (n=571), reported as consistent with, not proof of, the mismatch.
 
-### Priority 1 — Make the 2x2 trustworthy (next implementation task)
+### Priority 1 — Independent review of the Level 2 protocol (next; blocks Level 3)
 
-The matrix exists but is one run per model. Before any Level 3 use or conclusion:
-1. **Uncertainty:** image-level bootstrap CIs are implemented (`--bootstrap N`, `eval.metrics.bootstrap_ci`). Done for the synthetic-test cells (`docs/experiments/level2_v1/bootstrap_synth_test_pos.md`; Model B on synth mAP50 [0.722, 0.779]). Boreal cells still need the Boreal labels, which the harness now saves with predictions on the next pod run (about 10 min of CPU for 300 resamples per cell).
-2. **Seed variance (about $1 total):** repeat Model A (about 17 min) and Model B (about 38 min) with 2 additional seeds using the identical recipe; report the spread next to the bootstrap CIs. New seeds are new checkpoint names; never overwrite `synth_smoke_best_v1.pt` or `real_boreal_best_v1.pt`.
-3. **Saturated in-domain cell:** document that Synth -> Synth cannot discriminate; add harder diagnostics (per-archetype / per-size / low-contrast breakdowns from `metadata.jsonl`) rather than changing the frozen test set.
-4. Keep reporting the edge-touch diagnostic and the Boreal no-negatives limitation with every table.
-5. Feed the TP/FP/FN counts at the chosen operating point into the sensitivity/specificity needed by `mapping/probability_map.py` (Priority 5) only after 1-2 are in.
+Level 2 evidence is now: 3 seeds per family, pinned datasets/checkpoints, saved predictions and ground truth, image and video-cluster bootstrap CIs, a negatives diagnostic, and a documented protocol audit (`docs/experiments/level2_v2.md`, artifacts in `docs/experiments/level2_v2/`, hashes in `models/MODELS.md`). Per the owner's instruction Level 3 does not start until this protocol is validated. Next steps:
+1. **Codex review** of `docs/experiments/level2_v2.md` and its artifacts (checkpoint hashes, recompute from `local_data/backups/level2_v2_seeds/level2_v2/{predictions,gts}`, the audit claims). Address findings before anything else.
+2. Open methodological items to decide with the owner: (a) the Boreal test set has no usable negatives and the frozen split must not change, so real-world specificity can only be probed on the train-split `Empty-Images` diagnostic (valid for Model A only); (b) n = 3 seeds is small, so SDs are rough and no significance claim is made; more seeds would be a cheap extension (about $0.5 per Model A seed, about $0.9 per Model B seed) if the reviewer wants tighter variance; (c) Real -> Synth is highly seed dependent (0.656-0.869) and deserves per-archetype/per-size breakdowns from `metadata.jsonl` rather than more data changes.
+3. Only after review: derive sensitivity/specificity (per family, with seed spread and the negatives caveat) for `mapping/probability_map.py` (Priority 5).
 
-Already built (2026-10-27): `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml` (with Model A pinned), 13 tests (`tests/test_eval_metrics.py`, `tests/test_run_matrix.py`), and the archived pod script `eval/runpod/level2_modelA_train_and_matrix.sh`. Conventions are in the `eval/metrics.py` docstring (a perfect detector scores 0.995, as in Ultralytics).
+Built and tested: `eval/metrics.py`, `eval/run_matrix.py`, `eval/aggregate_seeds.py`, `eval/datasets.yaml`, `tests/test_eval_metrics.py` (13), `tests/test_run_matrix.py`, `tests/test_aggregate_seeds.py`, pod scripts `eval/runpod/level2_*.sh`. A perfect detector scores 0.995 (Ultralytics convention).
 
 ### Priority 2 — Model A improvements are a separate dataset version
 
@@ -299,6 +297,7 @@ A `SimVehicle` matching `CustomVehicle`'s public surface via a `sim:lat,lon,offs
 * **Legacy 3-epoch checkpoint:** claimed in older docs, no registry entry, provenance unrecorded (above). Needs the owner to say what it was, or to be dropped from the narrative.
 * **Approval wording (resolved 2026-10-27):** the dataset doc and spec say upload and Model A training "need separate approval"; the owner has since cleared the gate and authorized ordinary experiments within the `CLAUDE.md` limits, which supersedes that wording.
 * **Spend ledger (resolved 2026-10-27):** reconciled to billing; the undocumented 2026-10-04/05 pods (two with >$1 GPU charges) are still unexplained individually and the experiment docs' cost estimates are too low.
+* **Runtime gap (resolved 2026-10-28):** the 2.3x A-vs-B wall-time gap is a data and host effect (4096x2160 Boreal frames, 20x the bytes of the 1280x720 synthetic frames, CPU-bound dataloader; the same Model A recipe also ran 4.6x slower on one slow host); epochs, optimizer steps and schedule are identical (`docs/experiments/level2_v2.md` section 1.2).
 * **`tilt_deg`/`fov_deg` conventions** in `sim/camera.py` still need confirmation before Level 3 use.
 
 ---
@@ -351,11 +350,13 @@ Limits (from `CLAUDE.md`): $150 total project, $100 cumulative autonomous, $50 r
 | Pods, 2026-10-04 (7 pods: Model B stage 1 / training / evaluation and short inspection pods) | $3.04 |
 | Pods, 2026-10-05 (5 pods incl. CPU generation pod `ju9568emxzxr1a` $0.134) | $0.30 |
 | Network volume `wildfire-datasets` (`sej40ez3ia`, 50 GB STANDARD, US-IL-1), 2026-10-01 to 2026-10-27 | $2.79 (accrues about $0.10-0.12/day while it exists) |
-| Level 2 pod `h88h3d09647945` (1x RTX 4090, 22:57-about 23:27 UTC 2026-10-27, $0.89/hr) | about $0.45 **estimated; billing had not posted it yet** |
-| **Total (billed $6.12 + estimated $0.45)** | **about $6.57** |
-| **Remaining autonomous allowance** ($100 - about $6.57) | **about $93.43** |
+| Level 2 v1 pod `h88h3d09647945` (22:57-about 23:27 UTC 2026-10-27) | posted: about $0.51 (2026-10-27 GPU charge) |
+| Level 2 v2 pods `3yf63rbjjtl6x2` (slow host, aborted, about 33 min), `kp3n3sqb685hiy` (slow host again, aborted, about 9 min), `kn5e6x2mo3r52x` (about 120 min, completed) | about $2.4 by running time; billing had posted only about $1.6 when read |
+| **Billed October total at last read (2026-10-28)** | **$8.21** (pods $5.41, storage $2.80) |
+| **Conservative cumulative** (billed + unposted pod time, about $0.85) | **about $9.1** |
+| **Remaining autonomous allowance** | **about $90.9** (billing-only figure: $91.79) |
 
-Corrections: the earlier per-experiment estimates in this file ("about $0.60" for Model B, "about $0.13" for generation) came from pod run time and undercount; billing shows about $3.04 for 2026-10-04 (two pods with $1.38 and $1.07 of GPU charges are not individually documented) and $0.30 for 2026-10-05. The experiment documents keep their original estimates; this ledger is authoritative for spend. Pod count after the 2026-10-27 run: 0 running (`list-pods` empty). Next session: re-read billing and replace the pod estimate with the billed figure.
+Corrections: the earlier per-experiment estimates in this file ("about $0.60" for Model B, "about $0.13" for generation) came from pod run time and undercount; billing shows about $3.04 for 2026-10-04 (two pods with $1.38 and $1.07 of GPU charges are not individually documented) and $0.30 for 2026-10-05. The experiment documents keep their original estimates; this ledger is authoritative for spend. Pod count after the 2026-10-28 run: 0 running (`list-pods` empty). Next session: re-read billing (it lags by hours) and replace the estimate with the billed figure. Storage keeps accruing about $0.12/day for the 50 GB volume.
 
 Update this ledger after every paid action, and re-run the billing reads before launching anything.
 
@@ -485,3 +486,10 @@ Produce the first reproducible Level 2 evaluation matrix using fixed datasets, f
 * RunPod 1x RTX 4090 (US-IL-1, $0.89/hr, about 30 min, pod terminated and verified): dataset hashes verified (10,616 files, before and after), harness reproduced Model B (mAP50 0.9511 vs 0.9442), Model A trained with Model B's recipe (100 epochs, 996 s, SHA `1da10c48…009564`), full 2x2 produced.
 * First launch failed before training on PEP 668 (`pip` refused); fixed and rerun from a clean state (log kept in `docs/experiments/level2_v1/`).
 * Results, interpretation and limitations: `docs/experiments/level2_v1.md`. Checkpoint backed up locally with hashes (`local_data/backups/synth_smoke_a_v1/`). Model B untouched.
+
+### 2026-10-28 — Level 2 v2: seed replication, audits, uncertainty
+
+* Pre-GPU audits: billing reconciled; training protocol audited for all six runs (equal epochs, steps, schedule, no early stopping; runtime gap explained); bootstrap verified by tests (point estimate equals full metric, resample equals full recompute) and its assumptions documented; background-image audit (Boreal test has 1 unlabeled frame, synthetic test has 350 true negatives).
+* Trained seeds 1 and 2 for Model A and Model B (identical protocol, new checkpoint names, existing checkpoints untouched, dataset hashes verified before and after). Two launches landed on a slow host (45 s/epoch) and were aborted; a speed guard was added to the pod script. Third pod completed all four runs (about 1000 s per Model A, 2180 s per Model B).
+* All 24 cells evaluated through the harness; metrics and 1,000-resample bootstraps recomputed offline from saved predictions and ground truth. Results, interpretation and limits: `docs/experiments/level2_v2.md`. Pod terminated; artifacts backed up with hashes.
+* Not done on purpose: Level 3, any change to frozen splits or `synth_smoke_v1`.

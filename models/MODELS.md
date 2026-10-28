@@ -19,6 +19,24 @@ Naming: **Model B** (real / Boreal) is `real_boreal_best_v1.pt` below. **Model A
 - Trained: 2026-10-27, RunPod secure 1x RTX 4090, US-IL-1, wall time 996 s; ultralytics 8.4.173, torch 2.8.0+cu128
 - Harness results: synthetic val/test_pos mAP50 0.995 (saturated); Boreal test mAP50 0.429, mAP50-95 0.216 (`docs/experiments/level2_v1/matrix.md`)
 
+### Seed replicates (level2_v2, 2026-10-28)
+
+Independent retrainings with the same documented protocol (100 epochs, imgsz 640, batch 32, deterministic, AdamW lr0 0.002, momentum 0.9,
+warmup_bias_lr 0.0, best checkpoint by own-domain val). Seed 0 = the entries above/below. Experiment: `docs/experiments/level2_v2.md`.
+Checkpoints are not in git (`*.pt`); RunPod copy under `/workspace/runs/<run>/`; local backup with `SHA256SUMS` under
+`local_data/backups/level2_v2_seeds/<run>/`; per-run config/args/results in `docs/experiments/level2_v2/training/<run>/`.
+
+| Checkpoint | Family | Seed | Run dir (RunPod) | Best epoch | Wall (s) | SHA-256 |
+|---|---|---|---|---|---|---|
+| `synth_smoke_best_v1_seed1.pt` | A (synthetic) | 1 | `synth_smoke_a_v1_seed1` | 97 | 1,000 | `31c4528e37c54f779cdbfbf02d8e325877108696f3608391c0490b22ec34a454` |
+| `synth_smoke_best_v1_seed2.pt` | A (synthetic) | 2 | `synth_smoke_a_v1_seed2` | 99 | 1,000 | `3d5a31689ab212434b206949090c948a4de0b4b653abf8d0099619529146556a` |
+| `real_boreal_best_v1_seed1.pt` | B (real) | 1 | `real_boreal_seed1` | 59 | 2,180 | `00c0e02fa2411993e160af4724ca9af6b3a17c2d25ac8e84761d4163175366c2` |
+| `real_boreal_best_v1_seed2.pt` | B (real) | 2 | `real_boreal_seed2` | 91 | 2,180 | `fe53f08d414a8b09d799d4130a5cb1af62af82a5dc899339dd5a0571f0ab51d7` |
+
+Seed 0 (`synth_smoke_best_v1.pt`, `real_boreal_best_v1.pt`) remains the reference pair used by `level2_v1`. Model B seed 0 used
+`optimizer=auto`, which Ultralytics resolved to the same AdamW settings; the new runs set them explicitly. Aborted slow-host
+attempts (`aborted_slowhost*` directories on the volume) produced no checkpoints used anywhere.
+
 ## Legacy artifacts (not registry entries)
 
 Present only in git history, in `models/`; both deleted in `23dc32a` ("renamed models .pt files", 2026-10-03):

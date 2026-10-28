@@ -43,7 +43,8 @@ placeholder (see Decisions).
 ## Model naming (authoritative: `models/MODELS.md`)
 
 - **Model B** = `real_boreal_best_v1.pt` (YOLOv8s, Boreal, trained 2026-10-04, SHA-256 in the registry). Exists.
-- **Model A** = `synth_smoke_best_v1.pt`, baseline trained 2026-10-27 on `synth_smoke_v1` (SHA in the registry). Baseline only.
+- **Model A** = `synth_smoke_best_v1.pt`, baseline on `synth_smoke_v1` (seed 0); seeds 1-2 are `*_seed1/2.pt`, same for Model B. Report mean +- SD over
+  seeds, never a single seed; bootstrap CIs are test-set sampling only, not seed uncertainty. Registry has hashes.
 - `models/synthetic_best.pt` and `models/real_boreal_bestv1.pt` are legacy git-history artifacts, not
   registry entries; do not treat either as Model A/B. Provenance of the old "3-epoch demo checkpoint"
   is unrecorded (see `docs/project-status.md`, open contradictions).
