@@ -1,0 +1,91 @@
+{
+  "cell": "model_b__boreal_empty_train_diag",
+  "model": "model_b",
+  "train_domain": "real",
+  "dataset": "boreal_empty_train_diag",
+  "checkpoint": "/workspace/runs/real_boreal/real_boreal_best_v1.pt",
+  "checkpoint_sha256": "1dc35ef293b6b35bb2dadaf5b6d5887ece89ca9d55a445bfdde258286c8355b6",
+  "checkpoint_pinned": true,
+  "dataset_n_images": 256,
+  "dataset_filelist_sha256": "acd1b1aec93b989aef8282f8b62e06d236681ad7e183ea5fc1debf69bbbd3743",
+  "settings": {
+    "imgsz": 640,
+    "conf": 0.001,
+    "nms_iou": 0.7,
+    "max_det": 300,
+    "batch": 32,
+    "seed": 0,
+    "report_conf": [
+      0.25
+    ]
+  },
+  "git": {
+    "commit": null,
+    "eval_sim_synthgen_dirty": null
+  },
+  "versions": {
+    "python": "3.12.3",
+    "numpy": "2.1.2",
+    "ultralytics": "8.4.173",
+    "torch": "2.8.0+cu128"
+  },
+  "argv": [
+    "/workspace/repo_v2/eval/run_matrix.py",
+    "--config",
+    "/workspace/runs/level2_v2/datasets_pinned.yaml",
+    "--out",
+    "/workspace/runs/level2_v2",
+    "--var",
+    "BOREAL_SPLIT=/workspace/splits/boreal_v1",
+    "--var",
+    "SYNTH_ROOT=/workspace/synth_smoke_v1",
+    "--var",
+    "RUNS=/workspace/runs",
+    "--cells",
+    "model_b:boreal_test,model_b:synth_test_pos,model_b:synth_test_all,model_b:boreal_empty_train_diag,model_a:boreal_test,model_a:synth_test_pos,model_a:synth_test_all,model_a:boreal_empty_train_diag,model_a_seed1:boreal_test,model_a_seed1:synth_test_pos,model_a_seed1:synth_test_all,model_a_seed1:boreal_empty_train_diag,model_a_seed2:boreal_test,model_a_seed2:synth_test_pos,model_a_seed2:synth_test_all,model_a_seed2:boreal_empty_train_diag,model_b_seed1:boreal_test,model_b_seed1:synth_test_pos,model_b_seed1:synth_test_all,model_b_seed1:boreal_empty_train_diag,model_b_seed2:boreal_test,model_b_seed2:synth_test_pos,model_b_seed2:synth_test_all,model_b_seed2:boreal_empty_train_diag"
+  ],
+  "predictions_file": "model_b__boreal_empty_train_diag.json.gz",
+  "metrics": {
+    "n_images": 256,
+    "n_positive_images": 0,
+    "n_negative_images": 256,
+    "n_gt_boxes": 0,
+    "n_predictions": 639,
+    "mAP50": 0.0,
+    "mAP50-95": 0.0,
+    "AP50_by_class": {},
+    "max_f1": null,
+    "at_conf": {
+      "0.25": {
+        "conf_threshold": 0.25,
+        "tp": 0,
+        "fp": 1,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null,
+        "false_negative_rate": null,
+        "false_discovery_rate": 1.0,
+        "fp_per_image": 0.00390625,
+        "mean_conf_tp": null,
+        "mean_conf_fp": 0.730305016040802,
+        "image_fp_rate_on_empty": 0.00390625,
+        "image_detection_rate_on_positive": null,
+        "loc_mean_iou_tp": null,
+        "loc_median_iou_tp": null
+      }
+    },
+    "loc_center_err_diag_mean": null,
+    "recall_by_edge_touch": {
+      "edge_touching": {
+        "n_gt": 0,
+        "recall": null,
+        "conf_threshold": 0.25
+      },
+      "not_edge_touching": {
+        "n_gt": 0,
+        "recall": null,
+        "conf_threshold": 0.25
+      }
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # Experiment: level2_v1 (Model A baseline training and the first 2x2 matrix)
 
-Date: 2026-10-27. Status: **complete**. Single run, single seed (0). Nothing here is a final result: the synthetic
+Date: 2026-10-27. Status: **complete**; **superseded for uncertainty by `level2_v2.md`**, where these numbers are seed 0 of three (the Real -> Synth cell varies from 0.656 to 0.869 across seeds). Single run, single seed (0). Nothing here is a final result: the synthetic
 dataset is `synth_smoke_v1` with a known edge-touch mismatch, and Model A is a *baseline*, not evidence that the synthetic
 domain is optimal.
 

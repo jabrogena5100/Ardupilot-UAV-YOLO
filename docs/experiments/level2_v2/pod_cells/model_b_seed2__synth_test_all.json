@@ -1,0 +1,110 @@
+{
+  "cell": "model_b_seed2__synth_test_all",
+  "model": "model_b_seed2",
+  "train_domain": "real",
+  "dataset": "synth_test_all",
+  "checkpoint": "/workspace/runs/real_boreal_seed2/real_boreal_best_v1_seed2.pt",
+  "checkpoint_sha256": "fe53f08d414a8b09d799d4130a5cb1af62af82a5dc899339dd5a0571f0ab51d7",
+  "checkpoint_pinned": true,
+  "dataset_n_images": 1051,
+  "dataset_filelist_sha256": "893d17ed7eb396bb0fe9b1e2026d0f162d0a96b7f3f244c8cde30a8db536dae2",
+  "settings": {
+    "imgsz": 640,
+    "conf": 0.001,
+    "nms_iou": 0.7,
+    "max_det": 300,
+    "batch": 32,
+    "seed": 0,
+    "report_conf": [
+      0.25
+    ]
+  },
+  "git": {
+    "commit": null,
+    "eval_sim_synthgen_dirty": null
+  },
+  "versions": {
+    "python": "3.12.3",
+    "numpy": "2.1.2",
+    "ultralytics": "8.4.173",
+    "torch": "2.8.0+cu128"
+  },
+  "argv": [
+    "/workspace/repo_v2/eval/run_matrix.py",
+    "--config",
+    "/workspace/runs/level2_v2/datasets_pinned.yaml",
+    "--out",
+    "/workspace/runs/level2_v2",
+    "--var",
+    "BOREAL_SPLIT=/workspace/splits/boreal_v1",
+    "--var",
+    "SYNTH_ROOT=/workspace/synth_smoke_v1",
+    "--var",
+    "RUNS=/workspace/runs",
+    "--cells",
+    "model_b:boreal_test,model_b:synth_test_pos,model_b:synth_test_all,model_b:boreal_empty_train_diag,model_a:boreal_test,model_a:synth_test_pos,model_a:synth_test_all,model_a:boreal_empty_train_diag,model_a_seed1:boreal_test,model_a_seed1:synth_test_pos,model_a_seed1:synth_test_all,model_a_seed1:boreal_empty_train_diag,model_a_seed2:boreal_test,model_a_seed2:synth_test_pos,model_a_seed2:synth_test_all,model_a_seed2:boreal_empty_train_diag,model_b_seed1:boreal_test,model_b_seed1:synth_test_pos,model_b_seed1:synth_test_all,model_b_seed1:boreal_empty_train_diag,model_b_seed2:boreal_test,model_b_seed2:synth_test_pos,model_b_seed2:synth_test_all,model_b_seed2:boreal_empty_train_diag"
+  ],
+  "predictions_file": "model_b_seed2__synth_test_all.json.gz",
+  "metrics": {
+    "n_images": 1051,
+    "n_positive_images": 701,
+    "n_negative_images": 350,
+    "n_gt_boxes": 701,
+    "n_predictions": 2891,
+    "mAP50": 0.8529663152498801,
+    "mAP50-95": 0.4560342450311154,
+    "AP50_by_class": {
+      "0": 0.8529663152498801
+    },
+    "max_f1": {
+      "conf_threshold": 0.0911789983510971,
+      "tp": 559,
+      "fp": 93,
+      "fn": 142,
+      "precision": 0.8573619631901841,
+      "recall": 0.797432239657632,
+      "false_negative_rate": 0.20256776034236804,
+      "false_discovery_rate": 0.14263803680981596,
+      "fp_per_image": 0.08848715509039011,
+      "mean_conf_tp": 0.702906728683836,
+      "mean_conf_fp": 0.3418018603997846,
+      "image_fp_rate_on_empty": 0.06,
+      "image_detection_rate_on_positive": 0.797432239657632,
+      "loc_mean_iou_tp": 0.7670271923563846,
+      "loc_median_iou_tp": 0.7825406857998317,
+      "f1": 0.8263118994826312
+    },
+    "at_conf": {
+      "0.25": {
+        "conf_threshold": 0.25,
+        "tp": 525,
+        "fp": 56,
+        "fn": 176,
+        "precision": 0.9036144578313253,
+        "recall": 0.7489300998573466,
+        "false_negative_rate": 0.25106990014265335,
+        "false_discovery_rate": 0.0963855421686747,
+        "fp_per_image": 0.0532825880114177,
+        "mean_conf_tp": 0.7377231377647037,
+        "mean_conf_fp": 0.45383480404104504,
+        "image_fp_rate_on_empty": 0.04,
+        "image_detection_rate_on_positive": 0.7489300998573466,
+        "loc_mean_iou_tp": 0.7729153439307689,
+        "loc_median_iou_tp": 0.7908507505769145
+      }
+    },
+    "loc_center_err_diag_mean": 0.0792158307691153,
+    "recall_by_edge_touch": {
+      "edge_touching": {
+        "n_gt": 542,
+        "recall": 0.7878228782287823,
+        "conf_threshold": 0.25
+      },
+      "not_edge_touching": {
+        "n_gt": 159,
+        "recall": 0.6163522012578616,
+        "conf_threshold": 0.25
+      }
+    }
+  }
+}
