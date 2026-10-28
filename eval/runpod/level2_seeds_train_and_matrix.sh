@@ -39,15 +39,33 @@ echo "1dc35ef293b6b35bb2dadaf5b6d5887ece89ca9d55a445bfdde258286c8355b6  $RUNS/re
 echo "1da10c4814a905d92deec2d9c36185f872eabea447d47c389b9b065468009564  $RUNS/synth_smoke_a_v1/synth_smoke_best_v1.pt" | sha256sum -c || { echo "ABORT: Model A seed0 hash"; exit 1; }
 cd $REPO && python3 -m unittest tests.test_eval_metrics tests.test_aggregate_seeds 2>&1 | tail -3
 
-train_one () {   # RUNNAME DATA SEED CKPTNAME
-  local NAME=$1 DATA=$2 SEED=$3 CK=$4 RUN=$RUNS/$1
+# Host-speed guard: wall time depends heavily on the host (the same Model A recipe ran 9.4 s/epoch on one pod and 45 s/epoch on
+# another; CPU-bound dataloader). After epoch 4 the mean of epochs 2-4 is compared with a per-run limit; a slow host aborts the
+# whole script (exit 3) so the operator can re-create the pod instead of paying for a run that would hit the timeout.
+train_one () {   # RUNNAME DATA SEED CKPTNAME EPOCH_LIMIT_S
+  local NAME=$1 DATA=$2 SEED=$3 CK=$4 LIM=$5 RUN=$RUNS/$1
   if [ $(( $(date +%s) - T_START )) -gt $GUARD_SECS ]; then echo "SKIP $NAME: time guard"; return; fi
   echo "--- train $NAME seed=$SEED $(date -u +%FT%TZ) load=$(cut -d' ' -f1 /proc/loadavg)"
   local T0=$(date +%s)
-  timeout 6000 yolo detect train model=yolov8s.pt data=$DATA epochs=100 patience=100 imgsz=640 batch=32 seed=$SEED \
+  timeout 9000 yolo detect train model=yolov8s.pt data=$DATA epochs=100 patience=100 imgsz=640 batch=32 seed=$SEED \
     deterministic=True workers=8 plots=True optimizer=AdamW lr0=0.002 momentum=0.9 warmup_bias_lr=0.0 \
-    project=$RUNS name=$NAME exist_ok=False > $RUNS/${NAME}_train.log 2>&1
-  local RC=$?; local T1=$(date +%s)
+    project=$RUNS name=$NAME exist_ok=False > $RUNS/${NAME}_train.log 2>&1 &
+  local PID=$!; local CHECKED=0
+  while kill -0 $PID 2>/dev/null; do
+    sleep 20
+    if [ $CHECKED -eq 0 ] && [ -f $RUN/results.csv ] && [ $(wc -l < $RUN/results.csv) -ge 5 ]; then
+      CHECKED=1
+      local MEAN=$(python3 -c "
+import csv
+r=[{k.strip():v for k,v in x.items()} for x in csv.DictReader(open('$RUN/results.csv'))]
+t=[float(x['time']) for x in r]; d=[t[i]-t[i-1] for i in (1,2,3)]; print(round(sum(d)/3,1))")
+      echo "SPEEDCHECK $NAME mean epoch 2-4 = ${MEAN}s (limit ${LIM}s) host load=$(cut -d' ' -f1 /proc/loadavg)"
+      if python3 -c "import sys; sys.exit(0 if float('$MEAN') > float('$LIM') else 1)"; then
+        echo "SLOW_HOST: aborting; re-create the pod"; kill $PID; sleep 5; pkill -f "[y]olo detect train"; exit 3
+      fi
+    fi
+  done
+  wait $PID; local RC=$?; local T1=$(date +%s)
   echo "TRAIN_EXIT $NAME rc=$RC wall=$((T1-T0))s"
   [ -f $RUN/weights/best.pt ] || { echo "NO best.pt for $NAME"; return; }
   cp $RUN/weights/best.pt $RUN/$CK
@@ -70,10 +88,10 @@ json.dump({"seed":int(os.environ["SEED"]),"train_rc":int(os.environ["RC"]),"trai
   open(f"{RUN}/train_config.json","w"),indent=2)
 PY
 }
-train_one synth_smoke_a_v1_seed1 $SYN/data_rw.yaml 1 synth_smoke_best_v1_seed1.pt
-train_one synth_smoke_a_v1_seed2 $SYN/data_rw.yaml 2 synth_smoke_best_v1_seed2.pt
-train_one real_boreal_seed1 $SPL/data.yaml 1 real_boreal_best_v1_seed1.pt
-train_one real_boreal_seed2 $SPL/data.yaml 2 real_boreal_best_v1_seed2.pt
+train_one synth_smoke_a_v1_seed1 $SYN/data_rw.yaml 1 synth_smoke_best_v1_seed1.pt 20
+train_one synth_smoke_a_v1_seed2 $SYN/data_rw.yaml 2 synth_smoke_best_v1_seed2.pt 30
+train_one real_boreal_seed1 $SPL/data.yaml 1 real_boreal_best_v1_seed1.pt 60
+train_one real_boreal_seed2 $SPL/data.yaml 2 real_boreal_best_v1_seed2.pt 90
 echo "TRAINING_DONE $(date -u +%FT%TZ) elapsed=$(( $(date +%s) - T_START ))s"
 
 echo "--- pin checkpoints + evaluate"
