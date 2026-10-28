@@ -199,6 +199,7 @@ def run_cell(model_name: str, model: Dict[str, Any], ds: Dict[str, Any], setting
     pred_file = os.path.join(preds_from or os.path.join(out_dir, "predictions"), f"{tag}.json.gz")
     if preds_from:
         preds = load_preds(pred_file)
+        ck_hash = pin   # offline recompute: the hash is the config pin, not re-read from disk
     else:
         ck_hash = sha256_file(ckpt)
         if pin and ck_hash != pin:
