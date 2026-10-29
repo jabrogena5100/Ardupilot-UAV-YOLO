@@ -1,4 +1,4 @@
-# Independent off-pod RunPod watchdog. Runs on GitHub's servers every 5 minutes (also manually via "Run workflow"), so it
+# Independent off-pod RunPod watchdog. Runs on GitHub's servers every 5 minutes at minutes 2,7,12,... (also manually via "Run workflow"), so it
 # enforces pod deadlines even when Claude Code Cloud and the owner's machines are offline.
 # It only STOPS pods whose name carries an expired `__dl<epoch>` tag (see eval/runpod/watchdog.py); it has no delete code path.
 #
@@ -13,7 +13,7 @@
 name: runpod-watchdog
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    - cron: "2-57/5 * * * *"   # minutes 2,7,12,...: avoids the :00/:05 rush where GitHub drops scheduled runs
   workflow_dispatch:
     inputs:
       selftest:
