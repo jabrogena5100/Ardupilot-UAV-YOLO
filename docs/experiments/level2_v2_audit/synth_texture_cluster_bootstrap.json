@@ -1,0 +1,80 @@
+{
+ "n_resamples": 1000,
+ "unit": "texture-bank slot (6 clusters)",
+ "models": {
+  "model_a": {
+   "point_mAP50": 0.995,
+   "ci_mAP50_images": [
+    0.995,
+    0.995
+   ],
+   "ci_mAP50_texture_clusters": [
+    0.995,
+    0.995
+   ]
+  },
+  "model_a_seed1": {
+   "point_mAP50": 0.995,
+   "ci_mAP50_images": [
+    0.995,
+    0.995
+   ],
+   "ci_mAP50_texture_clusters": [
+    0.995,
+    0.995
+   ]
+  },
+  "model_a_seed2": {
+   "point_mAP50": 0.995,
+   "ci_mAP50_images": [
+    0.995,
+    0.995
+   ],
+   "ci_mAP50_texture_clusters": [
+    0.995,
+    0.995
+   ]
+  },
+  "model_b": {
+   "point_mAP50": 0.7528966855121513,
+   "ci_mAP50_images": [
+    0.7217445375697785,
+    0.7825339932921528
+   ],
+   "ci_mAP50_texture_clusters": [
+    0.6767534192479369,
+    0.8567227400721804
+   ]
+  },
+  "model_b_seed1": {
+   "point_mAP50": 0.6555430583507473,
+   "ci_mAP50_images": [
+    0.6181252655351208,
+    0.6956264373227661
+   ],
+   "ci_mAP50_texture_clusters": [
+    0.49982411008929356,
+    0.8742832039501957
+   ]
+  },
+  "model_b_seed2": {
+   "point_mAP50": 0.8689888379373817,
+   "ci_mAP50_images": [
+    0.845466234993101,
+    0.8917610991087701
+   ],
+   "ci_mAP50_texture_clusters": [
+    0.8095743168852607,
+    0.9545337500590044
+   ]
+  }
+ },
+ "images_per_cluster": {
+  "slot0": 199,
+  "slot1": 75,
+  "slot2": 96,
+  "slot3": 170,
+  "slot4": 84,
+  "slot5": 77
+ }
+}

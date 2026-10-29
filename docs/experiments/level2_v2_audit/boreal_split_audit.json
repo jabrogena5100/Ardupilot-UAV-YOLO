@@ -1,0 +1,359 @@
+{
+  "counts": {
+    "test": 701,
+    "train": 3479,
+    "val": 774
+  },
+  "dhash_errors": 0,
+  "dhash_identical_cross_split_groups": 0,
+  "dhash_near_examples": [
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame258.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame35.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame258.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame36.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame27.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame305.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame27.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame306.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame28.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame305.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame28.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame306.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame29.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame305.jpg",
+      3,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame29.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame306.jpg",
+      3,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame29.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame307.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame29.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame308.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame29.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame309.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame29.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame310.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame30.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame305.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame30.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame306.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame326.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame0.jpg",
+      3,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame326.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame1.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame327.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame0.jpg",
+      1,
+      false
+    ],
+    [
+      "train",
+      "Evo-Images__evoDJI_0001_frame327.jpg",
+      "test",
+      "Evo-Images__evoDJI_0007_frame1.jpg",
+      2,
+      false
+    ],
+    [
+      "train",
+      "Karkkila-Images__karkkila_DJI_0002_frame170.jpg",
+      "test",
+      "Karkkila-Images__karkkila_DJI_0003_frame0.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Karkkila-Images__karkkila_DJI_0005_frame0.jpg",
+      "test",
+      "Karkkila-Images__karkkila_DJI_0004_frame170.jpg",
+      1,
+      false
+    ],
+    [
+      "train",
+      "Karkkila-Images__karkkila_DJI_0005_frame1.jpg",
+      "test",
+      "Karkkila-Images__karkkila_DJI_0004_frame170.jpg",
+      2,
+      false
+    ],
+    [
+      "train",
+      "Karkkila-Images__karkkila_DJI_0005_frame136.jpg",
+      "test",
+      "Karkkila-Images__karkkila_DJI_0006_frame5.jpg",
+      3,
+      false
+    ],
+    [
+      "train",
+      "Karkkila-Images__karkkila_DJI_0005_frame155.jpg",
+      "test",
+      "Karkkila-Images__karkkila_DJI_0006_frame4.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Karkkila-Images__karkkila_DJI_0005_frame156.jpg",
+      "test",
+      "Karkkila-Images__karkkila_DJI_0006_frame0.jpg",
+      4,
+      false
+    ],
+    [
+      "train",
+      "Karkkila-Images__karkkila_DJI_0005_frame156.jpg",
+      "test",
+      "Karkkila-Images__karkkila_DJI_0006_frame1.jpg",
+      4,
+      false
+    ]
+  ],
+  "dhash_near_pairs_cross_split": {
+    "train&test": 29
+  },
+  "dhash_near_pairs_different_video": {
+    "train&test": 29
+  },
+  "dhash_near_pairs_same_video": {},
+  "dhash_near_threshold_bits": 4,
+  "md5_cross_split_examples": [],
+  "md5_cross_split_groups": 0,
+  "md5_duplicate_groups": 0,
+  "normalised_pairwise_overlap": {
+    "train&test": 3,
+    "train&val": 2,
+    "val&test": 0
+  },
+  "overlap_detail": {
+    "train&test": [
+      {
+        "min_frame_gap": 1,
+        "n_test_with_label_file": 26,
+        "n_train_with_label_file": 0,
+        "test_frames": 26,
+        "test_range": [
+          0,
+          42
+        ],
+        "test_sites": {
+          "Karkkila-Images": 26
+        },
+        "train_frames": 18,
+        "train_range": [
+          24,
+          44
+        ],
+        "train_sites": {
+          "Empty-Images": 18
+        },
+        "video": "karkkila_dji_0003"
+      },
+      {
+        "min_frame_gap": 1,
+        "n_test_with_label_file": 100,
+        "n_train_with_label_file": 0,
+        "test_frames": 100,
+        "test_range": [
+          0,
+          110
+        ],
+        "test_sites": {
+          "Karkkila-Images": 100
+        },
+        "train_frames": 19,
+        "train_range": [
+          84,
+          118
+        ],
+        "train_sites": {
+          "Empty-Images": 19
+        },
+        "video": "karkkila_dji_0006"
+      },
+      {
+        "min_frame_gap": 1,
+        "n_test_with_label_file": 176,
+        "n_train_with_label_file": 0,
+        "test_frames": 176,
+        "test_range": [
+          0,
+          175
+        ],
+        "test_sites": {
+          "Ruokolahti-Images": 176
+        },
+        "train_frames": 2,
+        "train_range": [
+          176,
+          177
+        ],
+        "train_sites": {
+          "Empty-Images": 2
+        },
+        "video": "ruokolahti_dji_0085"
+      }
+    ],
+    "train&val": [
+      {
+        "min_frame_gap": 1,
+        "n_train_with_label_file": 0,
+        "n_val_with_label_file": 156,
+        "train_frames": 111,
+        "train_range": [
+          0,
+          230
+        ],
+        "train_sites": {
+          "Empty-Images": 111
+        },
+        "val_frames": 156,
+        "val_range": [
+          15,
+          340
+        ],
+        "val_sites": {
+          "Heinola-Images": 156
+        },
+        "video": "heinola_dji_0028"
+      },
+      {
+        "min_frame_gap": 6,
+        "n_train_with_label_file": 0,
+        "n_val_with_label_file": 15,
+        "train_frames": 47,
+        "train_range": [
+          0,
+          277
+        ],
+        "train_sites": {
+          "Empty-Images": 47
+        },
+        "val_frames": 15,
+        "val_range": [
+          217,
+          231
+        ],
+        "val_sites": {
+          "Heinola-Images": 15
+        },
+        "video": "heinola_dji_0048"
+      }
+    ],
+    "val&test": []
+  },
+  "prefixed_pairwise_overlap": {
+    "train&test": 0,
+    "train&val": 0,
+    "val&test": 0
+  },
+  "videos_normalised": {
+    "test": 5,
+    "train": 26,
+    "val": 5
+  },
+  "videos_prefixed_original_definition": {
+    "test": 5,
+    "train": 26,
+    "val": 5
+  }
+}
