@@ -120,3 +120,41 @@ deadline passed and appends events to branch `runpod-logs`; `launch_job.py statu
 Supersedes the notification and watchdog items in Update 2 (items 1-2). Still pending: merge workflow to `main`, add `RUNPOD_API_KEY` Actions secret,
 run the workflow once, then the owner-approved one-minute lifecycle test (worst case $0.56 at $0.89/h; expected about $0.05-0.15). Spend: $0.
 Boreal v2 and training: not started. 49 orchestration tests + 21 required tests pass.
+
+---
+
+# Update 4: Boreal v2 (free phase complete, GPU phase NOT run)
+
+Branch `science/boreal-v2` (from `main` at `c080777`), **committed locally, not pushed** (instruction). Full record: `docs/experiments/boreal_v2.md`.
+
+## Boreal v2 dataset readiness: READY and frozen
+- 31 normalised clips -> train 3462 / val 748 / test 744 frames (18 / 5 / 8 clips); video-disjoint (independent recompute in `tests/test_boreal_v2.py`); 0 exact duplicates across partitions; 22 train&test frame pairs within 4 dHash bits (heinola_0028|0048: 15, 0048|ruokolahti_0089: 7); test has 65 held-out true-negative frames (2 clips).
+- File-list SHA-256: train `5b23b199965dfc47372e6100f4d5bfd41d57ef5b0b16b5ed83e91db056245c25`, val `8ef9e902bb24a720112bef32d20248d6aa33c17d67efc9771643daa87d252e2f`, test `9fa6dbc1d0eb9fa437e989be29afadc9a459f7850502f1c18c350379afcddc8f`.
+- Construction is a seeded search (seed 20261029, 400 restarts) using no model output; one earlier candidate was inspected and rejected before any training (documented in the record). Alternatives with near-equal objective exist.
+- Artifacts: `docs/experiments/boreal_v2/{filelists.json,split_assignment.json,split_audit.json}`, `eval/boreal_v2_split.py`, `eval/datasets_boreal_v2.yaml`.
+
+## Training / evaluation: PENDING (nothing trained, $0 spent)
+Required new training: Model B seeds 0,1,2 on `boreal_v2` (new names `real_boreal_v2_seed{N}` / `real_boreal_v2_best_seed{N}.pt`). Not required: Model A retraining (synthetic data unaffected; existing pinned checkpoints are only re-evaluated); v1 Model B checkpoints are not valid for v2 claims (trained on clips now in v2 test).
+
+## Blocker (material): no return path for results
+The cloud sandbox cannot read anything back from a pod: REST has no logs/files endpoint, `*.proxy.runpod.net` is blocked by the network policy, and the only S3-looking credentials (`AWS_*` env, unknown origin) were deliberately not used (a use attempt was denied by the safety classifier). Options for the owner, any one suffices:
+1. Add `proxy.runpod.net` to the environment's Allowed domains (the job can then serve `results_bundle.tgz` for a short window before the pod stops), or
+2. Provide RunPod S3 API keys for volume `sej40ez3ia` as secrets named explicitly for that purpose (say whether the existing `AWS_*` are those), or
+3. Run the job as-is and fetch `/workspace/runs/boreal_v2/results_bundle.tgz` (+ `.sha256`) from the Ubuntu CLI/RunPod console, then let a session finish the report offline (`eval.run_matrix --preds-from`, `eval.aggregate_seeds`).
+Option 3 needs no sandbox change. The job is otherwise ready.
+
+## Ready-to-run command (dry run by default; `--confirm-paid boreal_v2_train_eval --watchdog-armed` creates the pod)
+```
+GIT_COMMIT=$(git rev-parse HEAD) python3 eval/runpod/launch_job.py launch --run-name boreal_v2_train_eval \
+  --job 'bash repo/eval/runpod/boreal_v2_train_eval.sh' --hard-timeout-s 18000 --max-hourly-price 1.0 --ledger-floor-usd 9.3 \
+  --boot-allowance-s 900 --watchdog-latency-s 120 --repo-path eval --repo-path docs/experiments/boreal_v2 \
+  --repo-path tests/__init__.py --repo-path tests/test_eval_metrics.py --repo-path tests/test_aggregate_seeds.py --repo-path tests/test_run_matrix.py \
+  --artifact '/workspace/runs/boreal_v2/real_boreal_v2_seed*/real_boreal_v2_best_seed*.pt' --artifact /workspace/runs/boreal_v2/results_bundle.tgz
+```
+Preflight (live): ok, worst case $5.53, 0 pods. Before launching: dispatch the GitHub watchdog with `loop_minutes` = 330. Unverified (the lifecycle test never ran): create-pod fields, pod-side stop key, 250 KB of env-var bundle chunks being accepted by RunPod. Expected cost about $2.5.
+
+## Infrastructure status (unchanged)
+Verified: API access, budget gate, watchdog loop run (no pods), selftest, logs branch. Not verified: scheduled (cron) run, any real stop. Workflow is NOT declared ready; the owner accepted that limitation.
+
+## Spend / pods / artifacts
+Spend this session $0 (billing read $8.97 total). Pods running: none. No checkpoint, dataset, split or earlier result was modified. Open research questions: pixel-level identity of consecutive same-site clips; real-domain negatives remain few (65 test, 2 clips).

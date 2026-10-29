@@ -498,6 +498,14 @@ Verified: API key, reads, volume, stop endpoint authorization, live `enforce` (n
 armed (needs merge to `main` + `RUNPOD_API_KEY` secret), live stop on a real pod, create-pod fields. Lifecycle test prepared, worst case $0.56, awaiting owner approval.
 Boreal v2 split + Level 2 evaluation remain the next scientific task, after the lifecycle test passes.
 
+### 2026-10-29 — Boreal v2 (clip-disjoint split): split frozen, GPU phase pending
+
+Record: `docs/experiments/boreal_v2.md`. Done (free): 31 normalised clips, seeded constrained search (no model output), train 3462 / val 748 / test 744 frames
+(18 / 5 / 8 clips), video-disjoint, 0 exact duplicates across partitions, 22 train&test frame pairs within 4 dHash bits (documented residue), test has 65 held-out true negatives.
+Frozen file-list hashes: train `5b23b199...5c25`, val `8ef9e902...2e2f`, test `9fa6dbc1...dc8f`. Harness config `eval/datasets_boreal_v2.yaml` (Model A existing pinned checkpoints; Model B v2 seeds 0-2 to be trained),
+pod job `eval/runpod/boreal_v2_train_eval.sh`, materialiser `eval/runpod/boreal_v2_materialize.py`. **Not run**: no GPU spend ($0); blocker = no way for the cloud session to read results back from a pod
+(owner must choose a return path; options in `docs/handoffs/from_cloud_2026-10-29.md` Update 4). Boreal v1 splits, checkpoints and results untouched. Planned cost about $2.5, worst case $5.53.
+
 ### 2026-10-27 — Level 2 v1: harness validation, Model A baseline, first 2x2
 
 * Gate cleared by the owner (7 conditions, above). Built `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`, 13 tests.
