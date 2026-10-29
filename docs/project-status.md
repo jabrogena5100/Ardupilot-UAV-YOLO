@@ -1,6 +1,6 @@
 # Project Status — ECE 496 AI-Enabled Autonomous Wildfire Monitoring
 
-**Last updated:** 2026-10-28 (seed replication complete: 3 seeds per family, bootstrap CIs, protocol audit; Level 3 not started)
+**Last updated:** 2026-10-29 (Codex REVISE accepted: Boreal split found NOT video-disjoint, Level 2 v2 report corrected, Level 3 observation contract drafted; Level 3 not started; awaiting second Codex review)
 
 This file is the primary source for current progress and immediate next tasks. `CLAUDE.md` holds the rules; `models/MODELS.md` is authoritative for checkpoint provenance. Always verify claims here against the repo (`git status`, `wc -l`, hashes) before acting.
 
@@ -86,6 +86,8 @@ Required final evaluation:
 | Synth -> Real | 0.375 +- 0.059 | 0.429, 0.384, 0.313 | 0.164 | 0.519 | 0.436 |
 | Real -> Synth | 0.759 +- 0.107 | 0.753, 0.656, 0.869 | 0.390 | 0.627 | 0.093 |
 | Real -> Real | 0.954 +- 0.003 | 0.951, 0.956, 0.953 | 0.675 | 0.947 | 0.070 |
+
+**Correction 2026-10-29 (Codex REVISE):** the Boreal split is not video-disjoint (3 clips shared train/test, 2 train/val, via 197 background-only `Empty-Images` train frames); no metric value changed, and a test-subset sensitivity shows no consistent inflation of Real -> Real (`docs/experiments/level2_v2_audit.md`). The "seed variability dominates sampling uncertainty" claim is withdrawn (synthetic test scenes share 6 texture slots; Boreal test has 5 videos). "Optimizer steps" were minibatches; the optimizer made about 5,532 updates per run.
 
 SD is across seeds; bootstrap CIs (images; plus source videos for Boreal) are test-set sampling only and are reported separately. Synth -> Synth is saturated (cannot discriminate). Synth-trained models fire on 14-50% of real empty scenes (Boreal `Empty-Images`, train-split diagnostic) while giving 0% on synthetic negatives, so synthetic negatives alone overstate specificity. Boreal test has effectively no negatives. Protocol audit (equal epochs/steps/schedule, runtime gap is a data/host effect), bootstrap verification and limitations are in the experiment report.
 
@@ -254,6 +256,10 @@ The generated YAML/list files contain the generation pod's absolute paths, so ru
 
 ### Priority 1 — Independent review of the Level 2 protocol (next; blocks Level 3)
 
+**2026-10-29 update:** Codex returned REVISE; the correction phase is done (`docs/experiments/level2_v2_audit.md`): split memberships reconstructed from a pod scan of the source dataset (shared clips found, no exact duplicates), report corrections applied, backup manifest repaired, provenance limits documented, `docs/experiments/level3_observation_contract.md` drafted (proposal only, nothing implemented). **Next: second Codex review of that package.** Open decisions for the owner: (a) report Level 2 with the documented overlap and sensitivity, or build a clip-level version-2 Boreal split and retrain Model B (about $0.9 per seed on a 4090; the frozen split itself must not be edited, a v2 would be a new versioned split); (b) real-domain negatives and cell-level truth for Level 3 (contract sections 3 and 6). Do not implement `mapping/probability_map.py` before the contract's section 5 is measured.
+
+Original plan (kept for context):
+
 Level 2 evidence is now: 3 seeds per family, pinned datasets/checkpoints, saved predictions and ground truth, image and video-cluster bootstrap CIs, a negatives diagnostic, and a documented protocol audit (`docs/experiments/level2_v2.md`, artifacts in `docs/experiments/level2_v2/`, hashes in `models/MODELS.md`). Per the owner's instruction Level 3 does not start until this protocol is validated. Next steps:
 1. **Codex review** of `docs/experiments/level2_v2.md` and its artifacts (checkpoint hashes, recompute from `local_data/backups/level2_v2_seeds/level2_v2/{predictions,gts}`, the audit claims). Address findings before anything else.
 2. Open methodological items to decide with the owner: (a) the Boreal test set has no usable negatives and the frozen split must not change, so real-world specificity can only be probed on the train-split `Empty-Images` diagnostic (valid for Model A only); (b) n = 3 seeds is small, so SDs are rough and no significance claim is made; more seeds would be a cheap extension (about $0.5 per Model A seed, about $0.9 per Model B seed) if the reviewer wants tighter variance; (c) Real -> Synth is highly seed dependent (0.656-0.869) and deserves per-archetype/per-size breakdowns from `metadata.jsonl` rather than more data changes.
@@ -298,6 +304,8 @@ A `SimVehicle` matching `CustomVehicle`'s public surface via a `sim:lat,lon,offs
 * **Approval wording (resolved 2026-10-27):** the dataset doc and spec say upload and Model A training "need separate approval"; the owner has since cleared the gate and authorized ordinary experiments within the `CLAUDE.md` limits, which supersedes that wording.
 * **Spend ledger (resolved 2026-10-27):** reconciled to billing; the undocumented 2026-10-04/05 pods (two with >$1 GPU charges) are still unexplained individually and the experiment docs' cost estimates are too low.
 * **Runtime gap (resolved 2026-10-28):** the 2.3x A-vs-B wall-time gap is a data and host effect (4096x2160 Boreal frames, 20x the bytes of the 1280x720 synthetic frames, CPU-bound dataloader; the same Model A recipe also ran 4.6x slower on one slow host); epochs, optimizer steps and schedule are identical (`docs/experiments/level2_v2.md` section 1.2).
+* **Boreal "video-disjoint" (found 2026-10-29, unresolved):** earlier docs said 0 shared videos; with the site prefix normalised, 5 source clips are shared across splits (`level2_v2_audit.md` section 1). Pixel-level confirmation and a v2 split are open.
+* **Inference provenance (2026-10-29):** pod cells record `git.commit: null` (ran a non-git copy); exact `predict()` source of the saved predictions is unrecorded (v1 and v2).
 * **`tilt_deg`/`fov_deg` conventions** in `sim/camera.py` still need confirmation before Level 3 use.
 
 ---
@@ -352,11 +360,12 @@ Limits (from `CLAUDE.md`): $150 total project, $100 cumulative autonomous, $50 r
 | Network volume `wildfire-datasets` (`sej40ez3ia`, 50 GB STANDARD, US-IL-1), 2026-10-01 to 2026-10-27 | $2.79 (accrues about $0.10-0.12/day while it exists) |
 | Level 2 v1 pod `h88h3d09647945` (22:57-about 23:27 UTC 2026-10-27) | posted: about $0.51 (2026-10-27 GPU charge) |
 | Level 2 v2 pods `3yf63rbjjtl6x2` (slow host, aborted, about 33 min), `kp3n3sqb685hiy` (slow host again, aborted, about 9 min), `kn5e6x2mo3r52x` (about 120 min, completed) | about $2.4 by running time; billing had posted only about $1.6 when read |
-| **Billed October total at last read (2026-10-28)** | **$8.21** (pods $5.41, storage $2.80) |
-| **Conservative cumulative** (billed + unposted pod time, about $0.85) | **about $9.1** |
-| **Remaining autonomous allowance** | **about $90.9** (billing-only figure: $91.79) |
+| Boreal integrity scan pod `n5kg8sii9fcrp5` (RTX 4090 $0.89/h, US-IL-1, created 03:37 UTC 2026-10-29, scan about 20 s, terminated minutes later; not yet billed at last read) | not posted; allowance $0.25 (pod time under 17 min) |
+| **Billed October total at last read (2026-10-29)** | **$9.08** (pods GPU $5.98 + CPU $0.15 + disk $0.03, storage $2.92); earlier read 2026-10-28: $8.21 |
+| **Conservative cumulative** (billed + scan pod allowance) | **about $9.3** |
+| **Remaining autonomous allowance** | **about $90.7** (billing-only figure: $90.92) |
 
-Corrections: the earlier per-experiment estimates in this file ("about $0.60" for Model B, "about $0.13" for generation) came from pod run time and undercount; billing shows about $3.04 for 2026-10-04 (two pods with $1.38 and $1.07 of GPU charges are not individually documented) and $0.30 for 2026-10-05. The experiment documents keep their original estimates; this ledger is authoritative for spend. Pod count after the 2026-10-28 run: 0 running (`list-pods` empty). Next session: re-read billing (it lags by hours) and replace the estimate with the billed figure. Storage keeps accruing about $0.12/day for the 50 GB volume.
+Corrections: the earlier per-experiment estimates in this file ("about $0.60" for Model B, "about $0.13" for generation) came from pod run time and undercount; billing shows about $3.04 for 2026-10-04 (two pods with $1.38 and $1.07 of GPU charges are not individually documented) and $0.30 for 2026-10-05. The experiment documents keep their original estimates; this ledger is authoritative for spend. Pod count after the 2026-10-29 scan: 0 running (`list-pods` empty). Next session: re-read billing (it lags by hours) and replace the estimate with the billed figure. Storage keeps accruing about $0.12/day for the 50 GB volume.
 
 Update this ledger after every paid action, and re-run the billing reads before launching anything.
 
@@ -493,3 +502,10 @@ Produce the first reproducible Level 2 evaluation matrix using fixed datasets, f
 * Trained seeds 1 and 2 for Model A and Model B (identical protocol, new checkpoint names, existing checkpoints untouched, dataset hashes verified before and after). Two launches landed on a slow host (45 s/epoch) and were aborted; a speed guard was added to the pod script. Third pod completed all four runs (about 1000 s per Model A, 2180 s per Model B).
 * All 24 cells evaluated through the harness; metrics and 1,000-resample bootstraps recomputed offline from saved predictions and ground truth. Results, interpretation and limits: `docs/experiments/level2_v2.md`. Pod terminated; artifacts backed up with hashes.
 * Not done on purpose: Level 3, any change to frozen splits or `synth_smoke_v1`.
+
+### 2026-10-29 — Level 2 v2 correction phase (Codex REVISE)
+
+* Boreal split integrity: read-only scan of all 4,954 source images on a short GPU pod (no CPU pod existed in US-IL-1; about $0.25 allowance, terminated). Scan reproduces the pinned file-list hashes. Found 3 train/test and 2 train/val shared source clips (197 background-only `Empty-Images` train frames), 0 MD5 duplicates, no same-clip near-duplicates; sensitivity on affected/unaffected test videos shows no consistent inflation for Model B. Frozen splits, test sets and all checkpoints untouched.
+* Report corrections in `docs/experiments/level2_v2.md` (optimizer updates 5,532 vs 10,900 minibatches; bootstrap claim withdrawn, texture-slot cluster bootstrap added; reproducibility narrowed to what was re-verified: offline recompute reproduces all 1,602 committed values; inference provenance limitation documented); stale backup `SHA256SUMS` repaired (old copy kept); correction notes added to `real_boreal_v1.md` and `models/MODELS.md`. `synth_smoke_v1_spec.md` line 25 carries the same 10,900 wording and was not touched (uncommitted owner edits there).
+* `docs/experiments/level3_observation_contract.md`: proposal only; no probability-map code written.
+* New code/tests: `eval/boreal_split_audit.py`, `eval/boreal_leak_sensitivity.py`, `eval/synth_cluster_bootstrap.py`, `tests/test_boreal_split_audit.py`.

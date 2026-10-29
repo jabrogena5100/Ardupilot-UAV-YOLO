@@ -78,7 +78,9 @@ Do not cite either as Model A, Model B, or an experimental result.
 ### Data
 
 Frozen split `/workspace/splits/boreal_v1/` (symlinks to read-only `/workspace/boreal/boreal_yolo`):
-the dataset's pre-existing split, verified video-disjoint with 0 cross-split md5 duplicates.
+the dataset's pre-existing split, with 0 cross-split md5 duplicates (re-verified 2026-10-29). **Correction 2026-10-29:** it is *not* video-disjoint once
+the site prefix is normalised: train shares 3 source clips with test and 2 with val, via 197 background-only `Empty-Images` frames
+(`docs/experiments/level2_v2_audit.md` section 1). Applies to all Model B seeds; Model A never saw Boreal.
 
 | Split | Images | Background | Videos |
 |---|---|---|---|

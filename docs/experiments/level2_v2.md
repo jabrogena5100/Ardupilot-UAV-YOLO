@@ -4,6 +4,12 @@ Date: 2026-10-27/28. Status: **complete**. Supersedes the single-seed reading of
 Nothing here is a final result: the synthetic dataset is `synth_smoke_v1` with a known edge-touch mismatch, n = 3 seeds per
 family, one training recipe, no tuning.
 
+**Corrected 2026-10-29 after the Codex REVISE audit** (evidence and details: `level2_v2_audit.md`). Corrections applied in this file:
+(1) the Boreal split is *not* video-disjoint once the site prefix is normalised: 5 source clips are shared (3 train/test, 2 train/val;
+197 background-only train frames), section 1.5; (2) "optimizer steps" was the minibatch count, the optimizer made 5,532 updates (section 1.2);
+(3) the claim that seed variability dominates sampling uncertainty is withdrawn, synthetic test scenes share texture/sprite banks (sections 1.3, 4.3);
+(4) reproducibility and provenance claims narrowed (sections 3, 7). No measured metric value changed.
+
 ## 1. Pre-GPU audits
 
 ### 1.1 Spend reconciliation
@@ -18,7 +24,7 @@ minutes of the next pod). Ledger and the pending re-read: `docs/project-status.m
 ### 1.2 Are Model A and Model B training runs comparable?
 Audited from `args.yaml`, `results.csv` and `train_config*.json` of all six runs (seed 0 = level2_v1 / `real_boreal_v1`):
 
-| run | epochs done / set | patience | train images | iters/epoch | optimizer steps | final lr | wall (s) | median epoch (s) | best epoch |
+| run | epochs done / set | patience | train images | minibatches/epoch | minibatches (100 epochs) | final lr | wall (s) | median epoch (s) | best epoch |
 |---|---|---|---|---|---|---|---|---|---|
 | A seed 0 | 100 / 100 | 100 | 3,479 | 109 | 10,900 | 3.98e-5 | 996 | 9.4 | 99 |
 | A seed 1 | 100 / 100 | 100 | 3,479 | 109 | 10,900 | 3.98e-5 | 1,000 | 9.6 | 97 |
@@ -29,7 +35,9 @@ Audited from `args.yaml`, `results.csv` and `train_config*.json` of all six runs
 
 All runs: YOLOv8s COCO-pretrained, imgsz 640, batch 32, AMP, deterministic, workers 8, close_mosaic 10, no early stopping
 (patience 100; every run used all 100 epochs). Both families see the same number of training images (3,479, each including
-260 background images) and the same number of optimizer steps. The only nominal argument difference across the six runs is
+260 background images) and the same number of minibatches (10,900). With `batch: 32` and `nbs: 64` Ultralytics accumulates
+gradients over 2 batches (1 during the first part of the 327-iteration warmup), so the number of **optimizer updates** is about **5,532** per run
+(replayed from `trainer.py` 8.4.173; derived, not logged), again identical across the six runs. The only nominal argument difference across the six runs is
 B seed 0's `optimizer=auto` (lr0 0.01, momentum 0.937, warmup_bias_lr 0.1 in `args.yaml`) versus the explicit AdamW settings
 (lr0 0.002, momentum 0.9, warmup_bias_lr 0.0) used for the other five. Ultralytics resolved `auto` to exactly those AdamW values
 for B seed 0 (spec section 5, verified from `results.csv` and the Ultralytics source), and the identical final learning rate
@@ -45,7 +53,7 @@ Measurements in this phase explain it as a data effect, not a protocol effect:
   the training budget. Those two slow-host attempts were stopped (about $0.7 of GPU time, of which the second was mostly setup) and none of their output is
   used; their logs are in `training/aborted_slow_host/`.
 - On a single fast host, B/A epoch-time ratio was 2.2.
-Conclusion: the runtime difference does not affect comparability of training budget (epochs, optimizer steps, schedule and
+Conclusion: the runtime difference does not affect comparability of training budget (epochs, minibatches, optimizer updates, schedule and
 precision are identical). It would matter only if wall time were itself a budget, which it is not in this protocol.
 
 ### 1.3 Bootstrap verification
@@ -61,12 +69,15 @@ are correlated. Assumptions and limits (also in the docstring):
 - Images are treated as independent; Boreal frames from the same video are correlated, so image-level Boreal intervals are optimistic.
   The video-cluster interval resamples the 5 test videos; with only 5 clusters it is very wide and the percentile method is crude.
 - Near a metric ceiling (Synth -> Synth, mAP50 0.995) the intervals collapse to zero width and say nothing about real precision.
-- Synthetic test images have no cluster structure beyond independent scenes drawn from the generator.
+- **Synthetic test images are not independent.** All 1,051 test scenes draw their ground texture from a bank of 6 slots (and smoke
+  from 16 puff sprites) shared across the whole split (`manifest.json` `bank_sizes`; train 16/48, val 6/16). The image-level bootstrap therefore
+  understates uncertainty for the synthetic test cells. Resampling the 6 texture slots instead (`eval/synth_cluster_bootstrap.py`,
+  `level2_v2_audit/synth_texture_cluster_bootstrap.json`) widens the Real -> Synth mAP50 intervals 2-5 times (section 4.3).
 
 ### 1.4 Do the evaluation splits contain background-only images?
 | split | background-only images | notes |
 |---|---|---|
-| Boreal train | 260 (256 `Empty-Images__*` true negatives + 4 raw frames with no label file) | Model B trained on them |
+| Boreal train | 260 (256 `Empty-Images__*` true negatives + 4 raw frames with no label file) | Model B trained on them; 197 of them share a source clip with val or test (section 1.5) |
 | Boreal val | 0 | |
 | **Boreal test** | **1** | an unlabeled raw frame (recorded caveat), **not a verified negative**; effectively **no usable negatives** |
 | `synth_smoke_v1` train | 260 | |
@@ -80,11 +91,23 @@ true Boreal `Empty-Images` negatives from the Boreal *train* split (`boreal_empt
 Model A (never trained on Boreal) but **Model B trained on those images, so its numbers there are optimistic** and must not be
 compared with Model A's.
 
+### 1.5 Boreal split integrity (added 2026-10-29; replaces the earlier "video-disjoint" statement)
+The earlier claim of 0 shared videos between splits keyed videos on the full file name *including the site prefix*. With identity
+normalised to the clip (prefix and `_frameN` removed), a scan of all 4,954 source images (file lists reproduce the three pinned file-list
+hashes) finds **3 clips shared by train and test** (`karkkila_dji_0003`, `karkkila_dji_0006`, `ruokolahti_dji_0085`; 39 train frames) and
+**2 shared by train and val** (`heinola_dji_0028`, `heinola_dji_0048`; 158 train frames). All 197 train frames are background-only
+`Empty-Images` frames whose frame numbers interleave with or sit directly next to the labelled val/test frames of the same recording. There are
+**0 exact (MD5) duplicates** across or within splits and no near-duplicate pair (dHash <= 4 bits) inside one clip across splits; identity rests
+on file names and frame adjacency, not pixels. Sensitivity: scoring `boreal_test` on the 3 affected videos (302 images) versus the 2 unaffected
+(399) changes Model B's mAP50 by +0.034 / -0.026 / -0.015 (seeds 0/1/2), no consistent inflation; Model A's large gap is video difficulty
+(it never saw Boreal). The frozen test set was not changed. Details, limits and the open question (version-2 split) in `level2_v2_audit.md`
+section 1. The harness' `cluster: video` bootstrap runs on the test split only (5 clusters) and is not affected by the overlap.
+
 ## 2. Setup
 - Four new independent training runs, seeds 1 and 2 for each family, identical protocol (above), distinct names:
   `synth_smoke_best_v1_seed1.pt`, `synth_smoke_best_v1_seed2.pt`, `real_boreal_best_v1_seed1.pt`, `real_boreal_best_v1_seed2.pt`
-  (SHA-256 in `models/MODELS.md`). Existing seed-0 checkpoints were hash-verified before and after and not modified.
-- Frozen datasets untouched (10,616 synthetic file hashes verified before and after; Boreal split pins verified by the harness).
+  (SHA-256 in `models/MODELS.md`). Existing seed-0 checkpoints were hash-verified on the pod before and after (per the run logs) and not modified.
+- Frozen datasets untouched (10,616 synthetic file hashes verified before and after; Boreal file-list pins verified by the harness, which checks list identity, not clip disjointness).
 - All six checkpoints evaluated through the same harness on `boreal_test` (701), `synth_test_pos` (701), `synth_test_all` (1,051),
   `boreal_empty_train_diag` (256): 24 cells; inference on the pod, then metrics and 1,000-resample bootstraps recomputed offline from
   the saved predictions and ground truth (no GPU).
@@ -102,7 +125,10 @@ compared with Model A's.
    the pre-set tolerance (mAP50 0.9511 vs 0.9442).
 5. `eval_sim_synthgen_dirty: true` in the cell records comes from an unrelated uncommitted docstring edit in
    `synthgen/generate_dataset.py` (path text only), not from evaluation code.
-6. Checkpoint selection uses each family's own-domain val split; Model A's saturated synthetic val makes its best epoch nearly
+6. Inference provenance: the 24 pod-computed cells record `git.commit: null` (the pod ran a non-git copy, `/workspace/repo_v2`), so the exact `predict()` source that
+   produced the saved predictions is not recorded (also true of level2_v1). Metrics recomputed offline from those predictions match the pod's
+   (<= 2.1e-6, localisation fields only). See `level2_v2_audit.md` section 3.5.
+7. Checkpoint selection uses each family's own-domain val split; Model A's saturated synthetic val makes its best epoch nearly
    arbitrary (97-99), Model B's best epochs differ widely (37, 59, 91) on a noisy val curve.
 
 ## 4. Results (measured)
@@ -135,10 +161,12 @@ baseline and the two drops are not on a common scale; prefer the absolute levels
 ### 4.3 Test-set sampling uncertainty (bootstrap, 1,000 resamples, 95%, fixed checkpoint)
 Per-seed intervals are in `seed_aggregate.md`. Examples: Real -> Real mAP50 images [0.925-0.930, 0.973-0.975], videos
 [0.845-0.862, 0.994-0.995]; Synth -> Real mAP50 images [0.280, 0.474] across seeds, videos [0.094, 0.969]; Real -> Synth
-mAP50 images [0.618, 0.892] across seeds (no video structure). Image-level intervals (+-0.02-0.05) are much narrower than the
-across-seed spread for Synth -> Real and Real -> Synth (SD 0.059, 0.107): **seed variability, not test-set sampling, dominates**
-those cells. The Boreal video-cluster intervals are enormous (5 videos) and show that image-level Boreal intervals understate the
-uncertainty about generalizing to new videos.
+mAP50 images [0.618, 0.892] across seeds (no video structure). Image-level intervals (+-0.02-0.05) are narrower than the
+across-seed spread, but they assume independent images, which holds for neither test set. **Corrected:** resampling the 6 texture-bank slots
+of the synthetic test (Real -> Synth mAP50) gives B seed 0 0.753 [0.677, 0.857], seed 1 0.656 [0.500, 0.874], seed 2 0.869 [0.810, 0.955]
+(image-level: [0.722, 0.783], [0.618, 0.696], [0.845, 0.892]), as wide as the 0.656-0.869 seed range; the Boreal video-cluster intervals (5 videos) for
+Synth -> Real ([0.094, 0.969] across seeds) are far wider than the seed SD. The earlier statement that seed variability dominates test-set sampling
+is **withdrawn**; with 5-6 clusters neither source can be shown to dominate, and the two are still not combined.
 
 ### 4.4 Background-only (empty-scene) false-positive rate, image level at conf >= 0.25
 | model | 350 synthetic negatives | 256 Boreal `Empty-Images` (train split; diagnostic) |
@@ -159,7 +187,7 @@ negatives alone would therefore give a misleadingly good specificity for Model A
 Supported, with n = 3 and one recipe:
 - Real -> Real is high and stable across seeds (mAP50 0.951-0.956). Synth -> Synth is saturated and cannot discriminate.
 - Synth -> Real is low in every seed (0.313-0.429), far below Real -> Real in every seed (smallest gap 0.52). Synth -> Real
-  variation across seeds (SD 0.059) is large compared with its image bootstrap interval.
+  varies across seeds (SD 0.059, n = 3); video-cluster sampling uncertainty (5 videos) is far larger still (section 4.3).
 - Real -> Synth is intermediate on average (0.759) but **highly seed-dependent** (0.656-0.869); a single seed (as in `level2_v1`) would
   have misrepresented it. Model A's cross-domain mAP50 drop is larger than Model B's in all three seed pairs, but the drops are
   measured from different baselines (see 4.2) and with n = 3 no significance test is claimed.
@@ -172,7 +200,7 @@ Not supported: that the synthetic domain is worse in general or that edge-touch 
 Level 3 claim; any statement about statistical significance; the Boreal-negatives result for Model B (trained on them).
 
 ## 6. Limitations
-Edge-touch mismatch in `synth_smoke_v1`; flat-billboard smoke, no 3D occlusion; Boreal test has no usable negatives, 5 test videos only, site mix
+Edge-touch mismatch in `synth_smoke_v1`; flat-billboard smoke, no 3D occlusion; Boreal split shares 5 source clips between train and val/test (section 1.5), Boreal test has no usable negatives, 5 test videos only, synthetic test scenes share 6 texture slots and 16 sprites, site mix
 differs across splits; three seeds per family on one recipe; the real-trained model's val curve is noisy (best epochs 37/59/91), so
 checkpoint choice adds variance; both families are un-tuned; seeds 1-2 ran on a different host than seed 0; the harness follows but is not identical to
 Ultralytics `val`; mAP of a perfect detector is 0.995; the `boreal_empty_train_diag` set is a train-split diagnostic, not a test set.
@@ -182,9 +210,10 @@ Ultralytics `val`; mAP of a perfect detector is 0.995; the `boreal_empty_train_d
   inference provenance), `seed_aggregate.{md,json}`, `matrix.{md,csv}`, `datasets_pinned_on_pod.yaml`, `training/<run>/{train_config.json,args.yaml,results.csv}`,
   driver logs, `training/aborted_slow_host/`.
 - Local backup with `SHA256SUMS` (not in git): `local_data/backups/level2_v2_seeds/` (4 checkpoints, plots, full training logs, `level2_v2/predictions/*.json.gz` and
-  `gts/*.json.gz`, so every number is recomputable with no GPU).
+  `gts/*.json.gz`; the metrics and bootstraps are recomputable from these with no GPU, verified 2026-10-29: a fresh offline run reproduced all 1,602 values in `cells/*.json` exactly; this does not cover training or the pod inference, which are not shown to be bit-reproducible). The manifest `SHA256SUMS` there was repaired (it listed its own hash); old copy kept as `SHA256SUMS.stale_selfhash_20261029`.
 - RunPod volume: `/workspace/runs/{synth_smoke_a_v1_seed1,synth_smoke_a_v1_seed2,real_boreal_seed1,real_boreal_seed2,level2_v2}`; aborted-attempt directories are kept under
   `aborted_slowhost*` names.
+- Audit and corrections (2026-10-29): `level2_v2_audit.md`, `level2_v2_audit/`, `level3_observation_contract.md`.
 - Recompute everything offline:
   `python3 -m eval.run_matrix --config eval/datasets.yaml --out OUT --var BOREAL_SPLIT=/x --var SYNTH_ROOT=/x --var RUNS=/x --preds-from PRED_DIR --gts-from GT_DIR --bootstrap 1000`
   then `python3 -m eval.aggregate_seeds --cells OUT/cells --out OUT/seed_aggregate.md`.

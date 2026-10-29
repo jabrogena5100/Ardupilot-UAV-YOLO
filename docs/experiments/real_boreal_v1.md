@@ -24,6 +24,10 @@ YOLO label format `cls cx cy w h`, normalized; all 4,862 boxes validated (none m
 
 The frozen split is the dataset's pre-existing `images/{train,val,test}` split, not rebuilt. It was verified
 video-disjoint (0 shared videos between any two splits) with 0 cross-split exact (md5) duplicates.
+
+> **Correction 2026-10-29:** the video-disjoint statement is wrong. It keyed videos on the file name including the site prefix; normalised to the
+> recording, train shares 3 clips with test and 2 with val (197 background-only `Empty-Images` frames). The 0 exact-duplicate result was
+> re-verified (all 4,954 files). Details: `docs/experiments/level2_v2_audit.md` section 1. The text above is kept as history.
 It is materialised as a symlink farm at `/workspace/splits/boreal_v1/` (with `manifest.json`, `data.yaml`,
 `caveats.json`). The split hashes were re-checked and matched before training began.
 
