@@ -1,3 +1,9 @@
 {"api_read": "ok", "event": "selftest", "pods_running": 0, "pods_total": 0, "t": "2026-10-29T07:33:35Z"}
 {"event": "loop_start", "interval_s": 60, "minutes": 10.0, "t": "2026-10-29T10:11:47Z"}
 {"event": "loop_end", "last_pass_rc": 0, "sticky_rc": 0, "t": "2026-10-29T10:21:47Z"}
+{"event": "loop_start", "interval_s": 60, "minutes": 330.0, "t": "2026-10-29T19:08:58Z"}
+{"event": "heartbeat_running_within_deadline", "name": "boreal_v2_train_eval__dl1793318398", "pod_id": "kv3imy4lnltlea", "seconds_to_deadline": 17094, "t": "2026-10-29T19:15:03Z"}
+{"event": "heartbeat_running_within_deadline", "name": "boreal_v2_train_eval__dl1793318398", "pod_id": "kv3imy4lnltlea", "seconds_to_deadline": 16486, "t": "2026-10-29T19:25:11Z"}
+{"event": "heartbeat_running_within_deadline", "name": "boreal_v2_train_eval__dl1793318398", "pod_id": "kv3imy4lnltlea", "seconds_to_deadline": 15880, "t": "2026-10-29T19:35:17Z"}
+{"event": "heartbeat_running_within_deadline", "name": "transfer_test_diag1__dl1793304595", "pod_id": "0nprwxeftsri1y", "seconds_to_deadline": 1471, "t": "2026-10-29T19:45:23Z"}
+{"event": "heartbeat_running_within_deadline", "name": "transfer_test_stopprobe1__dl1793304509", "pod_id": "dp6py8b9kwyb33", "seconds_to_deadline": 1142, "t": "2026-10-29T19:49:26Z"}
