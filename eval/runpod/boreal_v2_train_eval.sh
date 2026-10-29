@@ -109,7 +109,9 @@ for n in sorted(os.listdir(d))[::800][:4]:
 PY
 
 # Host-speed guard (same as level2_v2): after epoch 4 the mean of epochs 2-4 is compared with the per-run limit; a slow host aborts (exit 3).
-GUARD_SECS=${GUARD_SECS:-12500}; LIM=60
+GUARD_SECS=${GUARD_SECS:-12500}; LIM=${EPOCH_LIMIT_S:-60}
+# CACHE_MODE: empty = the v1 protocol (no cache). 'ram' = Ultralytics cache=ram (speed-only deviation, recorded in PROTOCOL_DEVIATION.json).
+CACHE_ARG=""; [ -n "$CACHE_MODE" ] && CACHE_ARG="cache=$CACHE_MODE"
 train_one () {   # SEED
   local SEED=$1 NAME=real_boreal_v2_seed$1 CK=real_boreal_v2_best_seed$1.pt RUN=$OUT/real_boreal_v2_seed$1
   if [ $(( $(date +%s) - T_START )) -gt $GUARD_SECS ]; then echo "SKIP $NAME: time guard"; return; fi
@@ -117,7 +119,7 @@ train_one () {   # SEED
   echo "--- train $NAME seed=$SEED $(date -u +%FT%TZ) load=$(cut -d' ' -f1 /proc/loadavg)"
   local T0=$(date +%s)
   timeout 9000 yolo detect train model=yolov8s.pt data=$SPL2/data.yaml epochs=100 patience=100 imgsz=640 batch=32 seed=$SEED \
-    deterministic=True workers=8 plots=True optimizer=AdamW lr0=0.002 momentum=0.9 warmup_bias_lr=0.0 \
+    deterministic=True workers=8 plots=True optimizer=AdamW lr0=0.002 momentum=0.9 warmup_bias_lr=0.0 $CACHE_ARG \
     project=$OUT name=$NAME exist_ok=False > $OUT/${NAME}_train.log 2>&1 &
   local PID=$!; local CHECKED=0
   while kill -0 $PID 2>/dev/null; do
