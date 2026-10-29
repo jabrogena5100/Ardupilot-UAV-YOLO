@@ -158,3 +158,14 @@ Verified: API access, budget gate, watchdog loop run (no pods), selftest, logs b
 
 ## Spend / pods / artifacts
 Spend this session $0 (billing read $8.97 total). Pods running: none. No checkpoint, dataset, split or earlier result was modified. Open research questions: pixel-level identity of consecutive same-site clips; real-domain negatives remain few (65 test, 2 clips).
+
+---
+
+# Update 5: Boreal v2 GPU run launched (in progress when written)
+
+- Pod `kv3imy4lnltlea` (`boreal_v2_train_eval__dl1793318398`), RTX 4090 secure US-IL-1, $0.89/h, created 2026-10-29T19:14:55Z, hard deadline 23:59:58Z (tag in the pod name). Command: `python3 eval/runpod/launch_job.py boreal-v2 --max-hourly-price 1.0 --ledger-floor-usd 9.3 --boot-allowance-s 900 --watchdog-latency-s 120 --results-token-file <outside repo> --confirm-paid boreal_v2_train_eval --watchdog-armed` at commit `16f7e60` (unpushed; `GIT_COMMIT` and `BUNDLE_SHA256` are recorded in each seed's `train_config.json`).
+- Independent stop: GitHub watchdog loop run #6 (dispatched 19:08:50Z, 330 min, ends 00:38Z) plus the pod's own supervisor and in-pod watchdog. A scheduled (cron) watchdog run #5 succeeded at 15:38Z.
+- Results location (persistent volume `wildfire-datasets`): `/workspace/runs/boreal_v2/` (checkpoints `real_boreal_v2_seed{0,1,2}/real_boreal_v2_best_seed{N}.pt`, `level2_boreal_v2/` cells + predictions + gts, `results_bundle.tgz` + `.sha256`, `INTEGRITY.json`, `export/`), split `/workspace/splits/boreal_v2/`, supervisor records `/workspace/runs/boreal_v2_train_eval_orch/{events.jsonl,job.log,DONE.json}`.
+- Return path: the pod serves ONLY `/workspace/runs/boreal_v2/export/` (token-protected) on `https://kv3imy4lnltlea-8000.proxy.runpod.net` until fetched or 15 min after completion. From this sandbox the proxy domain was still blocked at launch; if it was never fetched, retrieve `results_bundle.tgz` from the volume manually (RunPod console / your usual path) and verify against `results_bundle.tgz.sha256`. The results token file lives in the cloud session's scratchpad (not durable); it is also visible in the pod's environment in the RunPod console.
+- Create-pod findings: RunPod rejected a 300 KB environment (HTTP 500 "unmarshal ... invalid character 'I'"); 60 KB works; the bundle was cut to ~70 KB. Three throwaway probe pods (ids `ehlptgu8zl8o5c`, `ez7il6dxm4fkg6`, `1voj5p632zthee`) were created and stopped within seconds (about $0.01 total); they remain in state EXITED and can be removed by hand.
+- Stop-by-REST from the sandbox verified on those probes (state EXITED within 3 s). Pod-side self-stop (injected key) is verified only when this run ends.

@@ -498,7 +498,7 @@ Verified: API key, reads, volume, stop endpoint authorization, live `enforce` (n
 armed (needs merge to `main` + `RUNPOD_API_KEY` secret), live stop on a real pod, create-pod fields. Lifecycle test prepared, worst case $0.56, awaiting owner approval.
 Boreal v2 split + Level 2 evaluation remain the next scientific task, after the lifecycle test passes.
 
-### 2026-10-29 — Boreal v2 (clip-disjoint split): split frozen, GPU phase pending
+### 2026-10-29 — Boreal v2 (clip-disjoint split): split frozen; GPU run LAUNCHED 19:14:55Z (pod kv3imy4lnltlea, see handoff Update 5)
 
 Record: `docs/experiments/boreal_v2.md`. Done (free): 31 normalised clips, seeded constrained search (no model output), train 3462 / val 748 / test 744 frames
 (18 / 5 / 8 clips), video-disjoint, 0 exact duplicates across partitions, 22 train&test frame pairs within 4 dHash bits (documented residue), test has 65 held-out true negatives.
