@@ -254,10 +254,11 @@ def transfer_args(ns):
     ns.run_name = ns.run_name or "transfer_test_" + time.strftime("%Y%m%d_%H%M%S", time.gmtime())
     if not ns.run_name.startswith("transfer_test_"):
         raise SystemExit("transfer test run names must start with transfer_test_")
-    script = ("stop_probe_job.py" if getattr(ns, "stop_probe", False) else
+    script = ("cache_check_job.py" if getattr(ns, "cache_check", False) else
+              "stop_probe_job.py" if getattr(ns, "stop_probe", False) else
               "diagnose_job.py" if getattr(ns, "diagnose", False) else "transfer_test_job.py")
-    ns.job = f"python3 {script} --out {ns.mount}/runs/{ns.run_name}_job --serve-seconds {600 if script == 'diagnose_job.py' else 420}" if script != "stop_probe_job.py" else f"python3 stop_probe_job.py --out {ns.mount}/runs/{ns.run_name}_job"
-    ns.hard_timeout_s = 900 if script == "diagnose_job.py" else 600
+    ns.job = f"python3 {script} --out {ns.mount}/runs/{ns.run_name}_job --serve-seconds {600 if script in ('diagnose_job.py', 'cache_check_job.py') else 420}" if script != "stop_probe_job.py" else f"python3 stop_probe_job.py --out {ns.mount}/runs/{ns.run_name}_job"
+    ns.hard_timeout_s = 1200 if script == "cache_check_job.py" else 900 if script == "diagnose_job.py" else 600
     ns.artifact = []
     ns.bundle_files = [script, "results_server.py"]
     ns.ports = ns.ports or ["8000/http"]
@@ -293,6 +294,7 @@ def main(argv=None):
     tt = sub.add_parser("transfer-test")
     add_job_args(tt, job_required=False)
     tt.set_defaults(run_name="", job="", hard_timeout_s=600)
+    tt.add_argument("--cache-check", action="store_true", help="run cache_check_job.py (Ultralytics cache=ram/disk feasibility and pixel equivalence)")
     tt.add_argument("--stop-probe", action="store_true", help="run stop_probe_job.py (which on-pod method can stop the pod?)")
     tt.add_argument("--diagnose", action="store_true", help="run diagnose_job.py (host probe + export of earlier run logs) instead of the payload test")
     lt = sub.add_parser("lifecycle-test")

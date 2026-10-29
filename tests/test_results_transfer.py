@@ -238,9 +238,9 @@ class LauncherPieces(unittest.TestCase):
 
     def test_transfer_job_refuses_other_paths(self):
         import subprocess
-        for job in ("transfer_test_job.py", "diagnose_job.py"):
+        for job in ("transfer_test_job.py", "diagnose_job.py", "cache_check_job.py", "stop_probe_job.py"):
             for bad in ("/workspace/runs/real_boreal", "/tmp/transfer_test_x"):
-                r = subprocess.run([sys.executable, os.path.join(RP, job), "--out", bad], capture_output=True, text=True)
+                r = subprocess.run([sys.executable, os.path.join(RP, job), "--out", bad], capture_output=True, text=True, timeout=60)
                 self.assertNotEqual(r.returncode, 0, job)
                 self.assertFalse(os.path.exists(bad))
 
