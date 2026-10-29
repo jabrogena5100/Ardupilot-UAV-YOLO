@@ -1,0 +1,11 @@
+{
+  "artifacts": {},
+  "exit_code": 3,
+  "finished_utc": "2026-10-29T19:36:56Z",
+  "git_commit": "16f7e60fb029823945907eadacc63aa9782b01ec",
+  "hard_timeout_s": 16200,
+  "pod_id": "kv3imy4lnltlea",
+  "run_name": "boreal_v2_train_eval",
+  "status": "failed",
+  "wall_seconds": 1307
+}

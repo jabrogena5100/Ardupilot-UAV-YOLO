@@ -1,0 +1,13 @@
+{
+ "deviation": "cache=ram",
+ "scope": "speed only: identical resized pixels, same augmentation/optimizer/epochs/seeds/splits",
+ "v1_protocol_had_cache": false,
+ "ultralytics": "8.4.173",
+ "checked_images": 16,
+ "all_identical": true,
+ "ram_estimate_train_GB": 2.263,
+ "RUNPOD_MEM_GB": 41.0,
+ "min_required_GB": 16.0,
+ "t": "2026-10-29T22:02:19Z",
+ "ok": true
+}

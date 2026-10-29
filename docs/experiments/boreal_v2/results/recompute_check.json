@@ -1,0 +1,22 @@
+{
+ "what": "All 30 harness cells recomputed offline from the saved predictions and ground truth (eval.run_matrix --preds-from/--gts-from, 1000 bootstrap resamples) on a different machine than the pod.",
+ "pod_env": {
+  "python": "3.12.3",
+  "numpy": "2.1.2"
+ },
+ "recompute_env": {
+  "python": "3.13.17",
+  "numpy": "2.5.3"
+ },
+ "metric_values_compared": 2232,
+ "detection_metrics_identical": true,
+ "non_localisation_differences": 0,
+ "differing_values": {
+  "loc_mean_iou_tp": 48,
+  "loc_median_iou_tp": 35,
+  "loc_center_err_diag_mean": 24
+ },
+ "max_relative_difference": 4.16e-06,
+ "interpretation": "All detection metrics (mAP50, mAP50-95, precision, recall, TP/FP/FN, FP rates, all bootstrap intervals) reproduce exactly. 107 localisation statistics differ by <= 4.2e-6 relative (floating-point drift between NumPy versions): reproduction is exact for detection metrics, not bit-identical for localisation means.",
+ "training_reproducibility_check": "Seed 1 trained twice on two different pods (attempt 3 aborted after 4 epochs, attempt 4 complete): all 44 loss/metric values of epochs 1-4 identical (max abs difference 0). Only 4 epochs were comparable; Ultralytics warns cache=ram may be non-deterministic."
+}

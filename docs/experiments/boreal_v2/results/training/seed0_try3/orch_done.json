@@ -1,0 +1,16 @@
+{
+  "artifacts": {
+    "/workspace/runs/boreal_v2_try3/real_boreal_v2_seed0/real_boreal_v2_best_seed0.pt": {
+      "bytes": 22501098,
+      "sha256": "090c0f4cbe2718d2b084a41b8a3736fa27b673bc66b20c64672b13c83c299a05"
+    }
+  },
+  "exit_code": 3,
+  "finished_utc": "2026-10-29T21:56:25Z",
+  "git_commit": "6d73d89d1ffd18a63ec9dee07fb362ca452b30c6",
+  "hard_timeout_s": 16200,
+  "pod_id": "vi2o551fcsho16",
+  "run_name": "boreal_v2_try3_train_eval",
+  "status": "failed",
+  "wall_seconds": 5909
+}
