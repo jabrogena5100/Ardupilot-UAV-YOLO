@@ -254,8 +254,9 @@ def transfer_args(ns):
     ns.run_name = ns.run_name or "transfer_test_" + time.strftime("%Y%m%d_%H%M%S", time.gmtime())
     if not ns.run_name.startswith("transfer_test_"):
         raise SystemExit("transfer test run names must start with transfer_test_")
-    script = "diagnose_job.py" if getattr(ns, "diagnose", False) else "transfer_test_job.py"
-    ns.job = f"python3 {script} --out {ns.mount}/runs/{ns.run_name}_job --serve-seconds {600 if script == 'diagnose_job.py' else 420}"
+    script = ("stop_probe_job.py" if getattr(ns, "stop_probe", False) else
+              "diagnose_job.py" if getattr(ns, "diagnose", False) else "transfer_test_job.py")
+    ns.job = f"python3 {script} --out {ns.mount}/runs/{ns.run_name}_job --serve-seconds {600 if script == 'diagnose_job.py' else 420}" if script != "stop_probe_job.py" else f"python3 stop_probe_job.py --out {ns.mount}/runs/{ns.run_name}_job"
     ns.hard_timeout_s = 900 if script == "diagnose_job.py" else 600
     ns.artifact = []
     ns.bundle_files = [script, "results_server.py"]
@@ -292,6 +293,7 @@ def main(argv=None):
     tt = sub.add_parser("transfer-test")
     add_job_args(tt, job_required=False)
     tt.set_defaults(run_name="", job="", hard_timeout_s=600)
+    tt.add_argument("--stop-probe", action="store_true", help="run stop_probe_job.py (which on-pod method can stop the pod?)")
     tt.add_argument("--diagnose", action="store_true", help="run diagnose_job.py (host probe + export of earlier run logs) instead of the payload test")
     lt = sub.add_parser("lifecycle-test")
     add_job_args(lt, job_required=False)
