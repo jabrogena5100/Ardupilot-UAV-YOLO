@@ -141,6 +141,13 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(rc, 3)
         self.assertFalse(out["created"])
 
+    def test_create_failure_is_reported_without_leaking_spec(self):
+        class Boom(FakeAPI):
+            def create_pod(self, spec):
+                raise C.RunPodError("POST /pods -> HTTP 500", code=500, detail="no instances available")
+        rc, out = L.launch(Boom(), self.a(confirm_paid="t_run"), "abc")
+        self.assertEqual((rc, out["created"], out["create_error"]["detail"]), (3, False, "no instances available"))
+
     def test_stopped_pods_do_not_block(self):
         api = FakeAPI(pods=[{"id": "p0", "name": "old", "desiredStatus": "EXITED"}])
         rc, out = L.launch(api, self.a(), "abc")

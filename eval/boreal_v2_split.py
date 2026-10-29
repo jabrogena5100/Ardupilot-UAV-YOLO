@@ -260,7 +260,7 @@ def main(argv=None):
     rec = {f["name"]: f for c in clips.values() for f in c["files"]}
     with open(os.path.join(a.outdir, "filelists.json"), "w") as f:
         json.dump({p: [{"name": n, "source_split": rec[n]["source_split"], "has_label_file": rec[n]["has_label_file"],
-                        "n_boxes": rec[n]["n_boxes"], "md5": rec[n]["md5"]} for n in fl[p]] for p in PARTS}, f, indent=0, sort_keys=True)
+                        "n_boxes": rec[n]["n_boxes"]} for n in fl[p]] for p in PARTS}, f, separators=(",", ":"), sort_keys=True)
     with open(os.path.join(a.outdir, "split_assignment.json"), "w") as f:
         json.dump({"name": "boreal_v2", "construction": {
             "unit": "normalised source clip (Empty-Images frames join their clip)", "scan_sha256_expected": "8a4db032e44c4040872d6b4863af9efefe7b2e5ac3b1f6e48b6f993a3e400e8e",

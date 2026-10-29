@@ -4,6 +4,7 @@
   check-access    read-only: API reads, volume present, billing, and a NON-MUTATING stop probe on a nonexistent pod id
   preflight       read-only: no pod running, budget check -> plan (exit 0 ok / 3 refused)
   launch          preflight, then (only with --confirm-paid RUN_NAME and --watchdog-armed) create ONE pod. Dry run otherwise.
+  boreal-v2       launch preset: 3 Model B seeds on Boreal v2 + Level 2 evaluation (docs/experiments/boreal_v2.md); 16200 s hard timeout
   transfer-test   launch preset: serve a 256 KiB disposable artifact through the RunPod HTTPS proxy (tests the return path), 600 s hard timeout
   lifecycle-test  launch preset: disposable job (no model, no dataset), 60 s hard timeout, run name lifecycle_test_*
   enforce         one pass of the off-pod watchdog (same as watchdog.py)
@@ -133,7 +134,11 @@ def launch(api, a, git_commit, now=time.time):
         out["note"] = ("refused: confirm the GitHub watchdog is live (secret RUNPOD_API_KEY set, workflow on the default branch, "
                        "a successful run seen) and pass --watchdog-armed")
         return 3, out
-    pod = api.create_pod(spec)
+    try:
+        pod = api.create_pod(spec)
+    except C.RunPodError as e:      # report the server's reason (never the request: it holds the token and the bundle)
+        out["create_error"] = {"code": e.code, "detail": e.detail}
+        return 3, out
     out.update(created=True, pod_id=pod.get("id"))
     price = pod.get("costPerHr")
     if pod.get("id") and price is not None and price > a.max_hourly_price:  # price is only known after creation
@@ -220,6 +225,27 @@ def lifecycle_args(ns):
     return ns
 
 
+BOREAL_V2_REPO_PATHS = [
+    "eval/__init__.py", "eval/metrics.py", "eval/run_matrix.py", "eval/aggregate_seeds.py", "eval/boreal_split_audit.py",
+    "eval/datasets.yaml", "eval/datasets_boreal_v2.yaml",
+    "eval/runpod/boreal_v2_materialize.py", "eval/runpod/boreal_v2_train_eval.sh", "eval/runpod/results_server.py",
+    "docs/experiments/boreal_v2/filelists.json", "docs/experiments/boreal_v2/split_audit.json",
+    "tests/__init__.py", "tests/test_eval_metrics.py", "tests/test_aggregate_seeds.py", "tests/test_run_matrix.py"]
+# RunPod rejects very large environments (60 KB accepted, 300 KB rejected with HTTP 500); keep the whole bundle well under 100 KB.
+BOREAL_V2_MAX_BUNDLE_B64 = 100_000
+
+
+def boreal_v2_args(ns):
+    ns.run_name = ns.run_name or "boreal_v2_train_eval"
+    ns.job = "bash repo/eval/runpod/boreal_v2_train_eval.sh"
+    ns.hard_timeout_s = 16200
+    ns.repo_paths = list(BOREAL_V2_REPO_PATHS)
+    ns.bundle_files = []
+    ns.artifact = ["/workspace/runs/boreal_v2/real_boreal_v2_seed*/real_boreal_v2_best_seed*.pt", "/workspace/runs/boreal_v2/results_bundle.tgz"]
+    ns.ports = ns.ports or ["8000/http"]
+    return ns
+
+
 def transfer_args(ns):
     ns.run_name = ns.run_name or "transfer_test_" + time.strftime("%Y%m%d_%H%M%S", time.gmtime())
     if not ns.run_name.startswith("transfer_test_"):
@@ -254,6 +280,9 @@ def main(argv=None):
     sub.add_parser("enforce")
     for name in ("preflight", "launch"):
         add_job_args(sub.add_parser(name))
+    bv = sub.add_parser("boreal-v2")
+    add_job_args(bv, job_required=False)
+    bv.set_defaults(run_name="", job="", hard_timeout_s=16200)
     tt = sub.add_parser("transfer-test")
     add_job_args(tt, job_required=False)
     tt.set_defaults(run_name="", job="", hard_timeout_s=600)
@@ -276,13 +305,15 @@ def main(argv=None):
         a = lifecycle_args(a)
     if a.cmd == "transfer-test":
         a = transfer_args(a)
+    if a.cmd == "boreal-v2":
+        a = boreal_v2_args(a)
     a.results_token = load_token(a.results_token_file) if getattr(a, "results_token_file", "") else None
     commit = os.environ.get("GIT_COMMIT", "unknown")
     if a.cmd == "preflight":
         out = {"preflight": preflight(api, a)}
         print(json.dumps(out, indent=2))
         return 0 if out["preflight"]["ok"] else 3
-    if a.cmd == "transfer-test":
+    if a.cmd in ("transfer-test", "boreal-v2"):
         a.cmd = "launch"
     rc, out = launch(api, a, commit)
     print(json.dumps(out, indent=2))

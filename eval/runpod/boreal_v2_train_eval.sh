@@ -95,7 +95,7 @@ for n in sorted(os.listdir(d))[::800][:4]:
 PY
 
 # Host-speed guard (same as level2_v2): after epoch 4 the mean of epochs 2-4 is compared with the per-run limit; a slow host aborts (exit 3).
-GUARD_SECS=${GUARD_SECS:-15500}; LIM=60
+GUARD_SECS=${GUARD_SECS:-12500}; LIM=60
 train_one () {   # SEED
   local SEED=$1 NAME=real_boreal_v2_seed$1 CK=real_boreal_v2_best_seed$1.pt RUN=$OUT/real_boreal_v2_seed$1
   if [ $(( $(date +%s) - T_START )) -gt $GUARD_SECS ]; then echo "SKIP $NAME: time guard"; return; fi

@@ -98,6 +98,27 @@ class FrozenArtifacts(unittest.TestCase):
         self.assertAlmostEqual(obj, j("split_assignment.json")["construction"]["objective_value"], places=9)
 
 
+class BundleSize(unittest.TestCase):
+    def test_boreal_v2_bundle_fits_runpod_env_limit_and_contains_everything_needed(self):
+        import base64, io, tarfile
+        import launch_job as L
+        chunks, _ = L.make_bundle([], L.BOREAL_V2_REPO_PATHS)
+        self.assertLess(sum(len(c) for c in chunks), L.BOREAL_V2_MAX_BUNDLE_B64)
+        names = tarfile.open(fileobj=io.BytesIO(base64.b64decode("".join(chunks))), mode="r:gz").getnames()
+        for p in L.BOREAL_V2_REPO_PATHS:
+            self.assertIn("repo/" + p, names)
+        # every module the job imports is shipped
+        src = open(os.path.join(ROOT, "eval", "run_matrix.py")).read() + open(os.path.join(ROOT, "eval", "aggregate_seeds.py")).read()
+        self.assertIn("from . import metrics", src)
+
+    def test_preset_fills_the_job_definition(self):
+        import argparse
+        import launch_job as L
+        ns = L.boreal_v2_args(argparse.Namespace(run_name="", ports=[]))
+        self.assertEqual((ns.run_name, ns.hard_timeout_s, ns.ports), ("boreal_v2_train_eval", 16200, ["8000/http"]))
+        self.assertTrue(any("real_boreal_v2_best_seed" in a for a in ns.artifact))
+
+
 class JobScriptLint(unittest.TestCase):
     """Static guarantees about eval/runpod/boreal_v2_train_eval.sh: everything it writes goes to NEW v2 paths; nothing existing is touched."""
 
