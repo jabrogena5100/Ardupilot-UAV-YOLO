@@ -121,6 +121,16 @@ class BundleSize(unittest.TestCase):
         with self.assertRaises(SystemExit):
             L.boreal_v2_args(argparse.Namespace(run_name="", ports=[], run_tag="real_boreal"))
 
+    def test_cache_and_epoch_limit_pass_through_as_env(self):
+        import argparse
+        import launch_job as L
+        ns = L.boreal_v2_args(argparse.Namespace(run_name="", ports=[], run_tag="boreal_v2_try3", cache="ram", epoch_limit_s=45))
+        self.assertEqual(ns.extra_env, {"RUN_TAG": "boreal_v2_try3", "CACHE_MODE": "ram", "EPOCH_LIMIT_S": "45"})
+        self.assertIn("repo/eval/runpod/cache_equivalence_check.py", ["repo/" + p for p in L.BOREAL_V2_REPO_PATHS])
+        src = open(os.path.join(ROOT, "eval", "runpod", "boreal_v2_train_eval.sh")).read()
+        self.assertIn('CACHE_ARG=""; [ -n "$CACHE_MODE" ] && CACHE_ARG="cache=$CACHE_MODE"', src)    # no env var => the v1 protocol exactly
+        self.assertIn("ABORT: cache=ram equivalence/memory check failed", src)
+
     def test_preset_fills_the_job_definition(self):
         import argparse
         import launch_job as L

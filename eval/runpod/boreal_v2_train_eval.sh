@@ -108,6 +108,11 @@ for n in sorted(os.listdir(d))[::800][:4]:
     print("IMGPROBE", n, Image.open(os.path.join(d, n)).size)
 PY
 
+if [ "$CACHE_MODE" = "ram" ]; then
+  echo "--- protocol deviation check: cache=ram must be pixel-identical and fit in RAM"
+  python3 eval/runpod/cache_equivalence_check.py --images $SPL2/images/train --n 16 --out $OUT/PROTOCOL_DEVIATION.json --min-mem-gb 16 \
+    || { echo "ABORT: cache=ram equivalence/memory check failed"; exit 3; }
+fi
 # Host-speed guard (same as level2_v2): after epoch 4 the mean of epochs 2-4 is compared with the per-run limit; a slow host aborts (exit 3).
 GUARD_SECS=${GUARD_SECS:-12500}; LIM=${EPOCH_LIMIT_S:-60}
 # CACHE_MODE: empty = the v1 protocol (no cache). 'ram' = Ultralytics cache=ram (speed-only deviation, recorded in PROTOCOL_DEVIATION.json).
@@ -206,7 +211,7 @@ PY
 
 echo "--- results bundle (small artifacts only; checkpoints stay on the volume)"
 cd $OUT && tar czf $OUT/results_bundle.tgz --exclude='*.pt' --exclude='weights' level2_boreal_v2 real_boreal_v2_seed*/results.csv real_boreal_v2_seed*/args.yaml \
-  real_boreal_v2_seed*/train_config.json real_boreal_v2_seed*_train.log datasets_boreal_v2_pinned.yaml split_manifest_materialised.json INTEGRITY.json run_matrix.log 2>/dev/null
+  real_boreal_v2_seed*/train_config.json real_boreal_v2_seed*_train.log datasets_boreal_v2_pinned.yaml split_manifest_materialised.json INTEGRITY.json run_matrix.log $([ -f PROTOCOL_DEVIATION.json ] && echo PROTOCOL_DEVIATION.json) 2>/dev/null
 sha256sum $OUT/results_bundle.tgz | tee $OUT/results_bundle.tgz.sha256; ls -la $OUT/results_bundle.tgz
 n_ok=$(grep -l "\"complete\": true" $OUT/real_boreal_v2_seed*/train_config.json 2>/dev/null | wc -l)
 JOB_RC=1; [ "$n_ok" = 3 ] && [ "$MRC" = 0 ] && JOB_RC=0
@@ -214,7 +219,7 @@ echo "=== JOB_RESULT $(date -u +%FT%TZ) total_elapsed=$(( $(date +%s) - T_START 
 
 echo "--- export for retrieval (small artifacts only; never checkpoints; copies into the NEW export dir, originals untouched)"
 echo export > $OUT/.phase
-cp $OUT/results_bundle.tgz $OUT/results_bundle.tgz.sha256 $OUT/INTEGRITY.json $EXP/ 2>/dev/null
+cp $OUT/results_bundle.tgz $OUT/results_bundle.tgz.sha256 $OUT/INTEGRITY.json $OUT/PROTOCOL_DEVIATION.json $EXP/ 2>/dev/null
 for S in 0 1 2; do cp $OUT/real_boreal_v2_seed$S/train_config.json $EXP/train_config_seed$S.json 2>/dev/null; done
 python3 - <<PY
 import os, sys

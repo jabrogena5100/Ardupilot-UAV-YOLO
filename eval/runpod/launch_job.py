@@ -229,6 +229,7 @@ BOREAL_V2_REPO_PATHS = [
     "eval/__init__.py", "eval/metrics.py", "eval/run_matrix.py", "eval/aggregate_seeds.py", "eval/boreal_split_audit.py",
     "eval/datasets.yaml", "eval/datasets_boreal_v2.yaml",
     "eval/runpod/boreal_v2_materialize.py", "eval/runpod/boreal_v2_train_eval.sh", "eval/runpod/results_server.py",
+    "eval/runpod/cache_equivalence_check.py",
     "docs/experiments/boreal_v2/filelists.json", "docs/experiments/boreal_v2/split_audit.json",
     "tests/__init__.py", "tests/test_eval_metrics.py", "tests/test_aggregate_seeds.py", "tests/test_run_matrix.py"]
 # RunPod rejects very large environments (60 KB accepted, 300 KB rejected with HTTP 500); keep the whole bundle well under 100 KB.
@@ -241,6 +242,10 @@ def boreal_v2_args(ns):
         raise SystemExit("run tag must match boreal_v2*")
     ns.run_name = ns.run_name or ("boreal_v2_train_eval" if tag == "boreal_v2" else tag + "_train_eval")
     ns.extra_env = {"RUN_TAG": tag} if tag != "boreal_v2" else {}
+    if getattr(ns, "cache", ""):                       # documented speed-only protocol deviation; the job verifies pixel equivalence first
+        ns.extra_env["CACHE_MODE"] = ns.cache
+    if getattr(ns, "epoch_limit_s", 0):
+        ns.extra_env["EPOCH_LIMIT_S"] = str(ns.epoch_limit_s)
     ns.job = "bash repo/eval/runpod/boreal_v2_train_eval.sh"
     ns.hard_timeout_s = 16200
     ns.repo_paths = list(BOREAL_V2_REPO_PATHS)
@@ -290,6 +295,8 @@ def main(argv=None):
     bv = sub.add_parser("boreal-v2")
     add_job_args(bv, job_required=False)
     bv.set_defaults(run_name="", job="", hard_timeout_s=16200)
+    bv.add_argument("--cache", default="", choices=["", "ram"], help="Ultralytics cache mode (deviation from v1 args; default none)")
+    bv.add_argument("--epoch-limit-s", type=int, default=0, help="speed-guard limit for mean epoch 2-4 seconds (default 60 in the job)")
     bv.add_argument("--run-tag", default="", help="output directory tag under /workspace/runs (default boreal_v2; use boreal_v2_try2 etc. for a retry)")
     tt = sub.add_parser("transfer-test")
     add_job_args(tt, job_required=False)
