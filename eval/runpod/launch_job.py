@@ -236,12 +236,16 @@ BOREAL_V2_MAX_BUNDLE_B64 = 100_000
 
 
 def boreal_v2_args(ns):
-    ns.run_name = ns.run_name or "boreal_v2_train_eval"
+    tag = getattr(ns, "run_tag", "") or "boreal_v2"          # a retry after an aborted attempt must use a NEW tag (never overwrites)
+    if not C.RUN_NAME_RE.match(tag) or not tag.startswith("boreal_v2"):
+        raise SystemExit("run tag must match boreal_v2*")
+    ns.run_name = ns.run_name or ("boreal_v2_train_eval" if tag == "boreal_v2" else tag + "_train_eval")
+    ns.extra_env = {"RUN_TAG": tag} if tag != "boreal_v2" else {}
     ns.job = "bash repo/eval/runpod/boreal_v2_train_eval.sh"
     ns.hard_timeout_s = 16200
     ns.repo_paths = list(BOREAL_V2_REPO_PATHS)
     ns.bundle_files = []
-    ns.artifact = ["/workspace/runs/boreal_v2/real_boreal_v2_seed*/real_boreal_v2_best_seed*.pt", "/workspace/runs/boreal_v2/results_bundle.tgz"]
+    ns.artifact = [f"/workspace/runs/{tag}/real_boreal_v2_seed*/real_boreal_v2_best_seed*.pt", f"/workspace/runs/{tag}/results_bundle.tgz"]
     ns.ports = ns.ports or ["8000/http"]
     return ns
 
@@ -283,6 +287,7 @@ def main(argv=None):
     bv = sub.add_parser("boreal-v2")
     add_job_args(bv, job_required=False)
     bv.set_defaults(run_name="", job="", hard_timeout_s=16200)
+    bv.add_argument("--run-tag", default="", help="output directory tag under /workspace/runs (default boreal_v2; use boreal_v2_try2 etc. for a retry)")
     tt = sub.add_parser("transfer-test")
     add_job_args(tt, job_required=False)
     tt.set_defaults(run_name="", job="", hard_timeout_s=600)

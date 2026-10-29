@@ -12,8 +12,9 @@ TAG=${RUN_TAG:-boreal_v2}; OUT=$RUNS/$TAG; SPL2=$W/splits/boreal_v2; SCAN=$W/int
 SCAN_SHA=8a4db032e44c4040872d6b4863af9efefe7b2e5ac3b1f6e48b6f993a3e400e8e
 T_START=$(date +%s)
 echo "=== START $(date -u +%FT%TZ) tag=$TAG git=${GIT_COMMIT:-unknown} bundle=${BUNDLE_SHA256:-unknown}"
-for p in "$OUT" "$SPL2" "$SPL2.partial"; do
+for p in "$OUT" "$SPL2.partial"; do
   [ -e "$p" ] && { echo "ABORT: $p exists (refusing to overwrite)"; exit 1; }; done
+# $SPL2 (the frozen split) may exist from an earlier attempt: it is reused read-only after its file-list hashes are re-verified below
 
 echo "--- env"
 pip install -q --break-system-packages "ultralytics==8.4.173" pyyaml pillow numpy 2>&1 | tail -1
@@ -78,12 +79,25 @@ PY
 python3 -m unittest tests.test_eval_metrics tests.test_aggregate_seeds tests.test_run_matrix 2>&1 | tail -3
 
 echo materialise > $OUT/.phase
+if [ -e "$SPL2" ]; then
+  echo "--- Boreal v2 split already on the volume: verifying against the frozen hashes (read-only reuse)"
+  python3 - <<'PY' || { echo "ABORT: existing boreal_v2 split does not match the frozen hashes"; exit 3; }
+import json, hashlib, os, sys
+frozen = json.load(open("docs/experiments/boreal_v2/split_audit.json"))["filelist_sha256"]
+for p in ("train", "val", "test"):
+    names = sorted(os.listdir(f"/workspace/splits/boreal_v2/images/{p}"))
+    h = hashlib.sha256("\n".join(names).encode()).hexdigest()
+    print(p, len(names), "OK" if h == frozen[p] else "MISMATCH")
+    if h != frozen[p]: sys.exit(1)
+PY
+else
 echo "--- materialise Boreal v2 split"
 python3 eval/runpod/boreal_v2_materialize.py --src $SRC --dest $SPL2 --filelists docs/experiments/boreal_v2/filelists.json \
   --scan $SCAN --scan-sha256 $SCAN_SHA \
   $(python3 -c "
 import json; a=json.load(open('docs/experiments/boreal_v2/split_audit.json'))['filelist_sha256']
 print(' '.join(f'--expect {p}={h}' for p,h in a.items()))") 2>&1 | tail -20
+fi
 [ -f $SPL2/data.yaml ] || { echo "ABORT: split materialisation failed"; exit 3; }
 cp $SPL2/manifest.json $OUT/split_manifest_materialised.json
 python3 - <<'PY'
@@ -154,6 +168,7 @@ python3 - <<PY
 import yaml, hashlib, os
 cfg = yaml.safe_load(open("eval/datasets_boreal_v2.yaml")); avail = []
 for name, m in cfg["models"].items():
+    m["checkpoint"] = m["checkpoint"].replace("/boreal_v2/", "/$TAG/")
     path = m["checkpoint"].replace("\${RUNS}", "$RUNS")
     if os.path.exists(path):
         h = hashlib.sha256(open(path, "rb").read()).hexdigest()

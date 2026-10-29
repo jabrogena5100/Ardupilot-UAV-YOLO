@@ -111,6 +111,16 @@ class BundleSize(unittest.TestCase):
         src = open(os.path.join(ROOT, "eval", "run_matrix.py")).read() + open(os.path.join(ROOT, "eval", "aggregate_seeds.py")).read()
         self.assertIn("from . import metrics", src)
 
+    def test_retry_tag_isolates_outputs(self):
+        import argparse
+        import launch_job as L
+        ns = L.boreal_v2_args(argparse.Namespace(run_name="", ports=[], run_tag="boreal_v2_try2"))
+        self.assertEqual(ns.run_name, "boreal_v2_try2_train_eval")
+        self.assertEqual(ns.extra_env, {"RUN_TAG": "boreal_v2_try2"})
+        self.assertTrue(all("/boreal_v2_try2/" in a for a in ns.artifact))
+        with self.assertRaises(SystemExit):
+            L.boreal_v2_args(argparse.Namespace(run_name="", ports=[], run_tag="real_boreal"))
+
     def test_preset_fills_the_job_definition(self):
         import argparse
         import launch_job as L
@@ -134,8 +144,10 @@ class JobScriptLint(unittest.TestCase):
 
     def test_aborts_if_targets_exist(self):
         self.assertIn('[ -e "$p" ] && { echo "ABORT: $p exists (refusing to overwrite)"; exit 1; }', self.code)
-        for t in ('"$OUT"', '"$SPL2"', '"$SPL2.partial"'):
-            self.assertIn(t, self.code)
+        self.assertIn('for p in "$OUT" "$SPL2.partial"; do', self.code)
+        # the frozen split may be reused only after its hashes are re-verified (read-only); it is never rewritten
+        self.assertIn("verifying against the frozen hashes", self.code)
+        self.assertIn("MISMATCH", self.code)
 
     def test_writes_only_under_v2_paths(self):
         import re
