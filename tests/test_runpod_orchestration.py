@@ -356,6 +356,74 @@ class SupervisorTests(unittest.TestCase):
                 self.assertNotIn(SECRET, read(os.path.join(d, name)))
 
 
+class GraphqlFallbackTests(unittest.TestCase):
+    def test_supervisor_falls_back_to_graphql_when_rest_is_forbidden(self):
+        class RestForbidden(FakeAPI):
+            gql = 0
+
+            def stop_pod(self, pid):
+                raise C.RunPodError("POST /pods/x/stop -> HTTP 403", code=403)
+
+            def stop_pod_graphql(self, pid):
+                RestForbidden.gql += 1
+                self.pods[pid]["desiredStatus"] = "EXITED"
+        with tempfile.TemporaryDirectory() as td:
+            api = RestForbidden(pods=[{"id": "pod1", "desiredStatus": "RUNNING"}])
+            log = C.EventLog(os.path.join(td, "e.jsonl"))
+            self.assertTrue(S.stop_and_verify(api, "pod1", log, sleep=lambda s_: None))
+            ev = [json.loads(x) for x in read(os.path.join(td, "e.jsonl")).splitlines()]
+            self.assertEqual(RestForbidden.gql, 1)
+            self.assertIn(("pod_stopped", "graphql"), [(e["event"], e.get("method")) for e in ev])
+            self.assertIn("rest", [e.get("method") for e in ev if e["event"] == "stop_error"])
+
+    def test_both_methods_failing_is_logged_as_stop_failed(self):
+        class Dead(FakeAPI):
+            def stop_pod(self, pid):
+                raise C.RunPodError("x", code=403)
+
+            def stop_pod_graphql(self, pid):
+                raise C.RunPodError("y", code=500)
+        with tempfile.TemporaryDirectory() as td:
+            log = C.EventLog(os.path.join(td, "e.jsonl"))
+            self.assertFalse(S.stop_and_verify(Dead(pods=[{"id": "p", "desiredStatus": "RUNNING"}]), "p", log, sleep=lambda s_: None))
+            self.assertIn("STOP_FAILED", read(os.path.join(td, "e.jsonl")))
+
+    def test_graphql_client_sends_only_podstop_and_validates_ids(self):
+        sent = []
+        api = C.RunPodAPI(key=SECRET)
+        api.stop_pod_graphql.__func__  # exists
+        orig = C.urllib.request.urlopen
+
+        class R:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"data": {"podStop": {"id": "abc123", "desiredStatus": "EXITED"}}}'
+        C.urllib.request.urlopen = lambda req, timeout=0: (sent.append((req.full_url, req.data, dict(req.header_items()))), R())[1]
+        try:
+            self.assertIn("podStop", api.stop_pod_graphql("abc123"))
+            with self.assertRaises(C.RunPodError):
+                api.stop_pod_graphql('abc"}) { id } mutation { podTerminate(input:{podId:"x"})')    # injection attempt rejected before any request
+        finally:
+            C.urllib.request.urlopen = orig
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][0], "https://api.runpod.io/graphql")
+        self.assertIn(b"podStop", sent[0][1])
+        self.assertNotIn(SECRET.encode(), sent[0][1])
+
+    def test_only_podstop_mutation_exists_in_sources(self):
+        muts = set()
+        for fn in ("rp_common.py", "launch_job.py", "pod_supervisor.py", "watchdog.py"):
+            muts |= set(re.findall(r"mutation\s*\{\s*(\w+)", read(os.path.join(RP, fn))))
+        self.assertEqual(muts, {"podStop"})
+
+
 class WatchdogTests(unittest.TestCase):
     def test_fires_at_deadline_independently_of_job(self):
         with tempfile.TemporaryDirectory() as td:
