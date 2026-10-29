@@ -1,0 +1,49 @@
+# Independent off-pod RunPod watchdog. Runs on GitHub's servers every 5 minutes (also manually via "Run workflow"), so it
+# enforces pod deadlines even when Claude Code Cloud and the owner's machines are offline. It only STOPS overdue pods.
+# Setup (owner, once): Settings > Secrets and variables > Actions > New repository secret `RUNPOD_API_KEY`
+# (prefer a RunPod key restricted to pods). Scheduled workflows run only from the default branch and GitHub pauses them after
+# 60 days without repository activity.
+name: runpod-watchdog
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: runpod-watchdog
+  cancel-in-progress: false
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Enforce pod deadlines
+        env:
+          RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
+        run: |
+          if [ -z "$RUNPOD_API_KEY" ]; then echo "::error::repository secret RUNPOD_API_KEY is not set; watchdog is NOT enforcing"; exit 2; fi
+          mkdir -p "$RUNNER_TEMP/wd"
+          python3 eval/runpod/watchdog.py --log "$RUNNER_TEMP/wd/enforce_events.jsonl"
+      - name: Append events to runpod-logs branch (append-only)
+        if: always()
+        run: |
+          f="$RUNNER_TEMP/wd/enforce_events.jsonl"
+          [ -s "$f" ] || { echo "no events this pass"; exit 0; }
+          git config user.name "runpod-watchdog"; git config user.email "runpod-watchdog@users.noreply.github.com"
+          for attempt in 1 2 3; do
+            rm -rf "$RUNNER_TEMP/logs"
+            if git ls-remote --exit-code --heads origin runpod-logs >/dev/null 2>&1; then
+              git clone --quiet --branch runpod-logs --single-branch "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" "$RUNNER_TEMP/logs"
+            else
+              git init --quiet "$RUNNER_TEMP/logs"; git -C "$RUNNER_TEMP/logs" checkout --quiet -b runpod-logs
+              git -C "$RUNNER_TEMP/logs" remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+            fi
+            cat "$f" >> "$RUNNER_TEMP/logs/enforce_events.jsonl"
+            git -C "$RUNNER_TEMP/logs" add enforce_events.jsonl
+            git -C "$RUNNER_TEMP/logs" -c user.name=runpod-watchdog -c user.email=runpod-watchdog@users.noreply.github.com commit --quiet -m "watchdog events $(date -u +%FT%TZ)"
+            git -C "$RUNNER_TEMP/logs" push --quiet origin runpod-logs && exit 0
+            sleep $((attempt * 3))
+          done
+          echo "::error::could not append events to runpod-logs"; exit 1

@@ -1,0 +1,110 @@
+{
+  "cell": "model_a__boreal_test",
+  "model": "model_a",
+  "train_domain": "synthetic",
+  "dataset": "boreal_test",
+  "checkpoint": "/workspace/runs/synth_smoke_a_v1/synth_smoke_best_v1.pt",
+  "checkpoint_sha256": "1da10c4814a905d92deec2d9c36185f872eabea447d47c389b9b065468009564",
+  "checkpoint_pinned": true,
+  "dataset_n_images": 701,
+  "dataset_filelist_sha256": "d2a610deddfd0053e046efb42e9aaa9e22158164d7b89a0c63e4789d159fc41b",
+  "settings": {
+    "imgsz": 640,
+    "conf": 0.001,
+    "nms_iou": 0.7,
+    "max_det": 300,
+    "batch": 32,
+    "seed": 0,
+    "report_conf": [
+      0.25
+    ]
+  },
+  "git": {
+    "commit": null,
+    "eval_sim_synthgen_dirty": null
+  },
+  "versions": {
+    "python": "3.12.3",
+    "numpy": "2.1.2",
+    "ultralytics": "8.4.173",
+    "torch": "2.8.0+cu128"
+  },
+  "argv": [
+    "/workspace/repo_v2/eval/run_matrix.py",
+    "--config",
+    "/workspace/runs/level2_v2/datasets_pinned.yaml",
+    "--out",
+    "/workspace/runs/level2_v2",
+    "--var",
+    "BOREAL_SPLIT=/workspace/splits/boreal_v1",
+    "--var",
+    "SYNTH_ROOT=/workspace/synth_smoke_v1",
+    "--var",
+    "RUNS=/workspace/runs",
+    "--cells",
+    "model_b:boreal_test,model_b:synth_test_pos,model_b:synth_test_all,model_b:boreal_empty_train_diag,model_a:boreal_test,model_a:synth_test_pos,model_a:synth_test_all,model_a:boreal_empty_train_diag,model_a_seed1:boreal_test,model_a_seed1:synth_test_pos,model_a_seed1:synth_test_all,model_a_seed1:boreal_empty_train_diag,model_a_seed2:boreal_test,model_a_seed2:synth_test_pos,model_a_seed2:synth_test_all,model_a_seed2:boreal_empty_train_diag,model_b_seed1:boreal_test,model_b_seed1:synth_test_pos,model_b_seed1:synth_test_all,model_b_seed1:boreal_empty_train_diag,model_b_seed2:boreal_test,model_b_seed2:synth_test_pos,model_b_seed2:synth_test_all,model_b_seed2:boreal_empty_train_diag"
+  ],
+  "predictions_file": "model_a__boreal_test.json.gz",
+  "metrics": {
+    "n_images": 701,
+    "n_positive_images": 700,
+    "n_negative_images": 1,
+    "n_gt_boxes": 713,
+    "n_predictions": 1426,
+    "mAP50": 0.4291762991425021,
+    "mAP50-95": 0.21641881431247384,
+    "AP50_by_class": {
+      "0": 0.4291762991425021
+    },
+    "max_f1": {
+      "conf_threshold": 0.22294199466705322,
+      "tp": 413,
+      "fp": 298,
+      "fn": 300,
+      "precision": 0.5808720112517581,
+      "recall": 0.5792426367461431,
+      "false_negative_rate": 0.42075736325385693,
+      "false_discovery_rate": 0.4191279887482419,
+      "fp_per_image": 0.42510699001426533,
+      "mean_conf_tp": 0.8110130241289555,
+      "mean_conf_fp": 0.8171354034203011,
+      "image_fp_rate_on_empty": 1.0,
+      "image_detection_rate_on_positive": 0.59,
+      "loc_mean_iou_tp": 0.7600435708829372,
+      "loc_median_iou_tp": 0.7739237374304483,
+      "f1": 0.5800561797752809
+    },
+    "at_conf": {
+      "0.25": {
+        "conf_threshold": 0.25,
+        "tp": 408,
+        "fp": 297,
+        "fn": 305,
+        "precision": 0.5787234042553191,
+        "recall": 0.5722300140252454,
+        "false_negative_rate": 0.4277699859747546,
+        "false_discovery_rate": 0.42127659574468085,
+        "fp_per_image": 0.42368045649072755,
+        "mean_conf_tp": 0.8181369116931569,
+        "mean_conf_fp": 0.819101300404128,
+        "image_fp_rate_on_empty": 1.0,
+        "image_detection_rate_on_positive": 0.5828571428571429,
+        "loc_mean_iou_tp": 0.7610584275189627,
+        "loc_median_iou_tp": 0.7746983232274325
+      }
+    },
+    "loc_center_err_diag_mean": 0.06987504946951399,
+    "recall_by_edge_touch": {
+      "edge_touching": {
+        "n_gt": 142,
+        "recall": 0.8732394366197183,
+        "conf_threshold": 0.25
+      },
+      "not_edge_touching": {
+        "n_gt": 571,
+        "recall": 0.4973730297723292,
+        "conf_threshold": 0.25
+      }
+    }
+  }
+}

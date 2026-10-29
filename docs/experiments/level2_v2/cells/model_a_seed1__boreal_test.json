@@ -1,0 +1,186 @@
+{
+  "cell": "model_a_seed1__boreal_test",
+  "model": "model_a_seed1",
+  "train_domain": "synthetic",
+  "dataset": "boreal_test",
+  "checkpoint": "/offline/synth_smoke_a_v1_seed1/synth_smoke_best_v1_seed1.pt",
+  "checkpoint_sha256": "31c4528e37c54f779cdbfbf02d8e325877108696f3608391c0490b22ec34a454",
+  "checkpoint_pinned": true,
+  "dataset_n_images": 701,
+  "dataset_filelist_sha256": "d2a610deddfd0053e046efb42e9aaa9e22158164d7b89a0c63e4789d159fc41b",
+  "settings": {
+    "imgsz": 640,
+    "conf": 0.001,
+    "nms_iou": 0.7,
+    "max_det": 300,
+    "batch": 32,
+    "seed": 0,
+    "report_conf": [
+      0.25
+    ]
+  },
+  "git": {
+    "commit": "facba8fd0995c16851f11ab46a18b724db7c2721",
+    "eval_sim_synthgen_dirty": true
+  },
+  "versions": {
+    "python": "3.10.18",
+    "numpy": "2.2.6",
+    "ultralytics": null,
+    "torch": null
+  },
+  "argv": [
+    "/home/joshua/src/Ardupilot-UAV-YOLO/eval/run_matrix.py",
+    "--config",
+    "eval/datasets.yaml",
+    "--out",
+    "local_data/backups/level2_v2_seeds/level2_v2_final",
+    "--var",
+    "BOREAL_SPLIT=/offline",
+    "--var",
+    "SYNTH_ROOT=/offline",
+    "--var",
+    "RUNS=/offline",
+    "--preds-from",
+    "local_data/backups/level2_v2_seeds/level2_v2/predictions",
+    "--gts-from",
+    "local_data/backups/level2_v2_seeds/level2_v2/gts",
+    "--bootstrap",
+    "1000"
+  ],
+  "predictions_file": "model_a_seed1__boreal_test.json.gz",
+  "metrics": {
+    "n_images": 701,
+    "n_positive_images": 700,
+    "n_negative_images": 1,
+    "n_gt_boxes": 713,
+    "n_predictions": 2182,
+    "mAP50": 0.3838141466407704,
+    "mAP50-95": 0.15782152374492267,
+    "AP50_by_class": {
+      "0": 0.3838141466407704
+    },
+    "max_f1": {
+      "conf_threshold": 0.18125300109386444,
+      "tp": 371,
+      "fp": 304,
+      "fn": 342,
+      "precision": 0.5496296296296296,
+      "recall": 0.520336605890603,
+      "false_negative_rate": 0.4796633941093969,
+      "false_discovery_rate": 0.45037037037037037,
+      "fp_per_image": 0.43366619115549215,
+      "mean_conf_tp": 0.7555182803110935,
+      "mean_conf_fp": 0.7013037108178986,
+      "image_fp_rate_on_empty": 1.0,
+      "image_detection_rate_on_positive": 0.53,
+      "loc_mean_iou_tp": 0.7258293946318278,
+      "loc_median_iou_tp": 0.7337727172259081,
+      "f1": 0.5345821325648414
+    },
+    "at_conf": {
+      "0.25": {
+        "conf_threshold": 0.25,
+        "tp": 354,
+        "fp": 260,
+        "fn": 359,
+        "precision": 0.5765472312703583,
+        "recall": 0.4964936886395512,
+        "false_negative_rate": 0.5035063113604488,
+        "false_discovery_rate": 0.4234527687296417,
+        "fp_per_image": 0.37089871611982883,
+        "mean_conf_tp": 0.7820133220004497,
+        "mean_conf_fp": 0.7832996118527192,
+        "image_fp_rate_on_empty": 1.0,
+        "image_detection_rate_on_positive": 0.5057142857142857,
+        "loc_mean_iou_tp": 0.727695490228806,
+        "loc_median_iou_tp": 0.7383897388828833
+      }
+    },
+    "loc_center_err_diag_mean": 0.08799677109653502,
+    "recall_by_edge_touch": {
+      "edge_touching": {
+        "n_gt": 142,
+        "recall": 0.7464788732394366,
+        "conf_threshold": 0.25
+      },
+      "not_edge_touching": {
+        "n_gt": 571,
+        "recall": 0.4343257443082312,
+        "conf_threshold": 0.25
+      }
+    },
+    "bootstrap": {
+      "n_resamples": 1000,
+      "seed": 0,
+      "conf_threshold": 0.25,
+      "level": 0.95,
+      "unit": "image",
+      "point": {
+        "mAP50": 0.3838141466407704,
+        "mAP50-95": 0.15782152374492267,
+        "precision": 0.5765472312703583,
+        "recall": 0.4964936886395512,
+        "fp_per_image": 0.37089871611982883
+      },
+      "ci": {
+        "mAP50": [
+          0.3442764326567411,
+          0.42905480951243474
+        ],
+        "mAP50-95": [
+          0.13991231578812655,
+          0.18083270082904296
+        ],
+        "precision": [
+          0.5404901824837761,
+          0.6155214899637831
+        ],
+        "recall": [
+          0.4607891536303515,
+          0.5349516696835652
+        ],
+        "fp_per_image": [
+          0.33238231098430815,
+          0.4094151212553495
+        ]
+      }
+    },
+    "bootstrap_cluster": {
+      "n_resamples": 1000,
+      "seed": 0,
+      "conf_threshold": 0.25,
+      "level": 0.95,
+      "unit": "cluster (5 clusters)",
+      "point": {
+        "mAP50": 0.3838141466407704,
+        "mAP50-95": 0.15782152374492267,
+        "precision": 0.5765472312703583,
+        "recall": 0.4964936886395512,
+        "fp_per_image": 0.37089871611982883
+      },
+      "ci": {
+        "mAP50": [
+          0.1808533588025333,
+          0.8852370583977742
+        ],
+        "mAP50-95": [
+          0.07647257598205423,
+          0.2822922724126093
+        ],
+        "precision": [
+          0.37438423645320196,
+          0.9020044543429844
+        ],
+        "recall": [
+          0.24887556221889057,
+          0.7818532818532818
+        ],
+        "fp_per_image": [
+          0.08461538461538462,
+          0.5495049504950495
+        ]
+      }
+    }
+  }
+}

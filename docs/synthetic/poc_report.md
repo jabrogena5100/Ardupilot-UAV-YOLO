@@ -23,9 +23,23 @@ RunPod training, no change to the frozen Boreal split or `real_boreal_v1`.
 All generation parameters are in `synthgen/configs/domain_rand.yaml`; nothing is hard-coded in the renderer.
 No real imagery is read by the generator (a test guards against image-loading calls in `render.py`).
 
+## Design rationale: why 2.5D (relocated from CLAUDE.md)
+
+The project has two unrelated "2D" things. The fire-spread model (`wildfire_sim.py::FireSim`) is a 2D cellular
+automaton over the coverage grid: a physics abstraction, intentionally 2D. The synthetic training imagery is 2.5D, a
+deliberate middle path between two options that were rejected:
+
+- *Naive flat 2D compositing*: cannot vary camera altitude or angle and gives no pose-to-geo-projection, which Level 3 needs directly.
+- *Full Blender / 3D volumetrics*: physically better but slow on CPU-only hardware, and a weak volumetric scene could make the
+  Synth->Real result reflect renderer weakness rather than a real domain-transfer finding.
+
+Payoff of 2.5D: exact labels and geo-locations for free (the sprite is placed at known ground coordinates), millisecond
+renders, thousands of images on a laptop, and one projection shared with `sim/camera.py` (the generator places sprites with the
+same code that turns a UAV camera footprint back into ground cells). The two must not drift into separate implementations.
+
 ## POC dataset
 
-`~/synth_poc_v1/` (outside the repo, not committed): seed 0, 1280x720, class `0 = smoke`.
+`local_data/synth_poc/synth_poc_v1/` (outside the repo, not committed): seed 0, 1280x720, class `0 = smoke`.
 
 | Split | Images | Positives | Background | Archetype mix (positives) |
 |---|---|---|---|---|

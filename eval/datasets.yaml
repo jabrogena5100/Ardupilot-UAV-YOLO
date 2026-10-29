@@ -1,0 +1,87 @@
+# Config for eval/run_matrix.py — the only place the 2x2 cells are defined.
+# ${VAR} are expanded from the environment or `--var KEY=VAL`. On the RunPod volume:
+#   BOREAL_SPLIT=/workspace/splits/boreal_v1  SYNTH_ROOT=/workspace/synth_smoke_v1  RUNS=/workspace/runs
+# Datasets are directories of images with sibling labels/ (YOLO txt, class 0 = smoke). Each is pinned by
+# image count and the sha256 of "\n".join(sorted(image file names)) (same definition as the dataset manifests);
+# a mismatch aborts the run. Test sets are never edited to improve a score.
+
+settings:
+  imgsz: 640
+  conf: 0.001            # inference confidence floor (needed for AP); same for every cell
+  nms_iou: 0.7
+  max_det: 300
+  batch: 32
+  seed: 0
+  report_conf: [0.25]    # fixed operating point(s) for P/R/FP/FN/confidence/localisation
+
+datasets:
+  boreal_test:
+    domain: real
+    images_dir: ${BOREAL_SPLIT}/images/test
+    n_images: 701
+    filelist_sha256: d2a610deddfd0053e046efb42e9aaa9e22158164d7b89a0c63e4789d159fc41b
+    cluster: video       # clustered bootstrap resamples source videos (5 in the test split)
+    note: >
+      700 labelled + 1 image with no label file. That one image is an unlabeled raw frame (recorded caveat), not a
+      verified negative, so Boreal test has no usable negatives and the empty-scene FP rate is not measurable here.
+  synth_test_pos:
+    domain: synthetic
+    images_dir: ${SYNTH_ROOT}/images/test
+    only_positive: true  # images with a non-empty label file (the test_pos view)
+    n_images: 701
+    filelist_sha256: 487ecc6146b2b99be2b396830bbdb88768972f0adfc989c26b4d7da0627b576b
+  synth_test_all:
+    domain: synthetic
+    images_dir: ${SYNTH_ROOT}/images/test
+    n_images: 1051
+    filelist_sha256: 893d17ed7eb396bb0fe9b1e2026d0f162d0a96b7f3f244c8cde30a8db536dae2
+    note: test_pos plus 350 background images; used for the empty-scene false-positive rate.
+
+  boreal_empty_train_diag:     # DIAGNOSTIC ONLY (not a frozen test set): Boreal "Empty-Images" true negatives from TRAIN
+    domain: real
+    images_dir: ${BOREAL_SPLIT}/images/train
+    name_prefix: "Empty-Images__"
+    n_images: 256
+    filelist_sha256: acd1b1aec93b989aef8282f8b62e06d236681ad7e183ea5fc1debf69bbbd3743   # recorded by level2_v2, then pinned
+    note: >
+      Valid empty-scene FP probe for Model A only (never trained on Boreal). Model B TRAINED on these images, so its
+      numbers here are optimistic and must not be compared with Model A's.
+
+models:
+  # seed 0 = level2_v1; seeds 1-2 = level2_v2 (same protocol, new names; existing checkpoints are never overwritten)
+  model_b:
+    train_domain: real
+    family: B
+    seed: 0
+    checkpoint: ${RUNS}/real_boreal/real_boreal_best_v1.pt
+    sha256: 1dc35ef293b6b35bb2dadaf5b6d5887ece89ca9d55a445bfdde258286c8355b6
+  model_a:
+    train_domain: synthetic
+    family: A
+    seed: 0
+    checkpoint: ${RUNS}/synth_smoke_a_v1/synth_smoke_best_v1.pt
+    sha256: 1da10c4814a905d92deec2d9c36185f872eabea447d47c389b9b065468009564
+  model_a_seed1:
+    {train_domain: synthetic, family: A, seed: 1, checkpoint: "${RUNS}/synth_smoke_a_v1_seed1/synth_smoke_best_v1_seed1.pt", sha256: 31c4528e37c54f779cdbfbf02d8e325877108696f3608391c0490b22ec34a454}
+  model_a_seed2:
+    {train_domain: synthetic, family: A, seed: 2, checkpoint: "${RUNS}/synth_smoke_a_v1_seed2/synth_smoke_best_v1_seed2.pt", sha256: 3d5a31689ab212434b206949090c948a4de0b4b653abf8d0099619529146556a}
+  model_b_seed1:
+    {train_domain: real, family: B, seed: 1, checkpoint: "${RUNS}/real_boreal_seed1/real_boreal_best_v1_seed1.pt", sha256: 00c0e02fa2411993e160af4724ca9af6b3a17c2d25ac8e84761d4163175366c2}
+  model_b_seed2:
+    {train_domain: real, family: B, seed: 2, checkpoint: "${RUNS}/real_boreal_seed2/real_boreal_best_v1_seed2.pt", sha256: fe53f08d414a8b09d799d4130a5cb1af62af82a5dc899339dd5a0571f0ab51d7}
+
+# model x dataset cells (cross product). Primary 2x2 cells use boreal_test and synth_test_pos; synth_test_all adds the
+# 350 true-negative scenes for the FP view; boreal_empty_train_diag is the Model-A-only Boreal negatives probe.
+# (level2_v1 ran only model_a/model_b on the first three datasets: select them with --cells.)
+cells:
+  models: [model_a, model_a_seed1, model_a_seed2, model_b, model_b_seed1, model_b_seed2]
+  datasets: [boreal_test, synth_test_pos, synth_test_all, boreal_empty_train_diag]
+
+# Reproduction check (reported, never used to alter results): Model B's one-off Ultralytics test numbers
+# (models/MODELS.md). The harness' P/R use raw max-F1 and its own matching, so small differences are expected.
+reference_checks:
+  - model: model_b
+    dataset: boreal_test
+    source: models/MODELS.md (Ultralytics val, conf=0.001, iou=0.7)
+    expect: {mAP50: 0.9442, mAP50-95: 0.6688}
+    tolerance: {mAP50: 0.01, mAP50-95: 0.02}

@@ -1,357 +1,204 @@
 # Wildfire Monitoring Project — ECE 496 Fall 2026
 
-AI-Enabled Autonomous Wildfire Monitoring.
+AI-Enabled Autonomous Wildfire Monitoring. This file is the operating manual: rules and
+invariants that change rarely. **Current progress, next tasks and the work log live in
+`docs/project-status.md`. Verified checkpoint provenance lives in `models/MODELS.md`.**
 
-**Research question:** does the training domain (synthetic vs. real imagery)
-change how well a neural network perceives wildfire/smoke, and does that
-difference propagate into autonomous UAV monitoring performance?
+**Research question:** does the training domain (synthetic vs. real imagery) change how well a
+neural network perceives wildfire/smoke, and does that difference propagate into autonomous UAV
+monitoring performance?
 
-## Repository
+## Before starting any task (verify, do not trust docs)
 
-Repo: `~/src/Ardupilot-UAV-YOLO` — the only repo Claude should modify, commit,
-or push to.
+Documentation lags the repo. Before acting on anything a doc says is done, missing, or next:
+1. Run `git status` and `git log --oneline -10`.
+2. Check the files the task touches (`ls`, `wc -l`, grep): an empty file is a stub, and a doc may be stale.
+3. For models or datasets, check `models/MODELS.md` and the dataset record, then the hash on disk.
+4. If docs and repo disagree, trust the repo, say so, and fix the doc in the same commit.
+5. Never report a result that was not measured in this repo's recorded artifacts.
 
-Reference-only: `~/src/ardupilot` — upstream dependency. Do not commit, push,
-or modify unless explicitly instructed.
+## Repositories
 
-## Three-level structure
+- `~/src/Ardupilot-UAV-YOLO` — the only repo Claude may modify, commit, or push to (never push unless asked).
+- `~/src/ardupilot` — upstream, reference only. Do not modify or commit.
+- `AGENTS.md` configures Codex as the read-only research auditor. Do not edit it unless asked.
 
-**Level 1 — Domain comparison.** Model A: trained on synthetic wildfire/smoke
-images (auto-generated, auto-labeled). Model B: trained on the real Boreal
-Forest dataset. Metrics: precision, recall, mAP, false positive/negative rate,
-confidence, localization error.
+## Three-level research structure
 
-**Level 2 — Cross-domain generalization.** A 2×2 matrix (Synth→Synth,
-Synth→Real, Real→Synth, Real→Real), all four cells evaluated by the *same*
-code path. See "Training pipeline discipline" below — this matrix is the
-actual deliverable; everything else is infrastructure in service of it.
+**Level 1 — Domain comparison.** Model A: trained on synthetic smoke images (auto-generated,
+auto-labeled). Model B: trained on the real Boreal Forest dataset. Metrics: precision, recall, mAP,
+false positive/negative rate, confidence, localization error.
 
-**Level 3 — Perception → autonomous monitoring.** Closed loop on ArduPilot
-SITL: `UAV Camera → Neural Network → Detection Probability → Geographic
-Probability Map → Priority Region → UAV Coverage Decision`. A known
-ground-truth fire is placed in sim; UAVs fly and detect; detections accumulate
-into a spatial probability map; probability drives priority (low → low
-priority, high → investigate); priority drives where UAVs fly next. Compare
-system-level outcomes (time to detection, coverage efficiency, false-positive
-misdirection) across Model A vs. Model B.
+**Level 2 — Cross-domain generalization.** 2×2 matrix (Synth→Synth, Synth→Real, Real→Synth,
+Real→Real), every cell evaluated by the *same* code path. This matrix is the actual deliverable;
+everything else is infrastructure in service of it.
 
-This data-flow (camera → NN → probability → priority → coverage) is already
-built: `perception/base.py` (camera → NN seam), `comms/schema.py`
-(`DETECTION`/`BELIEF` messages), `planning/priority.py` (probability →
-priority → target cell). What's still a placeholder is the probability math
-itself — see TODO.
+**Level 3 — Perception → autonomous monitoring.** Closed loop on ArduPilot SITL:
+`UAV Camera → Neural Network → Detection Probability → Geographic Probability Map → Priority Region
+→ UAV Coverage Decision`. A known ground-truth fire is placed in sim; compare time to detection,
+coverage efficiency and false-positive misdirection across Model A vs. Model B. The data flow exists
+(`perception/base.py`, `comms/schema.py`, `planning/priority.py`); the probability math is a
+placeholder (see Decisions).
 
-## Two different "2D"s — do not conflate them
+## Model naming (authoritative: `models/MODELS.md`)
 
-This project has two unrelated things that are each "2D" for different
-reasons. A past planning pass collapsed them into one scope bullet
-("2D wildfire simulation... not fully realistic 3D"), which is ambiguous
-enough to cause real damage if misread. Spelled out:
+- **Model B** = `real_boreal_best_v1.pt` (YOLOv8s, Boreal, trained 2026-10-04, SHA-256 in the registry). Exists.
+- **Model A** = `synth_smoke_best_v1.pt`, baseline on `synth_smoke_v1` (seed 0); seeds 1-2 are `*_seed1/2.pt`, same for Model B. Report mean +- SD over
+  seeds, never a single seed; bootstrap CIs are test-set sampling only, not seed uncertainty. Registry has hashes.
+- `models/synthetic_best.pt` and `models/real_boreal_bestv1.pt` are legacy git-history artifacts, not
+  registry entries; do not treat either as Model A/B. Provenance of the old "3-epoch demo checkpoint"
+  is unrecorded (see `docs/project-status.md`, open contradictions).
+- Single class, `0: smoke`; there is no fire class in Boreal or in `synth_smoke_v1`.
 
-1. **Fire-spread model** (`wildfire_sim.py::FireSim`) — a 2D cellular
-   automaton over the coverage grid (unburned/burning/burnt per cell, von
-   Neumann or Moore neighbors). This is correct, intentional, and already
-   built. It is a physics abstraction, not imagery. Keep it 2D.
+## Two different "2D"s — do not conflate
 
-2. **Synthetic training imagery** — NOT the same decision. The chosen
-   approach (confirmed in prior planning) is **2.5D**: a ground-plane forest
-   texture projected through a pinhole camera model at a requested
-   position/altitude/angle, with fire/smoke sprites placed at ground
-   coordinates under the same projection, plus haze/lighting/color variation.
-   This is deliberately in between the two things scope excludes:
-   - *not* naive flat 2D compositing — that can't vary camera altitude/angle
-     and provides no 3D pose → geo-projection, which Level 3 needs directly
-   - *not* full Blender/3D — physically accurate but slow on CPU-only
-     hardware, and a weak volumetric scene risks making the Synth→Real
-     result reflect renderer weakness rather than a real domain-transfer
-     finding
+1. **Fire-spread model** (`wildfire_sim.py::FireSim`): a 2D cellular automaton over the coverage grid.
+   Intentional, built, stays 2D.
+2. **Synthetic training imagery**: **2.5D** — a ground-plane forest texture projected through a
+   pinhole camera at a requested position/altitude/angle, with smoke sprites placed at ground
+   coordinates under the same projection. Not a flat 2D compositor and not Blender.
+   "Make 2D wildfire images" means this.
 
-   The payoff of 2.5D: exact labels and geo-locations for free (you placed
-   the sprite, you know its ground truth), renders in milliseconds (thousands
-   of images feasible on a laptop), and — this is the part that matters for
-   Level 3 — **the same projection code the generator uses to place a sprite
-   is the code `sim/camera.py` uses to turn a UAV's camera footprint back
-   into ground cells.** One projection, two uses. Don't let these drift into
-   two separate implementations.
+**One projection, two uses:** the projection `synthgen/` uses to place a sprite is the code
+`sim/camera.py` uses to turn a UAV footprint into ground cells. Never fork them. State the
+limitation in any write-up: smoke is a flat billboard, not a volume; no real 3D occlusion.
+Rationale: `docs/synthetic/poc_report.md`.
 
-   State the limitation explicitly in any write-up: smoke is a flat
-   billboard, not a true volume; no real 3D occlusion.
+## Training pipeline discipline (the most important process rule)
 
-If a future session is asked to "make 2D wildfire images" or similar, it
-means (2), done as 2.5D — not a flat compositor, and not Blender.
+If the matrix is not trustworthy, nothing downstream matters. The eval harness must have:
+1. **Unified annotation format** across Boreal and synthetic data: same box format, same class names.
+2. **One evaluation script**: `(checkpoint, test set) -> metrics`, same code path for all four cells.
+3. **Frozen train/val/test splits** per domain, decided once, no leakage. Never change a test set to
+   improve a score.
+4. **Config-driven runs**: four `(model, test-set)` pairs fed into one harness, not four scripts.
+5. **Fixed seeds, logged hyperparameters**, comparable training budgets for Model A and Model B
+   (Model A reuses Model B's recipe in `models/MODELS.md`, with the differences pinned in
+   `docs/synthetic/synth_smoke_v1_spec.md` section 5).
 
-## Repository layout
-
-```
-fog_tracker.py            ground station entry point
-fog/state.py               world model: coverage, fire truth, detection scoring
-fog/run_log.py             CSVs, manifest.json, run folder
-fog/config.py              YAML/JSON loading
-
-swarm_agent.py             one drone's control loop
-mission/geo.py             projection, Chebyshev distance
-mission/grid_mission.py    TRAVERSE coverage: frontier choice + edge sweeps
-mission/partitions.py      static area assignment (quadrants/stripes/halves)
-mapping/bitmap.py          visited/done bitmaps, neighbour merging
-planning/priority.py       detections -> a cell worth investigating (placeholder scoring)
-perception/base.py         NN seam: Pose in, Detection out. NullPerception is the default.
-
-comms/schema.py            every message shape on the bus, with make_* producers
-comms/gossip.py            UDP multicast bus (shared by agent/fog/dashboard)
-
-dashboard/server.py        read-only HTTP+bus subscriber (rx_only — cannot transmit)
-dashboard/static/          vanilla JS/CSS/HTML, no build step, no CDN deps
-
-custom_vehicle.py          MAVLink wrapper
-swarm_strategies.py        fallback velocity policies
-wildfire_sim.py            FireSim cellular-automaton fire model (2D grid — see above)
-launch_experiment.py       orchestrates fog + N agents from one YAML (has a bug — see TODO)
-launch_sitl_swarm.py       spins up real ArduCopter SITL instances in tmux
-exp_swarm_*.yaml           experiment configs
-```
-
-Status of the ML-side directories: `models/MODELS.md` (checkpoint registry),
-`sim/camera.py` (the shared pinhole projection), `synthgen/` (2.5D generator, POC
-validated, see `docs/synthetic/poc_report.md`) and `eval/validate_dataset.py` exist.
-`eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`, `sim/frame_synth.py` and
-`perception/detector.py` are still empty stubs.
-
-**Dashboard stack note:** this is a plain `http.server` subscriber with the
-browser polling `/api/state` every 250ms, drawing to a `<canvas>` grid — not
-FastAPI/WebSockets/Leaflet/CesiumJS. That's consistent with the Scope section
-below (no FastAPI), zero new dependencies, and works fine on a CPU-only
-laptop. If a georeferenced map view becomes a real requirement, that's a
-deliberate rebuild of the dashboard layer, not a drop-in swap — decide that
-explicitly before starting it.
-
-## Training pipeline discipline (do this before more ML or more UAV work)
-
-**This is the most important process rule in this file.** The 2×2 matrix is
-the actual deliverable. Everything else — renderer fidelity, UAV flight
-smoothness, dashboard polish — is infrastructure in service of that table. If
-the table isn't trustworthy, nothing downstream matters.
-
-Requirements for the eval harness to be genuinely reproducible:
-1. **Unified annotation format** across Boreal and synthetic data — same box
-   format, same class names — so one loader/eval script works on either
-   without special-casing.
-2. **One evaluation script**, not per-cell notebooks. `(checkpoint, test set)
-   -> same metrics, same code path`, every time. Mixing code paths across the
-   four matrix cells contaminates the comparison.
-3. **Fixed, frozen train/test splits** per domain, decided once, reused for
-   every experiment. No leakage.
-4. **Config-driven runs** — the four experiments are four `(model, test-set)`
-   pairs fed into one harness, not four scripts.
-5. **Fixed seeds, logged hyperparameters**, so re-running with more epochs
-   later is comparable to the first pass.
-
-**Known status / departure from the recommended build order:** the original
-plan was eval harness + even a crude placeholder generator *first*, with
-ArduPilot/dashboard work starting only once a real checkpoint per domain
-existed to plug in. What's actually been built is the reverse — fog, the
-swarm agent, mission logic, and the dashboard are substantially done, while
-the unified annotation schema, the eval harness, and the synthetic generator
-have not been started. This was a reasonable call to get something demoable,
-but it means the harness and schema are now overdue relative to the plan's
-own stated reasoning, not just the next item on a list. Do this next, before
-expanding UAV/dashboard features further.
+The harness is `eval/metrics.py` (numpy metrics), `eval/run_matrix.py` (runner) and `eval/datasets.yaml` (pinned
+cells). Model B was trained and tested with one-off scripts (`eval/runpod/`), which are not the harness.
+The harness reproduced Model B within tolerance and produced the first 2x2 (`docs/experiments/level2_v1.md`); current status is in `docs/project-status.md`.
 
 ## Decisions that matter
 
-**Fog owns the fire. Agents never run their own FireSim.** Two independent
-RNGs means no single ground truth. If `FireSim` is ever imported in
-`swarm_agent.py`, that's a regression.
+- **Fog owns the fire.** Agents never run their own `FireSim`; importing it in `swarm_agent.py` is a regression.
+- **Oracle off by default** (`fire_model.oracle_hazards: false`). On = perfect-information upper bound,
+  not a perception result. Real Level 3 runs must have it off. Fog prints a loud banner when on.
+- **Detections are scored at ingest** (`Fog.ingest_detection()`), because truth changes over time.
+  `detections_<tag>.csv` is the Level 3 result file; `experiment_end_*.txt` has `precision` and `detection_lag_s`.
+- **MAP bit index is `i*N + j`** in fog, dashboard and `comms/schema.py`. Grep all three before changing it.
+- **FOG_STATE belief is sparse**: `[[i,j,p], ...]` above `BELIEF_FLOOR` (0.02). Check packet size against
+  `MTU_WARN_BYTES` (`comms/gossip.py`) before adding fields; fragmentation fails silently.
+- **Perception scoring is a placeholder** (`planning/priority.py`: `max(confidence)` plus repeat bonus). The
+  replacement is a log-odds grid in `mapping/probability_map.py`, written *after* the eval matrix produces
+  sensitivity/specificity; swap `PriorityPlanner.score()`'s body only.
+- **`perception.from_config()` fails soft** to `NullPerception` with a loud warning. Zero detections in a run?
+  Check that warning before blaming the detector.
+- **Run reproducibility:** `fog/run_log.py` writes `manifest.json` per run (weights path, size, mtime, `model_tag`).
+- **Dashboard** is a read-only stdlib `http.server` subscriber polling `/api/state`, drawing to a canvas.
+  Adding FastAPI/WebSockets/Leaflet is a deliberate rebuild, not a drop-in swap.
 
-**The oracle is off by default** (`fire_model.oracle_hazards: false`). When
-true, fog broadcasts ground-truth `HAZARD_UPDATE` to every agent — that's the
-perfect-information upper bound, not a perception result. Real Level 3 runs
-must have this off, or YOLO is decoration. Fog prints a loud banner whenever
-it's on.
+## Layout (details and status per file: `docs/project-status.md`)
 
-**Detections are scored at ingest, not after the run.**
-`Fog.ingest_detection()` checks truth the instant a `DETECTION` message
-arrives, because truth changes over time (a cell correct at t=40s may be
-burnt out by t=90s). `detections_<tag>.csv` is the Level 3 result file.
-`experiment_end_*.txt` carries `precision` and `detection_lag_s`.
+- Flight/ground side: `fog_tracker.py` + `fog/`, `swarm_agent.py`, `mission/`, `mapping/bitmap.py`, `planning/`,
+  `comms/`, `dashboard/`, `wildfire_sim.py`, `launch_*.py`, `exp_swarm_*.yaml`.
+- ML side: `sim/camera.py`, `synthgen/`, `eval/` (`validate_dataset.py`, harness), `eval/runpod/` (archived one-off launchers), `models/`, `tests/`.
+- Still empty stubs (verify with `wc -l`): `perception/detector.py`, `sim/frame_synth.py`, `mapping/probability_map.py`.
+- Large local data (datasets, backups, POC outputs) is under gitignored `local_data/`; checkpoints (`*.pt`) are never committed.
 
-**MAP bit index is `i*N + j`**, matching fog, the dashboard, and
-`comms/schema.py`. A prior version used `j*N + i` in the agent only — it was
-self-consistent but would silently mirror coverage about the diagonal the
-moment anything else read an agent's map. Grep all three files if this ever
-needs to change again.
+## Autonomous Development and Compute Policy
 
-**FOG_STATE belief is sparse-encoded**: `[[i,j,p], ...]` above `BELIEF_FLOOR`
-(0.02), not a dense grid. A dense grid at N=10 alone exceeded the single-UDP-
-datagram budget (`MTU_WARN_BYTES` in `comms/gossip.py`). Check packet size
-against that constant before adding fields to FOG\_STATE — fragmentation
-degrades silently, not loudly.
+Claude Sonnet is authorized to independently develop, test, train, evaluate, and debug the wildfire
+monitoring system, including using paid RunPod resources.
 
-**Perception scoring is a placeholder.** `planning/priority.py` scores a cell
-as `max(confidence)` plus a small repeat bonus. The real replacement is a
-log-odds Bayesian grid in `mapping/probability_map.py`, which needs
-sensitivity/specificity from the Level 2 confusion matrices — write it
-*after* the eval matrix runs, then swap `PriorityPlanner.score()`'s body only.
+### Compute Authorization
+- Total project RunPod budget available: $150.
+- Autonomous spending allowance: $100 cumulative.
+- Reserve remaining $50 for later experiments.
+- No individual experiment may exceed $20 estimated cost.
+- No more than one paid GPU pod at a time.
+- Check current rates before launching resources.
+- Record cumulative spending, including storage charges (ledger: `docs/project-status.md`).
+- Stop before exceeding the authorized allowance.
+- Obtain approval to increase any budget limit.
 
-**`perception/base.py.from_config()` fails soft** — missing weights, missing
-torch, bad config all fall back to `NullPerception` with a loud warning
-instead of crashing agents mid-flight. Zero detections in a run? Check this
-warning before assuming the detector is broken.
+### Permitted Actions
+- Launch, stop, and terminate RunPod compute instances.
+- Upload datasets and execute GPU training.
+- Run evaluations and benchmark experiments.
+- Retry failed jobs when justified.
+- Modify code and experimental configurations.
+- Commit implementation changes and experimental reports.
+- Generate research artifacts for independent Codex review.
 
-**Reproducibility:** `fog/run_log.py` writes `manifest.json` per run (model
-weights path, size, mtime, `model_tag`). Level 2's matrix is only meaningful
-if both models get comparable training budgets — log that into
-`models/MODELS.md` once it exists.
+### Research Integrity
+- Preserve frozen dataset versions and original splits.
+- Preserve Model B's existing trained checkpoint.
+- Never fabricate experimental measurements.
+- Record software versions, seeds, configurations, checkpoint hashes, and experiment commands.
+- Maintain sufficient logs for reproducibility.
+- Back up important artifacts before removing resources.
+- Do not change test datasets to improve reported scores.
 
-## Training / Compute Policy
+### Cost and Resource Management
+- Prefer cost-effective GPUs suited to each experiment.
+- Terminate idle GPU resources.
+- Verify that jobs have completed before terminating pods.
+- Account for storage charges even when GPUs are stopped.
+- Stop and report repeated unexplained experiment failures.
 
-The project is not limited to CPU-only training.
+### Reporting
+After each substantial experiment, report: purpose; GPU and environment; training/evaluation
+configuration; measured results; artifact locations; actual or estimated spending; remaining
+autonomous budget; unresolved issues. Codex independently reviews experimental evidence at research checkpoints.
 
-The development laptop is CPU-only, but cloud GPU resources may be
-used for substantial YOLO training runs. The user is willing to pay
-for cloud GPU compute when it materially improves the quality or
-reliability of the experiment.
+### Training practice
+- The laptop has no GPU (dev, tests, CPU inference); RunPod is the GPU environment. Do not cap epochs for lack of a local GPU.
+- Inspect curves and metrics before recommending changes; if not undertrained, look at data, labels, splits,
+  domain gap, resolution, augmentation, capacity and thresholds. Prefer reproducible runs over minimal GPU cost.
 
-Do not artificially restrict training to a small number of epochs
-because the development machine has no GPU.
-
-When evaluating a model, inspect training/validation curves and
-metrics before recommending architectural changes.
-
-If a model appears undertrained, recommend additional training when
-supported by the evidence.
-
-If additional epochs are unlikely to solve the problem, investigate
-other causes such as:
-- dataset quality
-- class imbalance
-- annotation quality
-- train/validation split
-- domain gap
-- image resolution
-- augmentation
-- model capacity
-- confidence/IoU thresholds
-
-For important experimental results, prioritize reproducible,
-well-documented training runs over minimizing GPU cost.
-
-Record relevant training configuration, dataset split, model version,
-epochs, and metrics so experiments can be compared fairly.
-
-Training policy:
-- Local Ubuntu VM: development, testing, CPU inference.
-- RunPod: GPU-intensive YOLO training.
-- Never start a RunPod training job without telling me first.
-- Before training, report:
-  1. GPU type
-  2. estimated cost
-  3. dataset
-  4. model
-  5. epochs
-  6. output location
-- Ask for confirmation before starting.
-- Never create, resume, or extend a paid RunPod training job without explicit user confirmation.
-- Free/local training runs may be started without confirmation when they do not incur external compute costs.
-
-## Hardware / environment constraints
-
-- No GPU on the development laptop — CPU-bound for inference and the 2.5D renderer.
-- RunPod is the primary cloud training environment. Colab/Kaggle may be used as alternatives when convenient. The user is willing to pay for GPU compute when it materially improves training speed or experiment reliability.
-- Dev environment: WSL2 (Ubuntu) + VS Code via the WSL extension. Keep the
-  repo inside the Linux filesystem (`~/src/...`), not `/mnt/c/...`.
-- SITL does not need to run in real time — slow it down (`--speedup` < 1) to
-  give render + inference latency room per frame.
-- Already have: Boreal Forest dataset in use; a 3-epoch YOLO checkpoint
-  (demo-only — not representative of a final Level 1/2 result).
-
-## Fixed bugs (so they don't come back)
-
-- `launch_experiment.py` defines `agent_cmd` twice (dead first copy, ~line 176).
-- An older dashboard emitted `visited_cnt` but never a `visited` list, so
-  coverage drew nowhere. Fixed by switching the wire format to a hex bitmap.
-- Endgame stall: with one cell left, every drone's frontier search returned
-  the same cell and treated it as someone else's claim, idling until timeout.
-  `mapping/bitmap.py: single_remaining()` detects this and force-targets it.
-
-## Outstanding TODO (rough priority order)
-
-1. **Unified annotation schema + eval harness — overdue, start here.** Common
-   box format and class names across Boreal and synthetic data; one
-   `(checkpoint, test-set) -> metrics` script; frozen splits; config-driven
-   four-cell runs; fixed seeds and logged hyperparameters.
-2. **`launch_experiment.py` path fix.** Lines ~26–27 point at
-   `core/swarm_agent.py` / `core/fog_tracker.py`; there is no `core/`. Change
-   both to `HERE / "swarm_agent.py"` and `HERE / "fog_tracker.py"`. Direct
-   invocation of each file already works and is how everything above was
-   tested.
-3. **`synthgen/`** — the 2.5D generator (pinhole projection, ground-plane
-   texture, sprite placement, auto-labels). **POC done (2026-10-05):** 180-image
-   dataset generated and validated; full-scale generation awaits approval. See
-   `docs/synthetic/poc_report.md` for measured throughput, statistics vs Boreal and
-   known limitations.
-4. **`sim/camera.py`** — UAV pose + altitude + FOV → ground footprint in grid
-   cells, using the *same* projection as (3). **Done**, with round-trip tests
-   (`tests/test_camera.py`). Confirm the `tilt_deg`/`fov_deg` conventions (see its
-   docstring) before Level 3 use.
-5. **`perception/detector.py`** — thin YOLO wrapper implementing `observe()`.
-   Lightest item on this list; the trained checkpoint already exists.
-6. **`mapping/probability_map.py`** — log-odds belief grid. Blocked on (1)'s
-   confusion matrices.
-7. **Demo vehicle** (`sim/fake_vehicle.py`) — a `SimVehicle` matching
-   `CustomVehicle`'s public surface via a `sim:lat,lon,offset_n,offset_e,seed`
-   connection string, for showing the dashboard live without SITL running.
-   Not required for the research deliverable; useful for demos.
-8. Promote ad-hoc test scripts (grid round-trip, partition overlap, bitmap
-   merge, full fly-through against a fake vehicle) into a committed `tests/`
-   directory.
+### Active gates (owner decisions that outrank the authorization above until cleared)
+- **Edge-touch gate: CLEARED 2026-10-27 for baseline Model A training only**, on these conditions: `synth_smoke_v1`
+  stays exactly as frozen (no edits to data, splits or generator); its edge-touch mismatch with Boreal (~0.76 vs ~0.30)
+  is reported as an experimental limitation; Model A on `synth_smoke_v1` is a baseline, not evidence that the synthetic
+  domain is optimal; never overwrite existing checkpoints or change splits; any dataset improvement is a separately
+  versioned dataset (v2, post-hoc). Before launching paid resources, reconcile RunPod compute and storage charges
+  against the $100 allowance. Ordinary authorized experiments need no further approval.
+- Gates are listed and cleared in `docs/project-status.md`; if silent, ask.
 
 ## Scope — do not expand into
 
-- fire-spread prediction (beyond the existing 2D cellular-automaton ground
-  truth)
+- fire-spread prediction beyond the existing 2D cellular-automaton ground truth
 - reinforcement learning / sophisticated multi-agent RL
 - cloud deployment, FastAPI, PostgreSQL, AWS
-- fully realistic 3D wildfire environments (full Blender volumetrics) — the
-  synthetic generator is 2.5D, see above, not this
+- fully realistic 3D wildfire environments (Blender volumetrics); the generator is 2.5D
 
 ## Commands
 
 ```bash
-# ground station + dashboard (two terminals)
-python3 fog_tracker.py --origin-lat 21.2970 --origin-lon -157.8170 \
-  --grid-miles 1.0 --grid-cells 10 --config exp_swarm_fire.yaml
+python3 fog_tracker.py --origin-lat 21.2970 --origin-lon -157.8170 --grid-miles 1.0 --grid-cells 10 --config exp_swarm_fire.yaml
 python3 dashboard/server.py --port 8080      # http://localhost:8080
-
-# one real/SITL drone (needs pymavlink + a MAVLink endpoint)
-python3 swarm_agent.py --conn udp:127.0.0.1:14555 \
-  --origin-lat 21.2970 --origin-lon -157.8170 --mission grid_frontier \
-  --config exp_swarm_fire.yaml
+python3 swarm_agent.py --conn udp:127.0.0.1:14555 --origin-lat 21.2970 --origin-lon -157.8170 \
+  --mission grid_frontier --config exp_swarm_fire.yaml
+python3 -m unittest discover -s tests -t .   # ~2 min (renders images); run in background
 ```
 
-PyYAML is required (`pip install pyyaml`); pymavlink only for real MAVLink
-connections.
+PyYAML required; pymavlink only for real MAVLink. SITL need not run in real time (`--speedup` < 1).
+`launch_experiment.py` has stale paths (see project-status known issues).
 
 ## Git rules
 
-Before making significant changes:
-1. Inspect `git status`.
-2. Work only inside `Ardupilot-UAV-YOLO`.
-3. Keep changes in logical commits.
-4. Do not push to GitHub unless explicitly requested.
-
-Before ending a major task:
-1. Run relevant tests/checks.
-2. Review `git diff`.
-3. Commit with a descriptive message.
-4. Update `docs/project-status.md` (create it if it doesn't exist yet).
+Before significant changes: inspect `git status`; work only in this repo; keep logical commits; do not push unless asked.
+Before ending a major task: run relevant tests/checks, review `git diff`, commit with a descriptive message
+(stage specific files, since the tree may hold the user's uncommitted work), and update `docs/project-status.md`.
+Where historical detail belongs: dataset facts in `docs/datasets/`, experiments in `docs/experiments/`,
+checkpoints in `models/MODELS.md`, generator design in `docs/synthetic/`, progress in `docs/project-status.md`.
+Keep this file near 200 lines (policy block included); add a new doc only when no existing one fits.
 
 ## Continuation (session restart after context/token limits)
 
-1. Read this file.
-2. Read `docs/project-status.md`.
-3. Run `git status`.
-4. Inspect the latest commits.
-5. Determine what was completed and what remains (cross-check against
-   "Outstanding TODO" above — it may be stale if `docs/project-status.md`
-   disagrees; trust the more recently updated one).
-6. Continue from the existing project state rather than restarting.
+1. Read this file, then `docs/project-status.md`, then `models/MODELS.md` if models are involved.
+2. Run `git status` and inspect the latest commits.
+3. Apply "Before starting any task" above; trust the more recently updated source, and the repo over both.
+4. Continue from the existing state rather than restarting or rebuilding completed work.

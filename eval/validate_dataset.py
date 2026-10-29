@@ -6,8 +6,8 @@ It enforces the unified annotation format (same box format, same class names) so
 one evaluation script can serve every cell of the 2x2 matrix, and it prints the label statistics that
 the synthetic generator is meant to approximate.
 
-    python3 -m eval.validate_dataset --data ~/synth_poc/data.yaml \\
-        --reference <path to boreal_label_stats.json> --report ~/synth_poc/validation.json
+    python3 -m eval.validate_dataset --data local_data/synth_poc/data.yaml \\
+        --reference <path to boreal_label_stats.json> --report local_data/synth_poc/validation.json
 
 Hard checks (exit code 1 on failure):
   * every split directory exists; every image has a label file and vice versa
