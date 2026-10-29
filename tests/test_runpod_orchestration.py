@@ -11,6 +11,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RP = os.path.join(ROOT, "eval", "runpod")
 sys.path.insert(0, RP)
 import launch_job as L  # noqa: E402
+import watchdog as W  # noqa: E402
 import pod_supervisor as S  # noqa: E402
 import rp_common as C  # noqa: E402
 
@@ -64,7 +65,7 @@ def args(td, **kw):
 class Env:
     def __enter__(self):
         self.old = dict(os.environ)
-        os.environ.update(RUNPOD_POD_ID="pod1", RUNPOD_API_KEY=SECRET, NOTIFY_URL="")
+        os.environ.update(RUNPOD_POD_ID="pod1", RUNPOD_API_KEY=SECRET)
         return self
 
     def __exit__(self, *a):
@@ -103,27 +104,29 @@ class LauncherTests(unittest.TestCase):
         d = dict(run_name="t_run", job="bash x.sh", hard_timeout_s=60, max_hourly_price=0.89, ledger_floor_usd=9.3,
                  artifact=["/workspace/runs/t_run/*.pt"], repo_dir="/workspace/repo_orch", confirm_paid="",
                  mount="/workspace", **{k: v for k, v in L.DEFAULTS.items() if k in ("gpu", "image", "volume_id")},
-                 data_center="US-IL-1", container_disk_gb=30, boot_allowance_s=600, bundle_files=[], watch=False)
+                 data_center="US-IL-1", container_disk_gb=30, boot_allowance_s=600, watchdog_latency_s=600, watchdog_armed=True,
+                 bundle_files=[])
         d.update(kw)
         return argparse.Namespace(**d)
 
     def test_dry_run_creates_nothing_and_redacts(self):
         api = FakeAPI()
-        rc, out = L.launch(api, self.a(), "https://ntfy.sh/secret-topic", "abc123")
+        rc, out = L.launch(api, self.a(), "abc123")
         self.assertEqual(rc, 0)
         self.assertFalse(out["created"])
         self.assertEqual(api.calls, [])
-        self.assertNotIn("secret-topic", json.dumps(out))
+        self.assertEqual(out["spec"]["env"]["ORCH_BUNDLE_B64"], "<set>")
+        self.assertRegex(out["spec"]["name"], r"^t_run__dl\d{10}$")
 
     def test_wrong_confirmation_creates_nothing(self):
         api = FakeAPI()
-        rc, out = L.launch(api, self.a(confirm_paid="other"), "", "abc")
+        rc, out = L.launch(api, self.a(confirm_paid="other"), "abc")
         self.assertFalse(out["created"])
         self.assertEqual(api.calls, [])
 
     def test_confirmed_launch_creates_one_pod_with_supervisor(self):
         api = FakeAPI()
-        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "", "abc")
+        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "abc")
         self.assertTrue(out["created"])
         spec = api.calls[0][1]
         cmd = spec["dockerStartCmd"][-1]
@@ -134,37 +137,34 @@ class LauncherTests(unittest.TestCase):
 
     def test_refused_when_pod_running(self):
         api = FakeAPI(pods=[{"id": "p0", "name": "other", "desiredStatus": "RUNNING"}])
-        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "", "abc")
+        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "abc")
         self.assertEqual(rc, 3)
         self.assertFalse(out["created"])
 
     def test_stopped_pods_do_not_block(self):
         api = FakeAPI(pods=[{"id": "p0", "name": "old", "desiredStatus": "EXITED"}])
-        rc, out = L.launch(api, self.a(), "", "abc")
+        rc, out = L.launch(api, self.a(), "abc")
         self.assertEqual(rc, 0)
 
     def test_refused_over_budget(self):
-        rc, out = L.launch(FakeAPI(), self.a(hard_timeout_s=36000 * 3), "", "abc")
+        rc, out = L.launch(FakeAPI(), self.a(hard_timeout_s=36000 * 3), "abc")
         self.assertEqual(rc, 3)
 
     def test_price_above_cap_stops_pod_immediately(self):
         api = FakeAPI(price=2.5)
-        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "", "abc")
+        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "abc")
         self.assertEqual(rc, 3)
         self.assertEqual(api.stops(), [("stop", "new1")])
 
     def test_bad_run_name_refused(self):
-        rc, out = L.launch(FakeAPI(), self.a(run_name="../evil"), "", "abc")
+        rc, out = L.launch(FakeAPI(), self.a(run_name="../evil"), "abc")
         self.assertEqual(rc, 3)
 
-    def test_monitor_stops_past_deadline(self):
-        api = FakeAPI(pods=[{"id": "pod1", "name": "n", "desiredStatus": "RUNNING"}])
-        t = {"now": 1000.0}
-        res = L.monitor(api, "pod1", 1000.0, "", grace_s=60, poll_s=30,
-                        sleep=lambda s: t.__setitem__("now", t["now"] + s), now=lambda: t["now"])
-        self.assertEqual(res, "stopped")
-        self.assertGreaterEqual(len(api.stops()), 1)
-        self.assertGreater(t["now"], 1060)  # did not stop early
+    def test_unarmed_watchdog_refuses_paid_launch(self):
+        api = FakeAPI()
+        rc, out = L.launch(api, self.a(confirm_paid="t_run", watchdog_armed=False), "abc")
+        self.assertEqual(rc, 3)
+        self.assertEqual(api.calls, [])
 
 
 class InfraTests(unittest.TestCase):
@@ -178,14 +178,15 @@ class InfraTests(unittest.TestCase):
 
     def test_deadline_includes_boot_allowance(self):
         api = FakeAPI()
-        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "", "abc", now=lambda: 1000.0)
-        self.assertEqual(out["deadline_epoch"], 1000.0 + 600 + 60)
+        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "abc", now=lambda: 1700000000.0)
+        self.assertEqual(out["deadline_epoch"], 1700000000 + 600 + 60)
+        self.assertEqual(C.parse_deadline(api.calls[0][1]["name"]), 1700000660)
 
     def test_bundle_needs_no_repo_files_on_fresh_pod(self):
         """Run the pod start command in an empty dir with no repo: it must unpack the bundle and start the supervisor."""
         import subprocess
         api = FakeAPI()
-        L.launch(api, self.a(confirm_paid="t_run"), "", "abc")
+        L.launch(api, self.a(confirm_paid="t_run"), "abc")
         spec = api.calls[0][1]
         with tempfile.TemporaryDirectory() as td:
             env = {"PATH": os.environ["PATH"], "HOME": td, "TMPDIR": td, "ORCH_BUNDLE_B64": spec["env"]["ORCH_BUNDLE_B64"]}
@@ -228,28 +229,6 @@ class InfraTests(unittest.TestCase):
                             spawn_watchdog=lambda *_: None, sleep=lambda s: None)
             self.assertEqual(json.loads(read(os.path.join(a.result_dir, "DONE.json")))["status"], "success")
 
-    def test_sweep_stops_only_matching_running_pods(self):
-        api = FakeAPI(pods=[{"id": "a", "name": "lifecycle_test_1", "desiredStatus": "RUNNING"},
-                            {"id": "b", "name": "real_boreal_seed3", "desiredStatus": "RUNNING"},
-                            {"id": "c", "name": "lifecycle_test_0", "desiredStatus": "EXITED"}])
-        self.assertEqual(L.sweep(api, "lifecycle_test_", ""), ["a"])
-        self.assertEqual(api.stops(), [("stop", "a")])
-        with self.assertRaises(ValueError):
-            L.sweep(api, "", "")
-
-    def test_monitor_returns_gone_on_404(self):
-        class Gone(FakeAPI):
-            def get_pod(self, pid):
-                raise C.RunPodError("x", code=404)
-        self.assertEqual(L.monitor(Gone(), "p", 0, "", sleep=lambda s: None), "gone")
-
-    def test_monitor_gives_up_loudly(self):
-        api = FakeAPI(pods=[{"id": "pod1", "desiredStatus": "RUNNING"}], stays_running=True)
-        t = {"now": 0.0}
-        res = L.monitor(api, "pod1", 0.0, "", grace_s=10, poll_s=30, give_up_s=100,
-                        sleep=lambda s: t.__setitem__("now", t["now"] + s), now=lambda: t["now"])
-        self.assertEqual(res, "UNCONFIRMED")
-
     def test_check_access_report(self):
         rep = L.check_access(FakeAPI())
         self.assertEqual(rep["volume_present"], True)
@@ -259,33 +238,6 @@ class InfraTests(unittest.TestCase):
             def stop_pod(self, pid):
                 raise C.RunPodError("x", code=403)
         self.assertEqual(L.check_access(NoScope())["stop_probe"], "NO WRITE SCOPE")
-
-    def test_ntfy_format_plain_text_with_title_header(self):
-        import http.server
-        import threading
-        got = {}
-
-        class H(http.server.BaseHTTPRequestHandler):
-            def do_POST(self):
-                got.update(body=self.rfile.read(int(self.headers["Content-Length"])).decode(), title=self.headers["Title"],
-                           prio=self.headers["Priority"], ctype=self.headers["Content-Type"])
-                self.send_response(200)
-                self.end_headers()
-
-            def log_message(self, *a):
-                pass
-        srv = http.server.HTTPServer(("127.0.0.1", 0), H)
-        threading.Thread(target=srv.serve_forever, daemon=True).start()
-        try:
-            url = f"http://127.0.0.1:{srv.server_port}/topic"
-            self.assertTrue(C.notify(url, {"title": "Job success", "status": "success", "urgent": True}))
-        finally:
-            srv.shutdown()
-            srv.server_close()
-        self.assertEqual(got["title"], "Job success")
-        self.assertEqual(got["prio"], "urgent")
-        self.assertIn("status: success", got["body"])
-        self.assertTrue(got["ctype"].startswith("text/plain"))
 
 
 class SupervisorTests(unittest.TestCase):
@@ -377,7 +329,7 @@ class WatchdogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             api = FakeAPI(pods=[{"id": "pod1", "desiredStatus": "RUNNING"}])
             t = {"now": 0.0}
-            ok = S.run_watchdog(api, "pod1", 100.0, os.path.join(td, "wd.jsonl"), "",
+            ok = S.run_watchdog(api, "pod1", 100.0, os.path.join(td, "wd.jsonl"),
                                 sleep=lambda s: t.__setitem__("now", t["now"] + s), now=lambda: t["now"])
             self.assertTrue(ok)
             self.assertGreaterEqual(t["now"], 100.0)
@@ -386,9 +338,100 @@ class WatchdogTests(unittest.TestCase):
     def test_keeps_retrying_stop(self):
         with tempfile.TemporaryDirectory() as td:
             api = FakeAPI(pods=[{"id": "pod1", "desiredStatus": "RUNNING"}], stop_failures=5)
-            ok = S.run_watchdog(api, "pod1", 0.0, os.path.join(td, "wd.jsonl"), "", sleep=lambda s: None,
+            ok = S.run_watchdog(api, "pod1", 0.0, os.path.join(td, "wd.jsonl"), sleep=lambda s: None,
                                 now=lambda: 1.0)
             self.assertTrue(ok)
+
+
+class EnforceTests(unittest.TestCase):
+    """Off-pod stateless watchdog (what GitHub Actions runs)."""
+
+    def run_enforce(self, api, now, **kw):
+        ev = []
+        rc = W.enforce(api, lambda n, **f: ev.append((n, f)), now=lambda: now, sleep=lambda s: None, **kw)
+        return rc, [e[0] for e in ev], ev
+
+    def pods(self, *specs):
+        return [{"id": i, "name": n, "desiredStatus": st} for i, n, st in specs]
+
+    def test_stops_only_overdue_tagged_running_pods(self):
+        api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", 1700000000), "RUNNING"), ("b", C.tag_name("r2", 9_000_000_000), "RUNNING"),
+                                     ("c", C.tag_name("r3", 1700000000), "EXITED")))
+        rc, names, _ = self.run_enforce(api, 1700001000)
+        self.assertEqual(rc, 0)
+        self.assertEqual(api.stops(), [("stop", "a")])
+        self.assertIn("pod_stopped", names)
+        self.assertIn("heartbeat_running_within_deadline", names)
+
+    def test_untagged_pod_reported_not_stopped_by_default(self):
+        api = FakeAPI(pods=self.pods(("a", "manual-debug", "RUNNING")))
+        rc, names, _ = self.run_enforce(api, 1700001000)
+        self.assertEqual((rc, names, api.stops()), (0, ["untagged_running_pod"], []))
+
+    def test_untagged_pod_stopped_with_flag(self):
+        api = FakeAPI(pods=self.pods(("a", "manual-debug", "RUNNING")))
+        self.run_enforce(api, 1700001000, stop_untagged=True)
+        self.assertEqual(api.stops(), [("stop", "a")])
+
+    def test_failed_stop_is_logged_and_nonzero(self):
+        api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", 1700000000), "RUNNING")), stays_running=True)
+        rc, names, _ = self.run_enforce(api, 1700001000)
+        self.assertEqual(rc, 2)
+        self.assertIn("STOP_FAILED", names)
+        self.assertEqual(len(api.stops()), 3)  # retried within the pass
+
+    def test_api_error_is_logged_and_nonzero(self):
+        class Down(FakeAPI):
+            def list_pods(self):
+                raise C.RunPodError("GET /pods -> HTTP 503", code=503)
+        rc, names, _ = self.run_enforce(Down(), 1700001000)
+        self.assertEqual((rc, names), (2, ["api_error"]))
+
+    def test_quiet_when_nothing_running(self):
+        rc, names, _ = self.run_enforce(FakeAPI(pods=self.pods(("c", C.tag_name("r3", 1700000000), "EXITED"))), 1700001000)
+        self.assertEqual((rc, names), (0, []))
+
+    def test_idempotent_second_pass_does_nothing(self):
+        api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", 1700000000), "RUNNING")))
+        self.run_enforce(api, 1700001000)
+        _, names, _ = self.run_enforce(api, 1700001060)
+        self.assertEqual(names, [])
+        self.assertEqual(len(api.stops()), 1)
+
+    def test_deadline_tag_roundtrip_and_limits(self):
+        self.assertEqual(C.parse_deadline(C.tag_name("lifecycle_test_x", 1761720000)), 1761720000)
+        self.assertIsNone(C.parse_deadline("no tag"))
+        with self.assertRaises(ValueError):
+            C.tag_name("x" * 60, 1761720000)
+
+    def test_cli_writes_append_only_log(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as td:
+            log = os.path.join(td, "e.jsonl")
+            with open(log, "w") as f:
+                f.write('{"event": "earlier"}\n')
+            env = {"PATH": os.environ["PATH"]}  # no key: must fail loudly, must not truncate the log
+            r = subprocess.run([sys.executable, os.path.join(RP, "watchdog.py"), "--log", log], env=env, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 2)
+            self.assertEqual(read(log), '{"event": "earlier"}\n')
+
+    def test_workflow_file_is_sane(self):
+        import yaml
+        wf = yaml.safe_load(read(os.path.join(ROOT, ".github", "workflows", "runpod-watchdog.yml")))
+        on = wf.get("on", wf.get(True))
+        self.assertIn("schedule", on)
+        self.assertEqual(wf["permissions"], {"contents": "write"})
+        text = read(os.path.join(ROOT, ".github", "workflows", "runpod-watchdog.yml"))
+        self.assertIn("secrets.RUNPOD_API_KEY", text)
+        self.assertNotIn("--force", text)
+        self.assertNotIn("push -f", text)
+
+    def test_status_reports_pods_and_overdue(self):
+        api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", 1700000000), "RUNNING"), ("b", "x", "EXITED")))
+        out = L.status(api, now=lambda: 1700000500)
+        self.assertEqual(out["running"], 1)
+        self.assertEqual(out["pods"][0]["overdue_s"], 500)
+        self.assertEqual(out["billed_total_usd"], 5.0)
 
 
 class ClientTests(unittest.TestCase):
@@ -440,22 +483,13 @@ class ClientTests(unittest.TestCase):
 
 
 class SafetyTests(unittest.TestCase):
-    def test_notify_never_raises_and_empty_url_is_noop(self):
-        self.assertFalse(C.notify("", {"x": 1}))
-
-        def boom(url, payload):
-            raise OSError("down")
-        self.assertFalse(C.notify("https://x", {"x": 1}, post=boom))
-        self.assertTrue(C.notify("https://x", {"x": 1}, post=lambda u, p: None))
-        self.assertFalse(C.notify("http://127.0.0.1:9/none", {"x": 1}, timeout=1))
-
     def test_no_delete_or_terminate_in_orchestration_code(self):
-        for fn in ("rp_common.py", "launch_job.py", "pod_supervisor.py"):
+        for fn in ("rp_common.py", "launch_job.py", "pod_supervisor.py", "watchdog.py"):
             src = read(os.path.join(RP, fn))
             self.assertIsNone(re.search(r"\"DELETE\"|terminate_pod|delete_pod|remove pod", src), fn)
 
     def test_no_literal_credentials_in_sources(self):
-        for fn in ("rp_common.py", "launch_job.py", "pod_supervisor.py"):
+        for fn in ("rp_common.py", "launch_job.py", "pod_supervisor.py", "watchdog.py"):
             self.assertIsNone(re.search(r"rpa_[A-Za-z0-9]{10,}", read(os.path.join(RP, fn))))
 
 

@@ -120,41 +120,30 @@ def write_json_new(path, obj):
     os.remove(tmp)
 
 
-def notify(url, payload, post=None, timeout=10, kind=None):
-    """Best-effort notification. Never raises; returns bool. `url` is secret-bearing and never echoed.
+DEADLINE_TAG = "__dl"
+NAME_MAX = 60
 
-    kind "ntfy" (default; works with the ntfy iOS app and self-hosted ntfy): plain-text body, Title/Priority headers.
-    kind "json": JSON body (Slack/Discord-style webhooks, custom endpoints). Chosen by `kind` or $NOTIFY_KIND.
-    """
-    if not url:
-        return False
-    kind = kind or os.environ.get("NOTIFY_KIND", "ntfy")
-    try:
-        if post is not None:
-            post(url, payload)
-            return True
-        title = str(payload.get("title", "runpod job"))
-        if kind == "json":
-            body, ctype = json.dumps(payload).encode(), "application/json"
-        else:
-            lines = [f"{k}: {v}" for k, v in payload.items() if k not in ("title", "urgent")]
-            body, ctype = ("\n".join(lines) or title).encode(), "text/plain; charset=utf-8"
-        headers = {"Content-Type": ctype, "User-Agent": UA, "Title": title.encode("ascii", "replace").decode(),
-                   "Priority": "urgent" if payload.get("urgent") else "default"}
-        with urllib.request.urlopen(urllib.request.Request(url, data=body, method="POST", headers=headers),
-                                    timeout=timeout):
-            return True
-    except Exception:
-        return False
+
+def tag_name(run_name, deadline_epoch):
+    """Pod name carrying its own hard deadline, so a stateless off-pod watchdog can enforce it: <run>__dl<epoch>."""
+    name = f"{run_name}{DEADLINE_TAG}{int(deadline_epoch)}"
+    if len(name) > NAME_MAX:
+        raise ValueError("run name too long for a deadline-tagged pod name")
+    return name
+
+
+def parse_deadline(name):
+    m = re.search(re.escape(DEADLINE_TAG) + r"(\d{9,11})$", str(name))
+    return int(m.group(1)) if m else None
 
 
 def check_budget(*, price_per_hr, hard_timeout_s, billed_usd, ledger_floor_usd=0.0, other_running=0, setup_margin_usd=0.25,
-                 boot_allowance_s=0, limits=LIMITS):
-    """Return (ok, reasons, worst_case_usd). Worst case = price * (boot allowance + hard timeout) + margin.
+                 boot_allowance_s=0, watchdog_latency_s=0, limits=LIMITS):
+    """Return (ok, reasons, worst_case_usd).
 
-    The off-pod watchdog stops the pod at creation + boot allowance + hard timeout, so that bound holds even if the pod's own
-    supervisor never starts (e.g. image pull hangs)."""
-    worst = price_per_hr * (hard_timeout_s + boot_allowance_s) / 3600.0 + setup_margin_usd
+    Worst case = price * (boot allowance + hard timeout + watchdog latency) + margin. The off-pod watchdog stops the pod at its
+    deadline (creation + boot allowance + hard timeout) plus its polling latency, even if the pod's own supervisor never starts."""
+    worst = price_per_hr * (hard_timeout_s + boot_allowance_s + watchdog_latency_s) / 3600.0 + setup_margin_usd
     spent = max(billed_usd, ledger_floor_usd)  # billing lags by hours, so the ledger floor is the conservative bound
     reasons = []
     if other_running >= limits["max_running_pods"]:

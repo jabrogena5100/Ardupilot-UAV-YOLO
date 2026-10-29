@@ -109,3 +109,14 @@ Artifacts: `eval/runpod/{rp_common,launch_job,pod_supervisor,lifecycle_test_job}
 
 ## Outstanding research questions
 Everything in `current_state.md` section 8, plus: are the 3 shared clips pixel-identical across splits; real-domain negatives for a v2 test set; whether v2 should rebalance sites.
+
+---
+
+# Update 3: simplified workflow (notifications removed)
+
+Owner decision: no ntfy/webhook/email; status is checked manually. Changes: `NOTIFY_*` code removed; the off-pod watchdog is now a stateless
+GitHub Actions job (`watchdog.py`, `.github/workflows/runpod-watchdog.yml`, every 5 min, public repo so free) that stops pods whose name-encoded
+deadline passed and appends events to branch `runpod-logs`; `launch_job.py status` answers "what is running / overdue / spent" from any new session.
+Supersedes the notification and watchdog items in Update 2 (items 1-2). Still pending: merge workflow to `main`, add `RUNPOD_API_KEY` Actions secret,
+run the workflow once, then the owner-approved one-minute lifecycle test (worst case $0.56 at $0.89/h; expected about $0.05-0.15). Spend: $0.
+Boreal v2 and training: not started. 49 orchestration tests + 21 required tests pass.

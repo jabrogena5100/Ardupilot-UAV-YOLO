@@ -1,52 +1,51 @@
 # RunPod job orchestration (`eval/runpod/`)
 
-Status (2026-10-29): implemented and tested **with mocks and a local HTTP server only**. No paid pod has been created by this
-code. The workflow is **not** declared ready: the live stop and notification test (below) has not run.
+Status (2026-10-29): implemented and tested with mocks, a local HTTP server and read-only live API calls. **No paid pod has been
+created. The workflow is not declared ready**: the live lifecycle test has not run and the GitHub watchdog is not yet armed (see Setup).
+Notifications were removed from the design; status is checked manually (`launch_job.py status`, or asking a Claude Code Cloud session).
 
 | File | Runs where | Role |
 |---|---|---|
-| `rp_common.py` | both | REST client (no delete method), budget gate, JSONL event log, no-overwrite JSON writer, notify (ntfy plain text or JSON) |
-| `launch_job.py` | cloud / laptop | `check-access`, `notify-test`, `preflight`, `launch`, `lifecycle-test`, `monitor`, `sweep` |
-| `pod_supervisor.py` | on the pod | runs the job, writes `DONE.json`, notifies, **stops** the pod, spawns an in-pod watchdog; refuses to start without an API key |
-| `lifecycle_test_job.py` | on the pod | disposable job: writes one file under `/workspace/runs/lifecycle_test_*`, trains/evaluates nothing, refuses any other path |
-| `tests/test_runpod_orchestration.py` | cloud / laptop | 43 mock tests |
+| `rp_common.py` | everywhere | REST client (no delete method), budget gate, deadline-tagged pod names, append-only event log, no-overwrite JSON |
+| `launch_job.py` | cloud / laptop | `check-access`, `preflight`, `launch`, `lifecycle-test`, `enforce`, `status` |
+| `pod_supervisor.py` | on the pod | runs the job, writes `DONE.json` + `events.jsonl`, **stops** the pod, spawns an in-pod watchdog; refuses to run without an API key |
+| `lifecycle_test_job.py` | on the pod | disposable job; writes one file under `/workspace/runs/lifecycle_test_*`; trains/evaluates nothing |
+| `watchdog.py` | GitHub Actions / anywhere | stateless off-pod watchdog: stops RUNNING pods past the deadline in their name |
+| `.github/workflows/runpod-watchdog.yml` | GitHub's servers | runs `watchdog.py` every 5 min, appends events to branch `runpod-logs` |
 
-## Fresh pod: no files needed on the volume
-`launch_job.py` ships `rp_common.py`, `pod_supervisor.py` (and any `--bundle-file` from `eval/runpod/`) inside the pod start
-command as a base64 tar.gz in `$ORCH_BUNDLE_B64` (about 8 KB). The start command unpacks it to a temp dir and runs it. A test runs
-that exact command in an empty directory. Needs only `bash`, `base64`, `tar`, `python3` in the image. Research jobs that need the
-repo or data must bring their own bundle/checkout; that is not solved here.
+## Stop layers (pods are stopped, never deleted; volume, checkpoints, logs and `DONE.json` are untouched)
+1. **Supervisor on the pod** stops it after success, failure, exception, missing command or timeout (retried, verified by `GET`).
+2. **In-pod watchdog process** stops it at the hard deadline even if the supervisor hangs.
+3. **Off-pod watchdog on GitHub Actions** (independent of Claude Code Cloud, the Ubuntu VM and the pod): the pod's name is
+   `<run>__dl<deadline_epoch>`, deadline = creation + boot allowance (600 s) + hard timeout. Every pass stops overdue pods, retries 3 times
+   per pass, and the next pass retries again. A stop that cannot be confirmed logs `STOP_FAILED` and fails the workflow run (visible in
+   the Actions tab / GitHub mobile app). Untagged running pods are only reported, unless `--stop-untagged`.
+   Latency: cron can lag, so the bound is deadline + about 5-15 min. It also covers a pod whose own script never started (stuck image pull).
 
-## Stop layers (a pod must be stopped, never deleted)
-1. Supervisor on the pod: stop after success, failure, exception, missing command or timeout; retried and verified by `GET`.
-2. Independent in-pod watchdog process: stops the pod at the hard deadline even if the supervisor hangs.
-3. **Off-pod watchdog**: `launch --watch` / `monitor`: stops the pod at `creation + boot allowance (600 s) + hard timeout`, grace 60 s, retries,
-   `STOP UNCONFIRMED` urgent notification after 30 min. This bound holds even if the pod's own script never starts.
-4. `sweep --name-prefix P`: stops every RUNNING pod whose name starts with P (cron / scheduled safety net).
-Limit of layer 3 and 4: they live where they run. In a cloud sandbox they die with the sandbox. For a watchdog independent of any
-Claude session, run `monitor`/`sweep` from the owner's always-on machine (cron, every minute) with `RUNPOD_API_KEY` in its environment.
+## Records (append-only)
+- On the volume, per run: `/workspace/runs/<run>_orch/{events.jsonl, job.log, DONE.json}`; `<run>_orch_watchdog.jsonl`. `DONE.json` is
+  never overwritten; the run directory must not already exist. Includes `STOP_FAILED` / `SHUTDOWN_UNCONFIRMED`.
+- Off-pod: `enforce_events.jsonl` on branch `runpod-logs` (each pass with a running pod adds a commit; history is the log).
+- Later status from any new session: `python3 eval/runpod/launch_job.py status` (needs `RUNPOD_API_KEY`) shows pods, deadlines, overdue time,
+  billed total and the tail of `runpod-logs`. Reading `DONE.json` itself needs a pod or RunPod S3 keys for the volume (not set up).
 
 ## Budget gate (before any create)
-No pod running, worst case = `price x (boot allowance + hard timeout) + $0.25` <= $20, and `max(billed, ledger floor) + worst case` <= $100.
-After creation the real `costPerHr` is compared with `--max-hourly-price`; above it the pod is stopped at once.
-`launch` is a dry run unless `--confirm-paid RUN_NAME` equals the run name.
+No pod running; worst case = `price x (boot 600 s + hard timeout + watchdog latency 600 s) + $0.25` <= $20; `max(billed, ledger floor) + worst case` <= $100.
+Lifecycle test at $0.89/h: worst case **$0.56** (the earlier $0.41 assumed an on-time watchdog); expected actual cost about $0.05-0.15.
+After creation the real `costPerHr` must be <= `--max-hourly-price` or the pod is stopped at once. `launch` is a dry run unless
+`--confirm-paid RUN_NAME` equals the run name, and refuses without `--watchdog-armed` (attestation that the GitHub watchdog is live).
 
-## Notifications (iPhone)
-`NOTIFY_URL` = a private ntfy topic URL (install the ntfy iOS app, subscribe to a long random topic), `NOTIFY_KIND=ntfy` (default) or `json`.
-Sent from the pod (job result, stop failure, watchdog) and from the off-pod watchdog. `launch_job.py notify-test` sends one message.
-The cloud sandbox's network policy currently **blocks ntfy.sh** (proxy 403), so the test cannot be run from here until
-`ntfy.sh` is added under Allowed domains. The pod is assumed to have open egress (unverified).
-Independent second channel: the Claude app's mobile push (Remote Control), usable only while a session is live.
+## Setup (owner, once) - NOT done yet
+1. Merge the branch containing `.github/workflows/runpod-watchdog.yml` into `main` (schedules run only from the default branch).
+2. GitHub > Settings > Secrets and variables > Actions > repository secret `RUNPOD_API_KEY` (prefer a RunPod key restricted to pods).
+3. Actions tab > runpod-watchdog > Run workflow once; it must succeed (it fails loudly if the secret is missing). The repo is public, so Actions minutes are free; GitHub pauses scheduled workflows after 60 days without repository activity.
 
-## Workflow
-1. `check-access` (read-only; the stop probe targets a nonexistent id) and `notify-test`.
-2. `lifecycle-test --max-hourly-price P --ledger-floor-usd L` (dry run), then with `--confirm-paid <run name> --watch` after owner approval.
-3. After the pod reads stopped: read `DONE.json` / `events.jsonl` under `/workspace/runs/<run>_orch`, check billing, update the ledger.
+## Fresh pod
+No files on the volume are needed: the supervisor and job files travel in `$ORCH_BUNDLE_B64` (about 8 KB) inside the start command (tested in an
+empty directory). Needs `bash`, `base64`, `tar`, `python3` in the image. Research jobs must bring their own checkout.
 
 ## Verified vs not verified
-Verified (this session, read-only): API key works; GET pods/volumes/billing; volume `sej40ez3ia` present; stop endpoint is authorized (a stop
-of a nonexistent pod returns "does not exist", not 401/403); budget gate against live billing; dry-run spec.
-NOT verified: create-pod field names and image tag; that RunPod injects `RUNPOD_POD_ID` and a stop-capable key into the pod; that a
-stop works on a pod with a network volume; notification delivery to the phone; the off-pod watchdog against a real pod.
-Stopped pods: GPU billing ends, container disk keeps a small charge, and a stopped pod may be unable to restart if its GPU is taken.
-Checkpoints live on the network volume, which is unaffected. Remove idle stopped pods by hand after artifacts are verified.
+Verified: key works; reads of pods/volumes/billing; volume `sej40ez3ia` present; stop endpoint authorized (stop of a nonexistent pod ->
+"does not exist"); budget gate against live billing; dry-run spec; `enforce` against the live API (no pods -> quiet, exit 0); 49 mock tests.
+NOT verified: create-pod field names and image tag; pod-side `RUNPOD_POD_ID`/key injection; a real stop; the GitHub workflow running
+(needs setup above); `runpod-logs` branch creation. Stopped pods keep a small container-disk charge and may not restart if their GPU is taken.

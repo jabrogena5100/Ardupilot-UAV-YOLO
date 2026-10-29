@@ -6,10 +6,10 @@
 
 Lifecycle: (1) refuse if result dir exists; (2) start an independent watchdog process (own session) that stops the pod at
 the hard deadline even if this process hangs; (3) run the job with a timeout; (4) write DONE.json (status success | failed |
-timeout, exit code, wall time, artifact SHA-256s) to the volume; (5) notify; (6) stop the pod (never delete) and verify.
-Stopping is retried; if it still fails the failure is logged and notified and the watchdog keeps retrying.
+timeout, exit code, wall time, artifact SHA-256s) to the volume; (5) stop the pod (never delete) and verify.
+Stopping is retried; if it still fails, STOP_FAILED is appended to events.jsonl and the in-pod and off-pod watchdogs keep retrying.
 
-Environment (injected by RunPod / the launcher): RUNPOD_POD_ID, RUNPOD_API_KEY (a pod-scoped key), NOTIFY_URL (optional).
+Environment (injected by RunPod / the launcher): RUNPOD_POD_ID, RUNPOD_API_KEY (a pod-scoped key).
 """
 import argparse
 import glob
@@ -40,14 +40,13 @@ def stop_and_verify(api, pod_id, log, attempts=6, sleep=time.sleep):
     return False
 
 
-def run_watchdog(api, pod_id, deadline_epoch, log_path, notify_url, poll=5, sleep=time.sleep, now=time.time):
+def run_watchdog(api, pod_id, deadline_epoch, log_path, poll=5, sleep=time.sleep, now=time.time):
     """Independent process: at the deadline stop the pod and keep retrying until it reads stopped."""
     log = C.EventLog(log_path)
     while now() < deadline_epoch:
         sleep(min(poll, max(0.0, deadline_epoch - now())))
     log.emit("watchdog_deadline_reached", pod_id=pod_id)
     ok = stop_and_verify(api, pod_id, log, attempts=12, sleep=sleep)
-    C.notify(notify_url, {"title": "RunPod watchdog fired", "urgent": not ok, "pod_id": pod_id, "stopped": ok})
     return ok
 
 
@@ -84,7 +83,6 @@ def supervise(args, cmd, api, spawn_watchdog=None, sleep=time.sleep):
     os.makedirs(args.result_dir)
     log = C.EventLog(os.path.join(args.result_dir, "events.jsonl"))
     pod_id = os.environ.get("RUNPOD_POD_ID", "")
-    notify_url = os.environ.get("NOTIFY_URL", "")
     t0 = time.time()
     deadline = t0 + args.hard_timeout_s
     log.emit("start", run_name=args.run_name, pod_id=pod_id, hard_timeout_s=args.hard_timeout_s, cmd_argv0=cmd[0],
@@ -107,11 +105,9 @@ def supervise(args, cmd, api, spawn_watchdog=None, sleep=time.sleep):
         except Exception as e:
             log.emit("done_write_failed", error=type(e).__name__)
         log.emit("job_finished", status=status, exit_code=rc, wall_seconds=wall)
-        C.notify(notify_url, {"title": f"RunPod job {status}: {args.run_name}", "status": status, "exit_code": rc,
-                              "wall_seconds": wall, "pod_id": pod_id, "artifacts": len(result["artifacts"])})
         stopped = stop_and_verify(api, pod_id, log, sleep=sleep) if pod_id else False
         if not stopped:
-            C.notify(notify_url, {"title": "RunPod STOP FAILED", "urgent": True, "pod_id": pod_id, "run_name": args.run_name})
+            log.emit("SHUTDOWN_UNCONFIRMED", pod_id=pod_id, note="pod may still be billing; off-pod watchdog must stop it")
         if wd is not None:
             try:
                 wd.terminate()
@@ -147,8 +143,7 @@ def main(argv=None):
         return 5
     pod_id = os.environ.get("RUNPOD_POD_ID", "")
     if args.watchdog:
-        ok = run_watchdog(api, pod_id, args.deadline_epoch, os.path.join(args.result_dir + "_watchdog.jsonl"),
-                          os.environ.get("NOTIFY_URL", ""))
+        ok = run_watchdog(api, pod_id, args.deadline_epoch, os.path.join(args.result_dir + "_watchdog.jsonl"))
         return 0 if ok else 2
     if not (cmd and args.run_name and args.hard_timeout_s):
         ap.error("--run-name, --hard-timeout-s and a command after -- are required")
