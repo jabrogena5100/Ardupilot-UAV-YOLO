@@ -19,7 +19,9 @@ RUN_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{2,63}$")
 
 
 class RunPodError(RuntimeError):
-    pass
+    def __init__(self, msg, code=None, detail=""):
+        super().__init__(msg)
+        self.code, self.detail = code, detail
 
 
 class RunPodAPI:
@@ -39,7 +41,11 @@ class RunPodAPI:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
                 raw = r.read()
         except urllib.error.HTTPError as e:  # never include request headers
-            raise RunPodError(f"{method} {path} -> HTTP {e.code}") from None
+            try:
+                detail = str(json.loads(e.read()).get("error", ""))[:120]
+            except Exception:
+                detail = ""
+            raise RunPodError(f"{method} {path} -> HTTP {e.code}", code=e.code, detail=detail) from None
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             raise RunPodError(f"{method} {path} -> {type(e).__name__}") from None
         return json.loads(raw) if raw.strip() else {}
@@ -55,6 +61,9 @@ class RunPodAPI:
 
     def stop_pod(self, pod_id):
         return self._call("POST", f"/pods/{pod_id}/stop")
+
+    def list_network_volumes(self):
+        return self._call("GET", "/networkvolumes")
 
     def billed_total(self):
         pods = self._call("GET", "/billing/pods")
@@ -111,30 +120,41 @@ def write_json_new(path, obj):
     os.remove(tmp)
 
 
-def notify(url, payload, post=None, timeout=10):
-    """Best-effort JSON POST (ntfy topic, Slack/Discord-style webhook or any HTTP endpoint). Never raises; returns bool.
+def notify(url, payload, post=None, timeout=10, kind=None):
+    """Best-effort notification. Never raises; returns bool. `url` is secret-bearing and never echoed.
 
-    `url` is a secret-bearing value: it is not echoed anywhere.
+    kind "ntfy" (default; works with the ntfy iOS app and self-hosted ntfy): plain-text body, Title/Priority headers.
+    kind "json": JSON body (Slack/Discord-style webhooks, custom endpoints). Chosen by `kind` or $NOTIFY_KIND.
     """
     if not url:
         return False
+    kind = kind or os.environ.get("NOTIFY_KIND", "ntfy")
     try:
         if post is not None:
             post(url, payload)
             return True
-        req = urllib.request.Request(url, data=json.dumps(payload).encode(), method="POST", headers={
-            "Content-Type": "application/json", "User-Agent": UA,
-            "Title": payload.get("title", "runpod job")})
-        with urllib.request.urlopen(req, timeout=timeout):
+        title = str(payload.get("title", "runpod job"))
+        if kind == "json":
+            body, ctype = json.dumps(payload).encode(), "application/json"
+        else:
+            lines = [f"{k}: {v}" for k, v in payload.items() if k not in ("title", "urgent")]
+            body, ctype = ("\n".join(lines) or title).encode(), "text/plain; charset=utf-8"
+        headers = {"Content-Type": ctype, "User-Agent": UA, "Title": title.encode("ascii", "replace").decode(),
+                   "Priority": "urgent" if payload.get("urgent") else "default"}
+        with urllib.request.urlopen(urllib.request.Request(url, data=body, method="POST", headers=headers),
+                                    timeout=timeout):
             return True
     except Exception:
         return False
 
 
 def check_budget(*, price_per_hr, hard_timeout_s, billed_usd, ledger_floor_usd=0.0, other_running=0, setup_margin_usd=0.25,
-                 limits=LIMITS):
-    """Return (ok, reasons, worst_case_usd). Worst case = hourly price * hard timeout + margin (GPU billed to the stop call)."""
-    worst = price_per_hr * hard_timeout_s / 3600.0 + setup_margin_usd
+                 boot_allowance_s=0, limits=LIMITS):
+    """Return (ok, reasons, worst_case_usd). Worst case = price * (boot allowance + hard timeout) + margin.
+
+    The off-pod watchdog stops the pod at creation + boot allowance + hard timeout, so that bound holds even if the pod's own
+    supervisor never starts (e.g. image pull hangs)."""
+    worst = price_per_hr * (hard_timeout_s + boot_allowance_s) / 3600.0 + setup_margin_usd
     spent = max(billed_usd, ledger_floor_usd)  # billing lags by hours, so the ledger floor is the conservative bound
     reasons = []
     if other_running >= limits["max_running_pods"]:

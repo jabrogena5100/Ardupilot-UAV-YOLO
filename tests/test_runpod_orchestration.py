@@ -36,6 +36,8 @@ class FakeAPI:
 
     def stop_pod(self, pid):
         self.calls.append(("stop", pid))
+        if pid not in self.pods:
+            raise C.RunPodError("POST stop -> HTTP 500", code=500, detail="stop pod: Attempted to stop pod that does not exist.")
         if self.stop_failures > 0:
             self.stop_failures -= 1
             raise C.RunPodError("POST stop -> HTTP 500")
@@ -45,6 +47,9 @@ class FakeAPI:
 
     def billed_total(self):
         return self.billed
+
+    def list_network_volumes(self):
+        return [{"id": "sej40ez3ia", "name": "wildfire-datasets"}]
 
     def stops(self):
         return [c for c in self.calls if c[0] == "stop"]
@@ -98,7 +103,7 @@ class LauncherTests(unittest.TestCase):
         d = dict(run_name="t_run", job="bash x.sh", hard_timeout_s=60, max_hourly_price=0.89, ledger_floor_usd=9.3,
                  artifact=["/workspace/runs/t_run/*.pt"], repo_dir="/workspace/repo_orch", confirm_paid="",
                  mount="/workspace", **{k: v for k, v in L.DEFAULTS.items() if k in ("gpu", "image", "volume_id")},
-                 data_center="US-IL-1", container_disk_gb=30)
+                 data_center="US-IL-1", container_disk_gb=30, boot_allowance_s=600, bundle_files=[], watch=False)
         d.update(kw)
         return argparse.Namespace(**d)
 
@@ -160,6 +165,127 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(res, "stopped")
         self.assertGreaterEqual(len(api.stops()), 1)
         self.assertGreater(t["now"], 1060)  # did not stop early
+
+
+class InfraTests(unittest.TestCase):
+    def a(self, **kw):
+        return LauncherTests.a(LauncherTests(), **kw)
+
+    def test_boot_allowance_in_worst_case(self):
+        _, _, w0 = C.check_budget(price_per_hr=0.89, hard_timeout_s=60, billed_usd=0)
+        _, _, w1 = C.check_budget(price_per_hr=0.89, hard_timeout_s=60, billed_usd=0, boot_allowance_s=600)
+        self.assertGreater(w1, w0)
+
+    def test_deadline_includes_boot_allowance(self):
+        api = FakeAPI()
+        rc, out = L.launch(api, self.a(confirm_paid="t_run"), "", "abc", now=lambda: 1000.0)
+        self.assertEqual(out["deadline_epoch"], 1000.0 + 600 + 60)
+
+    def test_bundle_needs_no_repo_files_on_fresh_pod(self):
+        """Run the pod start command in an empty dir with no repo: it must unpack the bundle and start the supervisor."""
+        import subprocess
+        api = FakeAPI()
+        L.launch(api, self.a(confirm_paid="t_run"), "", "abc")
+        spec = api.calls[0][1]
+        with tempfile.TemporaryDirectory() as td:
+            env = {"PATH": os.environ["PATH"], "HOME": td, "TMPDIR": td, "ORCH_BUNDLE_B64": spec["env"]["ORCH_BUNDLE_B64"]}
+            r = subprocess.run(["bash", "-c", spec["dockerStartCmd"][-1]], cwd=td, env=env, capture_output=True, text=True,
+                               timeout=60)
+        self.assertEqual(r.returncode, 5, r.stderr)  # reached the supervisor; no key => refuses to run the job
+        self.assertIn("refusing to run a job that cannot self-stop", r.stderr)
+
+    def test_bundle_is_deterministic_and_small(self):
+        b1, b2 = L.make_bundle(), L.make_bundle()
+        self.assertEqual(b1, b2)
+        self.assertLess(len(b1), L.MAX_BUNDLE_B64)
+
+    def test_bundle_rejects_files_outside_eval_runpod(self):
+        with self.assertRaises(ValueError):
+            L.make_bundle(["../../CLAUDE.md"])
+
+    def test_lifecycle_preset_is_disposable(self):
+        ns = L.lifecycle_args(argparse.Namespace(run_name="", mount="/workspace"))
+        self.assertTrue(ns.run_name.startswith("lifecycle_test_"))
+        self.assertEqual(ns.hard_timeout_s, 60)
+        self.assertIn("lifecycle_test_job.py", ns.job)
+        with self.assertRaises(SystemExit):
+            L.lifecycle_args(argparse.Namespace(run_name="real_boreal_seed3", mount="/workspace"))
+
+    def test_lifecycle_job_refuses_other_locations(self):
+        import subprocess
+        for bad in ("/workspace/runs/real_boreal", "/tmp/lifecycle_test_x", "/workspace/models/lifecycle_test_x"):
+            r = subprocess.run([sys.executable, os.path.join(RP, "lifecycle_test_job.py"), "--out", bad, "--sleep-s", "0"],
+                               capture_output=True, text=True)
+            self.assertNotEqual(r.returncode, 0, bad)
+            self.assertFalse(os.path.exists(bad))
+
+    def test_finish_margin_capped_for_short_timeouts(self):
+        with tempfile.TemporaryDirectory() as td:
+            api = FakeAPI(pods=[{"id": "pod1", "desiredStatus": "RUNNING"}])
+            a = args(td, hard_timeout_s=8, finish_margin_s=300)
+            with Env():
+                S.supervise(a, [sys.executable, "-c", "import time; time.sleep(0.5)"], api,
+                            spawn_watchdog=lambda *_: None, sleep=lambda s: None)
+            self.assertEqual(json.loads(read(os.path.join(a.result_dir, "DONE.json")))["status"], "success")
+
+    def test_sweep_stops_only_matching_running_pods(self):
+        api = FakeAPI(pods=[{"id": "a", "name": "lifecycle_test_1", "desiredStatus": "RUNNING"},
+                            {"id": "b", "name": "real_boreal_seed3", "desiredStatus": "RUNNING"},
+                            {"id": "c", "name": "lifecycle_test_0", "desiredStatus": "EXITED"}])
+        self.assertEqual(L.sweep(api, "lifecycle_test_", ""), ["a"])
+        self.assertEqual(api.stops(), [("stop", "a")])
+        with self.assertRaises(ValueError):
+            L.sweep(api, "", "")
+
+    def test_monitor_returns_gone_on_404(self):
+        class Gone(FakeAPI):
+            def get_pod(self, pid):
+                raise C.RunPodError("x", code=404)
+        self.assertEqual(L.monitor(Gone(), "p", 0, "", sleep=lambda s: None), "gone")
+
+    def test_monitor_gives_up_loudly(self):
+        api = FakeAPI(pods=[{"id": "pod1", "desiredStatus": "RUNNING"}], stays_running=True)
+        t = {"now": 0.0}
+        res = L.monitor(api, "pod1", 0.0, "", grace_s=10, poll_s=30, give_up_s=100,
+                        sleep=lambda s: t.__setitem__("now", t["now"] + s), now=lambda: t["now"])
+        self.assertEqual(res, "UNCONFIRMED")
+
+    def test_check_access_report(self):
+        rep = L.check_access(FakeAPI())
+        self.assertEqual(rep["volume_present"], True)
+        self.assertTrue(rep["stop_probe"].startswith("authorized"))
+
+        class NoScope(FakeAPI):
+            def stop_pod(self, pid):
+                raise C.RunPodError("x", code=403)
+        self.assertEqual(L.check_access(NoScope())["stop_probe"], "NO WRITE SCOPE")
+
+    def test_ntfy_format_plain_text_with_title_header(self):
+        import http.server
+        import threading
+        got = {}
+
+        class H(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                got.update(body=self.rfile.read(int(self.headers["Content-Length"])).decode(), title=self.headers["Title"],
+                           prio=self.headers["Priority"], ctype=self.headers["Content-Type"])
+                self.send_response(200)
+                self.end_headers()
+
+            def log_message(self, *a):
+                pass
+        srv = http.server.HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        try:
+            url = f"http://127.0.0.1:{srv.server_port}/topic"
+            self.assertTrue(C.notify(url, {"title": "Job success", "status": "success", "urgent": True}))
+        finally:
+            srv.shutdown()
+            srv.server_close()
+        self.assertEqual(got["title"], "Job success")
+        self.assertEqual(got["prio"], "urgent")
+        self.assertIn("status: success", got["body"])
+        self.assertTrue(got["ctype"].startswith("text/plain"))
 
 
 class SupervisorTests(unittest.TestCase):

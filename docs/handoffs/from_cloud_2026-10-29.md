@@ -78,3 +78,34 @@ Note: Python `urllib` got HTTP 403 on the same endpoint that `curl` accepted (de
 
 Checkpoint and dataset integrity on the volume (not re-hashed); API key write scope; origin of `AWS_*` variables; $0.12 ledger-vs-billing
 pod difference; full `unittest discover` result.
+
+---
+
+# Update 2 (same day): orchestration tooling and infrastructure readiness
+
+Branches (pushed, verified with `git ls-remote`): `claude/runpod-api-access-check-pxzock` = `501cf13` (this report);
+`cloud/runpod-orchestration` = `4cceb30` + later commits (tooling). `main` untouched. Nothing scientific pushed.
+
+## Verified infrastructure capabilities (live, read-only, $0)
+- `RUNPOD_API_KEY` works; pods/volumes/endpoints/templates/billing readable; volume `sej40ez3ia` present; 0 pods.
+- Stop endpoint is authorized: `POST /pods/<nonexistent>/stop` returned "pod does not exist" (HTTP 500), not 401/403. (Weak evidence; a real stop is untested.)
+- Budget gate runs against live billing: lifecycle-test dry run -> ok, worst case $0.41 (incl. 600 s boot allowance), 0 pods running.
+- 64 unit tests pass (43 orchestration + the 21 required); lifecycle logic (success/failure/timeout/stop-retry/stop-failure/watchdog/sweep/monitor/overwrite refusal/no credentials in output/no delete call) covered by mocks; the pod start command was executed in an empty directory to prove no repo files are needed.
+
+## Pending infrastructure requirements (why the workflow is NOT ready)
+1. Notification channel: `NOTIFY_URL` unset; `ntfy.sh` is **blocked by the sandbox network policy** (CONNECT 403). Owner: add `ntfy.sh` under Allowed domains and set `NOTIFY_URL` (private ntfy topic; subscribe in the ntfy iOS app). Delivery to the phone is unverified. One Claude-app mobile push was requested ("Mobile push requested"); receipt unconfirmed.
+2. Off-pod watchdog independence: the cloud-side `monitor`/`sweep` die with the sandbox. A truly session-independent watchdog needs the owner's always-on machine (cron every minute running `launch_job.py sweep` / `monitor`).
+3. Live lifecycle test (about $0.3-0.5 worst case) needs owner approval: proves create-pod fields, pod-side `RUNPOD_API_KEY`/`RUNPOD_POD_ID`, stop on a volume-attached pod, `DONE.json`, notifications.
+4. Research jobs need their own bundle/checkout on the pod; only the lifecycle job is self-contained.
+
+## Boreal v2 dataset readiness
+Not started (gated on item 3 above, as instructed). Cloud sandbox has no Boreal images; the committed `docs/experiments/level2_v2_audit/boreal_scan.json.gz`
+(4,954 files, MD5/dHash/dims/label counts, sha256 `8a4db032...0e8e`) allows clip grouping and split design offline. Open design questions: clip identity for
+`Empty-Images` frames (filename-only evidence), site representation, whether 5 val/test videos leave enough positives, and that Model A/synthetic data are unaffected by a Boreal split (Model A is not retrained).
+
+## Training / spend / artifacts
+Training completed: none this session. Pending: 3 Model B seeds on Boreal v2 (unapproved to launch until infra passes and owner approves cost). Spend: $0 (billing read $8.97 total, ledger $9.08 unchanged).
+Artifacts: `eval/runpod/{rp_common,launch_job,pod_supervisor,lifecycle_test_job}.py`, `tests/test_runpod_orchestration.py`, `docs/runpod/orchestration.md`. No checkpoint, split or dataset touched.
+
+## Outstanding research questions
+Everything in `current_state.md` section 8, plus: are the 3 shared clips pixel-identical across splits; real-domain negatives for a v2 test set; whether v2 should rebalance sites.

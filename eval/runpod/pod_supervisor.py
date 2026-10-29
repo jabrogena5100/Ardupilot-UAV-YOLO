@@ -47,7 +47,7 @@ def run_watchdog(api, pod_id, deadline_epoch, log_path, notify_url, poll=5, slee
         sleep(min(poll, max(0.0, deadline_epoch - now())))
     log.emit("watchdog_deadline_reached", pod_id=pod_id)
     ok = stop_and_verify(api, pod_id, log, attempts=12, sleep=sleep)
-    C.notify(notify_url, {"title": "RunPod watchdog fired", "pod_id": pod_id, "stopped": ok})
+    C.notify(notify_url, {"title": "RunPod watchdog fired", "urgent": not ok, "pod_id": pod_id, "stopped": ok})
     return ok
 
 
@@ -93,7 +93,7 @@ def supervise(args, cmd, api, spawn_watchdog=None, sleep=time.sleep):
     status, rc = "failed", None
     try:
         # leave the watchdog a margin: the job gets killed before the deadline so DONE.json and the stop can happen first
-        status, rc = run_job(cmd, max(1, args.hard_timeout_s - args.finish_margin_s), os.path.join(args.result_dir, "job.log"))
+        status, rc = run_job(cmd, max(1, args.hard_timeout_s - min(args.finish_margin_s, args.hard_timeout_s // 4)), os.path.join(args.result_dir, "job.log"))
     except Exception as e:  # supervisor must still stop the pod
         log.emit("job_exception", error=type(e).__name__)
     finally:
@@ -111,7 +111,7 @@ def supervise(args, cmd, api, spawn_watchdog=None, sleep=time.sleep):
                               "wall_seconds": wall, "pod_id": pod_id, "artifacts": len(result["artifacts"])})
         stopped = stop_and_verify(api, pod_id, log, sleep=sleep) if pod_id else False
         if not stopped:
-            C.notify(notify_url, {"title": "RunPod STOP FAILED", "pod_id": pod_id, "run_name": args.run_name})
+            C.notify(notify_url, {"title": "RunPod STOP FAILED", "urgent": True, "pod_id": pod_id, "run_name": args.run_name})
         if wd is not None:
             try:
                 wd.terminate()
@@ -140,7 +140,11 @@ def main(argv=None):
         i = argv.index("--")
         argv, cmd = argv[:i], argv[i + 1:]
     args = ap.parse_args(argv)
-    api = C.RunPodAPI()
+    try:
+        api = C.RunPodAPI()
+    except C.RunPodError as e:  # fail safe: without a key this pod cannot stop itself, so do not start the job
+        print(f"ABORT: {e}; refusing to run a job that cannot self-stop", file=sys.stderr)
+        return 5
     pod_id = os.environ.get("RUNPOD_POD_ID", "")
     if args.watchdog:
         ok = run_watchdog(api, pod_id, args.deadline_epoch, os.path.join(args.result_dir + "_watchdog.jsonl"),

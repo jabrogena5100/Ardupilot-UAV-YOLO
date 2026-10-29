@@ -489,6 +489,16 @@ Produce the first reproducible Level 2 evaluation matrix using fixed datasets, f
 * Measured edge-touch fractions 0.76 / 0.76 / 0.77 vs Boreal 0.30: still open, to be reviewed before Model A training. Absolute-path caveat in the YAML/list files documented.
 * Full record: `docs/datasets/synth_smoke_v1.md`. Spec status line updated.
 
+### 2026-10-29 — RunPod orchestration tooling (no training, no paid pod, $0 spent)
+
+Read-only verification and tooling only; branch `cloud/runpod-orchestration`. Details: `docs/runpod/orchestration.md`,
+`docs/handoffs/from_cloud_2026-10-29.md`. Built: launcher with budget gate, in-pod supervisor, in-pod and off-pod watchdogs,
+`sweep`, disposable lifecycle-test job, ntfy-style notifications, bundle-in-start-command (no repo needed on the volume).
+Verified: API key, GET pods/volumes/billing, volume present, stop endpoint authorized (probe on a nonexistent id), 43 mock tests.
+**Not verified (blocks "ready")**: live stop on a real pod, pod-side key injection, create-pod field names, phone notification delivery
+(ntfy.sh is blocked by the cloud sandbox network policy). Boreal v2 split and retraining are approved but not started; they wait on
+the live lifecycle test (needs owner approval) and run only on committed scan data first (`docs/experiments/level2_v2_audit/boreal_scan.json.gz`).
+
 ### 2026-10-27 — Level 2 v1: harness validation, Model A baseline, first 2x2
 
 * Gate cleared by the owner (7 conditions, above). Built `eval/metrics.py`, `eval/run_matrix.py`, `eval/datasets.yaml`, 13 tests.
