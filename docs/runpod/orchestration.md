@@ -22,6 +22,12 @@ Notifications were removed from the design; status is checked manually (`launch_
    the Actions tab / GitHub mobile app). Untagged running pods are only reported, unless `--stop-untagged`.
    Latency: cron can lag, so the bound is deadline + about 5-15 min. It also covers a pod whose own script never started (stuck image pull).
 
+### Loop mode (does not depend on cron)
+Actions > runpod-watchdog > Run workflow with `loop_minutes` (max 330) keeps one run polling every 60 s, so a single manual dispatch before a
+paid run covers the pod's whole window from GitHub's side with about 1-minute stop latency. Cron (every 5 min at minutes 2,7,...) remains the long-term renewal.
+When a loop run covers the pod's deadline, pass `--watchdog-latency-s 120` to `launch_job.py`: lifecycle-test worst case becomes about $0.44 instead of $0.56.
+Heartbeats are throttled to one per 10 min per pod; stops, failures and API errors are always logged. Events are appended to `runpod-logs` when the run ends.
+
 ## Records (append-only)
 - On the volume, per run: `/workspace/runs/<run>_orch/{events.jsonl, job.log, DONE.json}`; `<run>_orch_watchdog.jsonl`. `DONE.json` is
   never overwritten; the run directory must not already exist. Includes `STOP_FAILED` / `SHUTDOWN_UNCONFIRMED`.

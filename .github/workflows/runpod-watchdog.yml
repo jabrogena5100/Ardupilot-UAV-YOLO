@@ -3,7 +3,7 @@
 # It only STOPS pods whose name carries an expired `__dl<epoch>` tag (see eval/runpod/watchdog.py); it has no delete code path.
 #
 # Security design:
-#  * Triggers are schedule + workflow_dispatch only. No pull_request / pull_request_target, so PR code never sees the secret.
+#  * Triggers are schedule + workflow_dispatch only (dispatch input loop_minutes keeps one run polling for hours). No pull_request / pull_request_target, so PR code never sees the secret.
 #  * RUNPOD_API_KEY is exposed to exactly one step (the enforce step); the GitHub write token only to the logging step.
 #  * Checkout does not persist credentials, so the enforce step holds no GitHub token.
 #  * The enforce step runs stdlib-only Python from the checked-out commit (no pip/npm installs).
@@ -16,6 +16,10 @@ on:
     - cron: "2-57/5 * * * *"   # minutes 2,7,12,...: avoids the :00/:05 rush where GitHub drops scheduled runs
   workflow_dispatch:
     inputs:
+      loop_minutes:
+        description: "Keep enforcing every 60 s for this many minutes (max 330). Start one before a paid run; does not depend on cron."
+        type: number
+        default: 0
       selftest:
         description: "Also append one selftest event to runpod-logs (verifies API read + log write; stops nothing extra)"
         type: boolean
@@ -28,7 +32,7 @@ concurrency:
 jobs:
   enforce:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 345
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,10 +41,13 @@ jobs:
         env:
           RUNPOD_API_KEY: ${{ secrets.RUNPOD_API_KEY }}
           SELFTEST: ${{ inputs.selftest }}
+          LOOP_MIN: ${{ inputs.loop_minutes }}
         run: |
           if [ -z "$RUNPOD_API_KEY" ]; then echo "::error::repository secret RUNPOD_API_KEY is not set; watchdog is NOT enforcing"; exit 2; fi
           mkdir -p "$RUNNER_TEMP/wd"
           extra=""; [ "$SELFTEST" = "true" ] && extra="--selftest"
+          case "$LOOP_MIN" in ''|*[!0-9.]*) LOOP_MIN=0;; esac
+          [ "$LOOP_MIN" != "0" ] && extra="$extra --loop-minutes $LOOP_MIN"
           python3 eval/runpod/watchdog.py --log "$RUNNER_TEMP/wd/enforce_events.jsonl" $extra
       - name: Show events in the run summary
         if: always()

@@ -98,7 +98,7 @@ class EventLog:
         self.path = path
         os.makedirs(os.path.dirname(path), exist_ok=True)
 
-    def emit(self, event, **fields):
+    def emit(self, event, /, **fields):
         rec = {"t": utc_now(), "event": event, **fields}
         with open(self.path, "a") as f:
             f.write(json.dumps(rec, sort_keys=True) + "\n")
