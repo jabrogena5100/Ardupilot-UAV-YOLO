@@ -3,7 +3,7 @@
 synthgen/generate_dataset.py — write a synthetic smoke dataset in the same YOLO
 layout as the frozen Boreal split, plus per-image metadata and a manifest.
 
-    python3 -m synthgen.generate_dataset --out ~/synth_poc \\
+    python3 -m synthgen.generate_dataset --out local_data/synth_poc \\
         --counts train=120,val=30,test=30 --seed 0 --contact-sheet 24
 
 Output (YOLO, class 0 = smoke):

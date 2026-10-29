@@ -6,7 +6,7 @@ Condition name: **`Boreal-prior-matched`**. Boreal train/val statistics informed
 Status (2026-10-05, updated at end of day): **frozen at `9cb0f1a` (tag `synth-v1`); full dataset GENERATED and
 validated** (see `docs/datasets/synth_smoke_v1.md`). Model A has not been trained, and the dataset has not been
 uploaded to the RunPod volume; both need separate approval. The text below describes the plan as written before
-generation (including "Nothing at full scale has been generated", which is now outdated). POC v2 (110 images, `~/synth_poc_v2`, not committed)
+generation (including "Nothing at full scale has been generated", which is now outdated). POC v2 (110 images, `local_data/synth_poc/synth_poc_v2`, not committed)
 validates and is byte-reproducible.
 
 ## 1. Approved dataset design
@@ -157,11 +157,11 @@ exported as `synth_smoke_best_v1.pt` and evaluated once per cell.
 
 ```
 python3 -m synthgen.generate_dataset --config synthgen/configs/domain_rand.yaml \
-  --out ~/datasets/synth_smoke_v1 --counts train=3219:260,val=774:0,test=701:350 \
+  --out local_data/datasets/synth_smoke_v1 --counts train=3219:260,val=774:0,test=701:350 \
   --seed 1001 --dataset-id synth_smoke_v1 --contact-sheet 24
 ```
 
-   Destination: `~/datasets/synth_smoke_v1` on the local VM (outside the repository; never committed). The generator
+   Destination: `local_data/datasets/synth_smoke_v1` on the local VM (outside the repository; never committed). The generator
    refuses to overwrite an existing `manifest.json`. Expected output: 5,304 images (about 0.8 GB), `data.yaml`,
    `data_test_pos.yaml`, `data_test_all.yaml`, `lists/`, `metadata.jsonl`, `manifest.json`.
 4. Run the validator on `data.yaml`, `data_test_pos.yaml` and `data_test_all.yaml`; compare against the reference

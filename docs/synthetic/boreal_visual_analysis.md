@@ -9,7 +9,7 @@ Status: analysis only. No Boreal pixels are stored in this repository or used by
   2 `Empty-Images` negatives. Exact list: `selection_manifest.json` in the local sample folder.
 - `boreal_label_stats.json`: label statistics for **train and val only**. The test split was deliberately excluded
   so that test data does not influence the synthetic design.
-- The frames are stored outside the repo (`~/boreal_design_sample/`), used only for visual analysis, and are
+- The frames are stored outside the repo (`local_data/boreal_design_sample/`), used only for visual analysis, and are
   never read by the generator.
 
 Caveat: 14 frames is a small sample of 4,253 train+val images. Observations below are qualitative and describe
