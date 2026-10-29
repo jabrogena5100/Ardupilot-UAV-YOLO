@@ -35,10 +35,10 @@ Lifecycle test at $0.89/h: worst case **$0.56** (the earlier $0.41 assumed an on
 After creation the real `costPerHr` must be <= `--max-hourly-price` or the pod is stopped at once. `launch` is a dry run unless
 `--confirm-paid RUN_NAME` equals the run name, and refuses without `--watchdog-armed` (attestation that the GitHub watchdog is live).
 
-## Setup (owner, once) - NOT done yet
-1. Merge the branch containing `.github/workflows/runpod-watchdog.yml` into `main` (schedules run only from the default branch).
-2. GitHub > Settings > Secrets and variables > Actions > repository secret `RUNPOD_API_KEY` (prefer a RunPod key restricted to pods).
-3. Actions tab > runpod-watchdog > Run workflow once; it must succeed (it fails loudly if the secret is missing). The repo is public, so Actions minutes are free; GitHub pauses scheduled workflows after 60 days without repository activity.
+## Setup and verification
+Merged to `main` in PR #1; the repository secret `RUNPOD_API_KEY` is set (manual run #1 passed). Security review, findings and the
+step-by-step verification (manual run with `selftest`, one scheduled run) are in `docs/runpod/watchdog_security_review.md`. The watchdog is **armed only after**
+those checks pass. GitHub pauses scheduled workflows after 60 days without repository activity.
 
 ## Fresh pod
 No files on the volume are needed: the supervisor and job files travel in `$ORCH_BUNDLE_B64` (about 8 KB) inside the start command (tested in an

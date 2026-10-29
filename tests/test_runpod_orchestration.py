@@ -417,14 +417,56 @@ class EnforceTests(unittest.TestCase):
 
     def test_workflow_file_is_sane(self):
         import yaml
-        wf = yaml.safe_load(read(os.path.join(ROOT, ".github", "workflows", "runpod-watchdog.yml")))
+        path = os.path.join(ROOT, ".github", "workflows", "runpod-watchdog.yml")
+        text = read(path)
+        wf = yaml.safe_load(text)
         on = wf.get("on", wf.get(True))
-        self.assertIn("schedule", on)
+        self.assertEqual(set(on), {"schedule", "workflow_dispatch"})
+        self.assertEqual(on["workflow_dispatch"]["inputs"]["selftest"]["default"], False)  # never pull_request / pull_request_target
         self.assertEqual(wf["permissions"], {"contents": "write"})
-        text = read(os.path.join(ROOT, ".github", "workflows", "runpod-watchdog.yml"))
-        self.assertIn("secrets.RUNPOD_API_KEY", text)
-        self.assertNotIn("--force", text)
-        self.assertNotIn("push -f", text)
+        steps = wf["jobs"]["enforce"]["steps"]
+        by_secret = [s_["name"] for s_ in steps if "secrets.RUNPOD_API_KEY" in json.dumps(s_)]
+        by_token = [s_["name"] for s_ in steps if "github.token" in json.dumps(s_)]
+        self.assertEqual(by_secret, ["Enforce pod deadlines"])  # secret reaches exactly one step
+        self.assertEqual(by_token, ["Append events to runpod-logs branch (append-only)"])  # write token reaches exactly one step
+        self.assertEqual(text.count("secrets."), text.count("secrets.RUNPOD_API_KEY"))
+        checkout = [s_ for s_ in steps if str(s_.get("uses", "")).startswith("actions/checkout")][0]
+        self.assertIs(checkout["with"]["persist-credentials"], False)
+        code = "\n".join(s_.get("run", "") for s_ in steps)  # executable shell only, not comments
+        for bad in ("--force", "push -f", "--force-with-lease", "origin main", "pip install", "npm ", "curl ", "wget "):
+            self.assertNotIn(bad, code)
+        self.assertNotIn("${{", code)  # token only via env, not inlined
+        uses = [s_["uses"] for s_ in steps if "uses" in s_]
+        self.assertTrue(all(u.startswith("actions/") for u in uses), uses)  # first-party actions only
+
+    def test_watchdog_uses_only_read_and_stop_calls(self):
+        """The off-pod watchdog may call list_pods, get_pod, stop_pod and nothing else on the API object."""
+        allowed = {"list_pods", "get_pod", "stop_pod"}
+        used = set()
+
+        class Guard(FakeAPI):
+            def __getattribute__(self, name):
+                if not name.startswith("_") and name in ("create_pod", "list_network_volumes", "billed_total", "list_pods",
+                                                          "get_pod", "stop_pod"):
+                    used.add(name)
+                return super().__getattribute__(name)
+        api = Guard(pods=self.pods(("a", C.tag_name("r1", 1_700_000_000), "RUNNING")))
+        W.enforce(api, lambda n, **f: None, now=lambda: 1_700_001_000, sleep=lambda s: None)
+        self.assertTrue(used <= allowed, used)
+
+    def test_api_client_has_no_delete_capability(self):
+        methods = [m for m in dir(C.RunPodAPI) if not m.startswith("_")]
+        self.assertFalse([m for m in methods if "delete" in m or "terminate" in m or "remove" in m], methods)
+        src = read(os.path.join(RP, "rp_common.py"))
+        self.assertEqual(sorted(set(re.findall(r'self\._call\("([A-Z]+)"', src))), ["GET", "POST"])
+        self.assertEqual(sorted(set(re.findall(r'self\._call\("POST", f?"([^"]+)"', src))), ["/pods", "/pods/{pod_id}/stop"])
+
+    def test_selftest_cli_requires_key_and_never_touches_pods(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as td:
+            r = subprocess.run([sys.executable, os.path.join(RP, "watchdog.py"), "--log", os.path.join(td, "e.jsonl"), "--selftest"],
+                               env={"PATH": os.environ["PATH"]}, capture_output=True, text=True)
+            self.assertEqual(r.returncode, 2)
 
     def test_status_reports_pods_and_overdue(self):
         api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", 1700000000), "RUNNING"), ("b", "x", "EXITED")))

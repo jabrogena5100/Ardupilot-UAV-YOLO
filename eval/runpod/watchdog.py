@@ -62,6 +62,7 @@ def main(argv=None):
     ap.add_argument("--log", required=True, help="JSONL file to append events to")
     ap.add_argument("--stop-untagged", action="store_true")
     ap.add_argument("--grace-s", type=int, default=0)
+    ap.add_argument("--selftest", action="store_true", help="also append one 'selftest' event (proves API read + log write path)")
     a = ap.parse_args(argv)
     try:
         api = C.RunPodAPI()
@@ -73,7 +74,15 @@ def main(argv=None):
     def log(name, **f):
         rec = ev.emit(name, **f)
         print(rec)
-    return enforce(api, log, stop_untagged=a.stop_untagged, grace_s=a.grace_s)
+    rc = enforce(api, log, stop_untagged=a.stop_untagged, grace_s=a.grace_s)
+    if a.selftest:
+        try:
+            pods = api.list_pods()
+            log("selftest", api_read="ok", pods_total=len(pods), pods_running=sum(C.is_running(p) for p in pods))
+        except C.RunPodError as e:
+            log("selftest", api_read="FAIL", error=str(e))
+            rc = 2
+    return rc
 
 
 if __name__ == "__main__":
