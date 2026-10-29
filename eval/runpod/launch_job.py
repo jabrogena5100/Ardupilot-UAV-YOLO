@@ -30,7 +30,7 @@ sys.path.insert(0, HERE)
 import rp_common as C  # noqa: E402
 
 DEFAULTS = {"gpu": "NVIDIA GeForce RTX 4090", "data_center": "US-IL-1", "volume_id": "sej40ez3ia", "mount": "/workspace",
-            "image": "runpod/pytorch:2.8.0-py3.12-cuda12.8.1-cudnn-devel-ubuntu22.04", "container_disk_gb": 30}
+            "image": "runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404", "container_disk_gb": 30}
 CORE_FILES = ["rp_common.py", "pod_supervisor.py"]
 CHUNK_B64 = 50_000   # one env var per chunk (execve limit is 128 KiB per string)
 MAX_CHUNKS = 8

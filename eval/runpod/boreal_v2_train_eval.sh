@@ -25,6 +25,43 @@ nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader
 echo "HOST nproc=$(nproc) $(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2) mem=$(free -g | awk '/Mem:/{print $2}')GB"
 mkdir -p $OUT
 
+# Live progress + results endpoint (port 8000 via the RunPod HTTPS proxy): serves ONLY $EXP (status.json + manifest-listed small files), token required.
+EXP=$OUT/export; mkdir -p $EXP; SRV_PID=""
+echo '{"files": {}}' > $EXP/export_manifest.json
+if [ -z "$NO_SERVE" ] && [ -n "$RESULTS_TOKEN" ]; then
+  python3 $REPO/eval/runpod/results_server.py --root $EXP --port 8000 --serve-seconds 21000 > $OUT/results_server.log 2>&1 &
+  SRV_PID=$!; echo "results endpoint started pid=$SRV_PID (token required; serves only $EXP)"
+fi
+(
+  while true; do
+    PHASE=$(cat $OUT/.phase 2>/dev/null || echo starting)
+    python3 - "$OUT" "$PHASE" "$T_START" <<'PY' > $EXP/status.tmp 2>/dev/null && mv -f $EXP/status.tmp $EXP/status.json
+import csv, glob, json, os, subprocess, sys, time
+out, phase, t0 = sys.argv[1], sys.argv[2], int(sys.argv[3])
+seeds = {}
+for d in sorted(glob.glob(out + "/real_boreal_v2_seed*/")):
+    n = os.path.basename(d.rstrip("/"))
+    try:
+        rows = [{k.strip(): v for k, v in r.items()} for r in csv.DictReader(open(d + "results.csv"))]
+        last = rows[-1] if rows else {}
+        seeds[n] = {"epochs_done": len(rows), "last_val_mAP50": last.get("metrics/mAP50(B)"), "last_val_mAP50-95": last.get("metrics/mAP50-95(B)"),
+                    "elapsed_s_in_run": last.get("time")}
+    except Exception:
+        seeds[n] = {"epochs_done": 0}
+logs = sorted(glob.glob(out + "/*_train.log")) + [out + "/run_matrix.log"]
+tail = ""
+for lg in reversed(logs):
+    if os.path.exists(lg):
+        tail = subprocess.run(["tail", "-c", "1500", lg], capture_output=True, text=True).stdout.replace("\r", "\n")[-1200:]
+        break
+print(json.dumps({"t": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "phase": phase, "elapsed_s": int(time.time()) - t0, "seeds": seeds,
+                  "log_tail": tail, "checkpoints": sorted(os.path.basename(p) for p in glob.glob(out + "/real_boreal_v2_seed*/real_boreal_v2_best_seed*.pt"))}))
+PY
+    sleep 30
+  done
+) &
+STATUS_PID=$!
+
 echo "--- integrity of existing artifacts (read-only)"
 cd $REPO
 python3 - <<'PY' || { echo "ABORT: existing checkpoint pin check failed"; exit 1; }
@@ -40,6 +77,7 @@ PY
 ( cd $SYN && sha256sum -c --quiet $IN/synth_smoke_v1.SHA256SUMS ) && echo "SYNTH 10616 HASHES OK" || { echo "ABORT: synth hash mismatch"; exit 1; }
 python3 -m unittest tests.test_eval_metrics tests.test_aggregate_seeds tests.test_run_matrix 2>&1 | tail -3
 
+echo materialise > $OUT/.phase
 echo "--- materialise Boreal v2 split"
 python3 eval/runpod/boreal_v2_materialize.py --src $SRC --dest $SPL2 --filelists docs/experiments/boreal_v2/filelists.json \
   --scan $SCAN --scan-sha256 $SCAN_SHA \
@@ -61,6 +99,7 @@ GUARD_SECS=${GUARD_SECS:-15500}; LIM=60
 train_one () {   # SEED
   local SEED=$1 NAME=real_boreal_v2_seed$1 CK=real_boreal_v2_best_seed$1.pt RUN=$OUT/real_boreal_v2_seed$1
   if [ $(( $(date +%s) - T_START )) -gt $GUARD_SECS ]; then echo "SKIP $NAME: time guard"; return; fi
+  echo "train_seed_$SEED" > $OUT/.phase
   echo "--- train $NAME seed=$SEED $(date -u +%FT%TZ) load=$(cut -d' ' -f1 /proc/loadavg)"
   local T0=$(date +%s)
   timeout 9000 yolo detect train model=yolov8s.pt data=$SPL2/data.yaml epochs=100 patience=100 imgsz=640 batch=32 seed=$SEED \
@@ -108,6 +147,7 @@ PY
 for S in 0 1 2; do train_one $S; done
 echo "TRAINING_DONE $(date -u +%FT%TZ) elapsed=$(( $(date +%s) - T_START ))s"
 
+echo evaluate > $OUT/.phase
 echo "--- pin checkpoints + evaluate (unified harness, same code path for every cell)"
 cd $REPO
 python3 - <<PY
@@ -155,22 +195,25 @@ n_ok=$(grep -l "\"complete\": true" $OUT/real_boreal_v2_seed*/train_config.json 
 JOB_RC=1; [ "$n_ok" = 3 ] && [ "$MRC" = 0 ] && JOB_RC=0
 echo "=== JOB_RESULT $(date -u +%FT%TZ) total_elapsed=$(( $(date +%s) - T_START ))s trainings_complete=$n_ok matrix_rc=$MRC job_rc=$JOB_RC"
 
-echo "--- export for retrieval (small artifacts only; never checkpoints; copies into a NEW dir, originals untouched)"
-EXP=$OUT/export
-mkdir -p $EXP && cp $OUT/results_bundle.tgz $OUT/results_bundle.tgz.sha256 $OUT/INTEGRITY.json $EXP/ 2>/dev/null
+echo "--- export for retrieval (small artifacts only; never checkpoints; copies into the NEW export dir, originals untouched)"
+echo export > $OUT/.phase
+cp $OUT/results_bundle.tgz $OUT/results_bundle.tgz.sha256 $OUT/INTEGRITY.json $EXP/ 2>/dev/null
 for S in 0 1 2; do cp $OUT/real_boreal_v2_seed$S/train_config.json $EXP/train_config_seed$S.json 2>/dev/null; done
 python3 - <<PY
 import os, sys
 sys.path.insert(0, "$REPO/eval/runpod")
 import results_server as RS
-names = [n for n in sorted(os.listdir("$EXP")) if n != "export_manifest.json"]
+names = [n for n in sorted(os.listdir("$EXP")) if n not in ("export_manifest.json", "status.json", "status.tmp")]
 print("EXPORT_MANIFEST", {k: v["bytes"] for k, v in RS.write_manifest("$EXP", names).items()})
 PY
-if [ -z "$NO_SERVE" ] && [ -n "$RESULTS_TOKEN" ]; then
-  echo "SERVING results on port 8000 for ${SERVE_SECONDS:-1500}s (or until acknowledged) $(date -u +%FT%TZ)"
-  python3 $REPO/eval/runpod/results_server.py --root $EXP --port 8000 --serve-seconds ${SERVE_SECONDS:-1500}
+echo "done_job_rc_$JOB_RC" > $OUT/.phase
+if [ -n "$SRV_PID" ]; then
+  W=${SERVE_SECONDS:-900}; echo "RESULTS READY: waiting up to ${W}s for the fetcher (POST /ack) $(date -u +%FT%TZ)"
+  for i in $(seq 1 $W); do kill -0 $SRV_PID 2>/dev/null || { echo "results fetched/acknowledged"; break; }; sleep 1; done
+  kill $SRV_PID 2>/dev/null
 else
   echo "NOT serving (NO_SERVE set or RESULTS_TOKEN missing): fetch $OUT/results_bundle.tgz from the volume manually"
 fi
+kill $STATUS_PID 2>/dev/null
 echo "=== DONE $(date -u +%FT%TZ) total_elapsed=$(( $(date +%s) - T_START ))s"
 exit $JOB_RC

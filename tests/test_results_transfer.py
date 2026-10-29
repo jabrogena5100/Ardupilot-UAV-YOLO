@@ -106,6 +106,55 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(m["note.txt"]["sha256"], hashlib.sha256(b"hello").hexdigest())
 
 
+class DynamicAndStatus(unittest.TestCase):
+    def test_files_published_after_start_are_served_and_status_is_fixed_route(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = os.path.join(td, "export")
+            os.makedirs(root)
+            RS.write_manifest(root, [])
+            port = free_port()
+            res = {}
+            t = threading.Thread(target=lambda: res.update(r=RS.serve(root, port, TOKEN, 20, host="127.0.0.1", poll=0.05)))
+            t.start()
+            time.sleep(0.5)
+            s = Served.__new__(Served)
+            s.base = f"http://127.0.0.1:{port}"
+            self.assertEqual(Served.req(s, "/status")[0], 404)                     # no status yet
+            open(os.path.join(root, "status.json"), "w").write('{"phase": "train_seed_0"}')
+            self.assertEqual(Served.req(s, "/status"), (200, b'{"phase": "train_seed_0"}'))
+            self.assertEqual(Served.req(s, "/status", token=None)[0], 401)
+            self.assertEqual(Served.req(s, "/f/late.txt")[0], 404)
+            open(os.path.join(root, "late.txt"), "w").write("late")
+            RS.write_manifest(root, ["late.txt"])
+            self.assertEqual(Served.req(s, "/f/late.txt"), (200, b"late"))
+            self.assertEqual(Served.req(s, "/f/status.json")[0], 404)              # status is not a downloadable manifest file
+            open(os.path.join(root, "export_manifest.json"), "w").write("{broken")  # corrupt allowlist fails closed
+            self.assertEqual(Served.req(s, "/f/late.txt")[0], 404)
+            Served.req(s, "/ack", method="POST")
+            t.join(10)
+
+    def test_status_symlink_and_size_cap(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = os.path.join(td, "export")
+            os.makedirs(root)
+            RS.write_manifest(root, [])
+            open(os.path.join(td, "secret.txt"), "w").write("secret")
+            os.symlink(os.path.join(td, "secret.txt"), os.path.join(root, "status.json"))
+            port = free_port()
+            t = threading.Thread(target=lambda: RS.serve(root, port, TOKEN, 20, host="127.0.0.1", poll=0.05))
+            t.start()
+            time.sleep(0.5)
+            s = Served.__new__(Served)
+            s.base = f"http://127.0.0.1:{port}"
+            self.assertEqual(Served.req(s, "/status")[0], 404)
+            os.remove(os.path.join(root, "status.json"))
+            open(os.path.join(root, "status.json"), "w").write("x" * 200000)
+            code, body = Served.req(s, "/status")
+            self.assertEqual((code, len(body)), (200, RS.STATUS_MAX))
+            Served.req(s, "/ack", method="POST")
+            t.join(10)
+
+
 class ManifestValidation(unittest.TestCase):
     def test_refuses_checkpoint_symlink_traversal_and_size_mismatch(self):
         with tempfile.TemporaryDirectory() as td:

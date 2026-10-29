@@ -8,7 +8,7 @@ Reached through RunPod's HTTPS proxy (https://<pod_id>-8000.proxy.runpod.net). W
   * never a directory listing, never a path outside <root>, never a symlink, never *.pt/*.pth/*.ckpt/*.bin/*.safetensors
   * every request needs the bearer token (Authorization header or ?token=), compared in constant time; wrong tokens are delayed and
     after 20 failures the server stops answering
-Routes: GET /manifest, GET /f/<name>, POST /ack (marks results fetched; the server then exits so the pod can stop sooner), GET /healthz (token required).
+Routes: GET /manifest, GET /status (fixed progress file status.json, <= 64 KiB), GET /f/<name>, POST /ack (marks results fetched; the server then exits so the pod can stop sooner), GET /healthz (token required).
 The server exits when --serve-seconds elapsed or after /ack. It writes nothing except <root>/../results_server.log lines (no tokens).
 """
 import argparse
@@ -42,7 +42,7 @@ def load_manifest(root):
     real_root = os.path.realpath(root)
     out = {}
     for name, ent in m["files"].items():
-        if not NAME_RE.match(name) or name.lower().endswith(BLOCKED_EXT) or name == "export_manifest.json":
+        if not NAME_RE.match(name) or name.lower().endswith(BLOCKED_EXT) or name in ("export_manifest.json", "status.json"):
             raise ValueError("not servable: " + name)
         p = os.path.join(root, name)
         if os.path.islink(p) or not os.path.isfile(p) or os.path.dirname(os.path.realpath(p)) != real_root:
@@ -59,9 +59,21 @@ def write_manifest(root, names):
     for n in sorted(names):
         p = os.path.join(root, n)
         files[n] = {"bytes": os.path.getsize(p), "sha256": sha256_file(p)}
-    with open(os.path.join(root, "export_manifest.json"), "w") as f:
+    tmp = os.path.join(root, "export_manifest.json.tmp")
+    with open(tmp, "w") as f:
         json.dump({"files": files}, f, indent=1, sort_keys=True)
+    os.replace(tmp, os.path.join(root, "export_manifest.json"))   # atomic: a reader never sees a half-written allowlist
     return files
+
+
+STATUS_MAX = 65536
+
+
+def current_allow(root):
+    try:
+        return load_manifest(root)
+    except (ValueError, OSError, KeyError):
+        return {}            # fail closed: an invalid manifest serves nothing
 
 
 def make_handler(root, token, allow, state):
@@ -104,6 +116,13 @@ def make_handler(root, token, allow, state):
             path = self.path.split("?", 1)[0]
             if path == "/healthz":
                 return self._send(200, b"ok")
+            allow = current_allow(root)
+            if path == "/status":      # one fixed, size-capped progress file written by the job; not part of the manifest
+                sp = os.path.join(root, "status.json")
+                if os.path.islink(sp) or not os.path.isfile(sp):
+                    return self._send(404, b"no status yet")
+                with open(sp, "rb") as f:
+                    return self._send(200, f.read(STATUS_MAX), "application/json")
             if path == "/manifest":
                 return self._send(200, json.dumps({"files": allow}).encode(), "application/json")
             if path.startswith("/f/"):
@@ -146,7 +165,7 @@ def make_handler(root, token, allow, state):
 def serve(root, port, token, serve_seconds, host="0.0.0.0", poll=1.0):
     if not token or len(token) < 24:
         raise SystemExit("RESULTS_TOKEN missing or too short (>= 24 chars required)")
-    allow = load_manifest(root)
+    allow = current_allow(root)
     state = {"acked": False, "fails": 0}
     srv = http.server.ThreadingHTTPServer((host, port), make_handler(root, token, allow, state))
     srv.daemon_threads = True

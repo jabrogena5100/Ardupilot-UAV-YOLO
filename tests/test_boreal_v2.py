@@ -107,8 +107,9 @@ class JobScriptLint(unittest.TestCase):
 
     def test_never_deletes_moves_or_overwrites(self):
         import re
+        code = self.code.replace("mv -f $EXP/status.tmp $EXP/status.json", "")   # the one allowed rename: atomic status file inside the new export dir
         for pat in (r"\brm\b", r"\bmv\b", r"exist_ok=True", r"\bdd\b", r"mkfs", r"git (push|reset|checkout)", r"--force"):
-            self.assertIsNone(re.search(pat, self.code), pat)
+            self.assertIsNone(re.search(pat, code), pat)
 
     def test_aborts_if_targets_exist(self):
         self.assertIn('[ -e "$p" ] && { echo "ABORT: $p exists (refusing to overwrite)"; exit 1; }', self.code)

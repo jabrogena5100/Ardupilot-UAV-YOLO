@@ -55,10 +55,18 @@ def fetch(base, dest, token, ack=True, retries=3, sleep=time.sleep):
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", required=True)
-    ap.add_argument("--dest", required=True)
+    ap.add_argument("--dest", default="")
     ap.add_argument("--no-ack", action="store_true")
+    ap.add_argument("--status", action="store_true", help="print the pod's progress file and exit (no download)")
     a = ap.parse_args(argv)
     tok = os.environ.get("RESULTS_TOKEN") or open(os.environ["RESULTS_TOKEN_FILE"]).read().strip()
+    if a.status:
+        try:
+            print(get(a.base, "/status", tok).read().decode())
+            return 0
+        except Exception as e:
+            print("STATUS FAILED:", type(e).__name__, file=sys.stderr)
+            return 2
     try:
         m = fetch(a.base, a.dest, tok, ack=not a.no_ack)
     except Exception as e:   # no URL parts or tokens in the message
