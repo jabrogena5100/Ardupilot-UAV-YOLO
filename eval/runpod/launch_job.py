@@ -244,6 +244,17 @@ def boreal_v2_args(ns):
     ns.extra_env = {"RUN_TAG": tag} if tag != "boreal_v2" else {}
     if getattr(ns, "cache", ""):                       # documented speed-only protocol deviation; the job verifies pixel equivalence first
         ns.extra_env["CACHE_MODE"] = ns.cache
+    if getattr(ns, "seeds", ""):
+        if not all(x in "012" for x in ns.seeds.split()):
+            raise SystemExit("--seeds must be a subset of '0 1 2'")
+        ns.extra_env["SEEDS"] = ns.seeds
+    for spec in getattr(ns, "prior_ckpt", []) or []:     # SEED=PATH:SHA256 (a seed trained by an earlier attempt, reused read-only)
+        seed, rest = spec.split("=", 1)
+        path, sha = rest.rsplit(":", 1)
+        if seed not in "012" or not path.startswith("/workspace/runs/") or len(sha) != 64:
+            raise SystemExit("bad --prior-ckpt; expected SEED=/workspace/runs/...pt:SHA256")
+        ns.extra_env[f"PRIOR_CKPT_{seed}"] = path
+        ns.extra_env[f"PRIOR_SHA_{seed}"] = sha
     if getattr(ns, "epoch_limit_s", 0):
         ns.extra_env["EPOCH_LIMIT_S"] = str(ns.epoch_limit_s)
     ns.job = "bash repo/eval/runpod/boreal_v2_train_eval.sh"
@@ -298,6 +309,8 @@ def main(argv=None):
     add_job_args(bv, job_required=False)
     bv.set_defaults(run_name="", job="", hard_timeout_s=16200)
     bv.add_argument("--cache", default="", choices=["", "ram"], help="Ultralytics cache mode (deviation from v1 args; default none)")
+    bv.add_argument("--seeds", default="", help="seeds to train in this run, e.g. '1 2' (default all three)")
+    bv.add_argument("--prior-ckpt", action="append", default=[], help="SEED=/workspace/runs/...pt:SHA256 of a seed trained by an earlier attempt")
     bv.add_argument("--epoch-limit-s", type=int, default=0, help="speed-guard limit for mean epoch 2-4 seconds (default 60 in the job)")
     bv.add_argument("--run-tag", default="", help="output directory tag under /workspace/runs (default boreal_v2; use boreal_v2_try2 etc. for a retry)")
     tt = sub.add_parser("transfer-test")

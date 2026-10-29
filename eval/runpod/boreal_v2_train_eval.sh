@@ -165,17 +165,27 @@ json.dump({"split":"boreal_v2","seed":int(os.environ["SEED"]),"train_rc":int(os.
   open(f"{RUN}/train_config.json","w"),indent=2)
 PY
 }
-for S in 0 1 2; do train_one $S; done
+SEEDS=${SEEDS:-"0 1 2"}      # a retry may train only the missing seeds; earlier completed seeds are reused read-only (PRIOR_CKPT_<seed>)
+for S in $SEEDS; do train_one $S; done
 echo "TRAINING_DONE $(date -u +%FT%TZ) elapsed=$(( $(date +%s) - T_START ))s"
 
 echo evaluate > $OUT/.phase
 echo "--- pin checkpoints + evaluate (unified harness, same code path for every cell)"
 cd $REPO
-python3 - <<PY
+python3 - <<PY || { echo "ABORT: checkpoint pinning failed"; exit 3; }
 import yaml, hashlib, os
 cfg = yaml.safe_load(open("eval/datasets_boreal_v2.yaml")); avail = []
 for name, m in cfg["models"].items():
     m["checkpoint"] = m["checkpoint"].replace("/boreal_v2/", "/$TAG/")
+    seed = m.get("seed")
+    prior = os.environ.get(f"PRIOR_CKPT_{seed}") if m.get("family") == "B" else None
+    if prior:                                              # seed trained by an earlier attempt: reused read-only, hash must match the recorded one
+        m["checkpoint"] = prior
+        want = os.environ.get(f"PRIOR_SHA_{seed}")
+        got = hashlib.sha256(open(prior, "rb").read()).hexdigest() if os.path.exists(prior) else None
+        if not want or got != want:
+            raise SystemExit(f"ABORT: prior checkpoint for seed {seed} missing or hash mismatch ({got} vs {want})")
+        print("using prior checkpoint", name, got[:16])
     path = m["checkpoint"].replace("\${RUNS}", "$RUNS")
     if os.path.exists(path):
         h = hashlib.sha256(open(path, "rb").read()).hexdigest()
@@ -214,13 +224,14 @@ cd $OUT && tar czf $OUT/results_bundle.tgz --exclude='*.pt' --exclude='weights' 
   real_boreal_v2_seed*/train_config.json real_boreal_v2_seed*_train.log datasets_boreal_v2_pinned.yaml split_manifest_materialised.json INTEGRITY.json run_matrix.log $([ -f PROTOCOL_DEVIATION.json ] && echo PROTOCOL_DEVIATION.json) 2>/dev/null
 sha256sum $OUT/results_bundle.tgz | tee $OUT/results_bundle.tgz.sha256; ls -la $OUT/results_bundle.tgz
 n_ok=$(grep -l "\"complete\": true" $OUT/real_boreal_v2_seed*/train_config.json 2>/dev/null | wc -l)
-JOB_RC=1; [ "$n_ok" = 3 ] && [ "$MRC" = 0 ] && JOB_RC=0
+n_want=$(echo $SEEDS | wc -w)
+JOB_RC=1; [ "$n_ok" = "$n_want" ] && [ "$MRC" = 0 ] && JOB_RC=0
 echo "=== JOB_RESULT $(date -u +%FT%TZ) total_elapsed=$(( $(date +%s) - T_START ))s trainings_complete=$n_ok matrix_rc=$MRC job_rc=$JOB_RC"
 
 echo "--- export for retrieval (small artifacts only; never checkpoints; copies into the NEW export dir, originals untouched)"
 echo export > $OUT/.phase
 cp $OUT/results_bundle.tgz $OUT/results_bundle.tgz.sha256 $OUT/INTEGRITY.json $OUT/PROTOCOL_DEVIATION.json $EXP/ 2>/dev/null
-for S in 0 1 2; do cp $OUT/real_boreal_v2_seed$S/train_config.json $EXP/train_config_seed$S.json 2>/dev/null; done
+for S in 0 1 2; do cp $OUT/real_boreal_v2_seed$S/train_config.json $EXP/train_config_seed$S.json 2>/dev/null; P=$(printenv PRIOR_CKPT_$S); [ -n "$P" ] && cp "$(dirname $P)/train_config.json" $EXP/train_config_seed${S}_prior.json 2>/dev/null; done
 python3 - <<PY
 import os, sys
 sys.path.insert(0, "$REPO/eval/runpod")

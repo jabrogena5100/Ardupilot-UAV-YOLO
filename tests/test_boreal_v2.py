@@ -131,6 +131,24 @@ class BundleSize(unittest.TestCase):
         self.assertIn('CACHE_ARG=""; [ -n "$CACHE_MODE" ] && CACHE_ARG="cache=$CACHE_MODE"', src)    # no env var => the v1 protocol exactly
         self.assertIn("ABORT: cache=ram equivalence/memory check failed", src)
 
+    def test_seed_subset_and_prior_checkpoint_env(self):
+        import argparse
+        import launch_job as L
+        sha = "a" * 64
+        ns = L.boreal_v2_args(argparse.Namespace(run_name="", ports=[], run_tag="boreal_v2_try4", cache="ram", epoch_limit_s=65, seeds="1 2",
+                                                  prior_ckpt=[f"0=/workspace/runs/boreal_v2_try3/real_boreal_v2_seed0/real_boreal_v2_best_seed0.pt:{sha}"]))
+        self.assertEqual(ns.extra_env["SEEDS"], "1 2")
+        self.assertEqual(ns.extra_env["PRIOR_SHA_0"], sha)
+        self.assertTrue(ns.extra_env["PRIOR_CKPT_0"].startswith("/workspace/runs/boreal_v2_try3/"))
+        for bad in (["0=/etc/passwd:" + sha], ["0=/workspace/runs/x.pt:short"], ["7=/workspace/runs/x.pt:" + sha]):
+            with self.assertRaises(SystemExit):
+                L.boreal_v2_args(argparse.Namespace(run_name="", ports=[], run_tag="boreal_v2_try4", prior_ckpt=bad))
+        with self.assertRaises(SystemExit):
+            L.boreal_v2_args(argparse.Namespace(run_name="", ports=[], run_tag="boreal_v2_try4", seeds="1 9"))
+        src = open(os.path.join(ROOT, "eval", "runpod", "boreal_v2_train_eval.sh")).read()
+        self.assertIn("prior checkpoint for seed", src)                      # aborts on hash mismatch
+        self.assertIn('n_want=$(echo $SEEDS | wc -w)', src)
+
     def test_preset_fills_the_job_definition(self):
         import argparse
         import launch_job as L
@@ -173,7 +191,8 @@ class JobScriptLint(unittest.TestCase):
         for flag in ("model=yolov8s.pt", "epochs=100", "patience=100", "imgsz=640", "batch=32", "deterministic=True", "workers=8",
                      "optimizer=AdamW", "lr0=0.002", "momentum=0.9", "warmup_bias_lr=0.0", "data=$SPL2/data.yaml", '"ultralytics==8.4.173"'):
             self.assertIn(flag, self.code)
-        self.assertIn("for S in 0 1 2; do train_one $S; done", self.code)
+        self.assertIn('SEEDS=${SEEDS:-"0 1 2"}', self.code)
+        self.assertIn("for S in $SEEDS; do train_one $S; done", self.code)
 
     def test_all_artifact_classes_are_saved_and_hashed(self):
         for need in ("sha256sum $RUN/$CK", "train_config.json", "results.csv", "args.yaml", "results_bundle.tgz", "INTEGRITY.json",
