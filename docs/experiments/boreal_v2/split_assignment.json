@@ -1,0 +1,564 @@
+{
+ "assignment": {
+  "evodji_0001": "train",
+  "evodji_0007": "train",
+  "evodji_0009": "val",
+  "heinola_dji_0024": "val",
+  "heinola_dji_0025": "train",
+  "heinola_dji_0028": "train",
+  "heinola_dji_0029": "train",
+  "heinola_dji_0030": "train",
+  "heinola_dji_0033": "test",
+  "heinola_dji_0036": "train",
+  "heinola_dji_0038": "test",
+  "heinola_dji_0048": "test",
+  "karkkila_dji_0001": "test",
+  "karkkila_dji_0002": "test",
+  "karkkila_dji_0003": "test",
+  "karkkila_dji_0004": "train",
+  "karkkila_dji_0005": "train",
+  "karkkila_dji_0006": "train",
+  "karkkila_dji_0007": "val",
+  "karkkila_dji_0008": "val",
+  "karkkila_dji_0010": "val",
+  "karkkila_dji_0020": "test",
+  "ruokolahti_dji_0080": "train",
+  "ruokolahti_dji_0081": "train",
+  "ruokolahti_dji_0082": "test",
+  "ruokolahti_dji_0084": "train",
+  "ruokolahti_dji_0085": "train",
+  "ruokolahti_dji_0086": "train",
+  "ruokolahti_dji_0087": "train",
+  "ruokolahti_dji_0088": "train",
+  "ruokolahti_dji_0089": "train"
+ },
+ "clips": {
+  "evodji_0001": {
+   "boxes": 327,
+   "clip": "evodji_0001",
+   "frames": 314,
+   "pos": 313,
+   "site": "evo",
+   "true_neg": 0,
+   "unlabeled_nonempty": 1,
+   "v1_split": {
+    "train": 314
+   }
+  },
+  "evodji_0007": {
+   "boxes": 341,
+   "clip": "evodji_0007",
+   "frames": 328,
+   "pos": 328,
+   "site": "evo",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "test": 328
+   }
+  },
+  "evodji_0009": {
+   "boxes": 289,
+   "clip": "evodji_0009",
+   "frames": 289,
+   "pos": 289,
+   "site": "evo",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 289
+   }
+  },
+  "heinola_dji_0024": {
+   "boxes": 0,
+   "clip": "heinola_dji_0024",
+   "frames": 59,
+   "pos": 0,
+   "site": "heinola",
+   "true_neg": 59,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 59
+   }
+  },
+  "heinola_dji_0025": {
+   "boxes": 201,
+   "clip": "heinola_dji_0025",
+   "frames": 201,
+   "pos": 201,
+   "site": "heinola",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 201
+   }
+  },
+  "heinola_dji_0028": {
+   "boxes": 162,
+   "clip": "heinola_dji_0028",
+   "frames": 267,
+   "pos": 156,
+   "site": "heinola",
+   "true_neg": 111,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 111,
+    "val": 156
+   }
+  },
+  "heinola_dji_0029": {
+   "boxes": 106,
+   "clip": "heinola_dji_0029",
+   "frames": 106,
+   "pos": 106,
+   "site": "heinola",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 106
+   }
+  },
+  "heinola_dji_0030": {
+   "boxes": 143,
+   "clip": "heinola_dji_0030",
+   "frames": 143,
+   "pos": 143,
+   "site": "heinola",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 143
+   }
+  },
+  "heinola_dji_0033": {
+   "boxes": 235,
+   "clip": "heinola_dji_0033",
+   "frames": 230,
+   "pos": 230,
+   "site": "heinola",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 230
+   }
+  },
+  "heinola_dji_0036": {
+   "boxes": 45,
+   "clip": "heinola_dji_0036",
+   "frames": 45,
+   "pos": 45,
+   "site": "heinola",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 45
+   }
+  },
+  "heinola_dji_0038": {
+   "boxes": 10,
+   "clip": "heinola_dji_0038",
+   "frames": 10,
+   "pos": 10,
+   "site": "heinola",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 10
+   }
+  },
+  "heinola_dji_0048": {
+   "boxes": 15,
+   "clip": "heinola_dji_0048",
+   "frames": 62,
+   "pos": 15,
+   "site": "heinola",
+   "true_neg": 47,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 47,
+    "val": 15
+   }
+  },
+  "karkkila_dji_0001": {
+   "boxes": 69,
+   "clip": "karkkila_dji_0001",
+   "frames": 69,
+   "pos": 69,
+   "site": "karkkila",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 69
+   }
+  },
+  "karkkila_dji_0002": {
+   "boxes": 125,
+   "clip": "karkkila_dji_0002",
+   "frames": 125,
+   "pos": 125,
+   "site": "karkkila",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 125
+   }
+  },
+  "karkkila_dji_0003": {
+   "boxes": 26,
+   "clip": "karkkila_dji_0003",
+   "frames": 44,
+   "pos": 26,
+   "site": "karkkila",
+   "true_neg": 18,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "test": 26,
+    "train": 18
+   }
+  },
+  "karkkila_dji_0004": {
+   "boxes": 70,
+   "clip": "karkkila_dji_0004",
+   "frames": 71,
+   "pos": 70,
+   "site": "karkkila",
+   "true_neg": 0,
+   "unlabeled_nonempty": 1,
+   "v1_split": {
+    "test": 71
+   }
+  },
+  "karkkila_dji_0005": {
+   "boxes": 171,
+   "clip": "karkkila_dji_0005",
+   "frames": 171,
+   "pos": 171,
+   "site": "karkkila",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 171
+   }
+  },
+  "karkkila_dji_0006": {
+   "boxes": 100,
+   "clip": "karkkila_dji_0006",
+   "frames": 119,
+   "pos": 100,
+   "site": "karkkila",
+   "true_neg": 19,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "test": 100,
+    "train": 19
+   }
+  },
+  "karkkila_dji_0007": {
+   "boxes": 174,
+   "clip": "karkkila_dji_0007",
+   "frames": 171,
+   "pos": 171,
+   "site": "karkkila",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 171
+   }
+  },
+  "karkkila_dji_0008": {
+   "boxes": 171,
+   "clip": "karkkila_dji_0008",
+   "frames": 171,
+   "pos": 171,
+   "site": "karkkila",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 171
+   }
+  },
+  "karkkila_dji_0010": {
+   "boxes": 58,
+   "clip": "karkkila_dji_0010",
+   "frames": 58,
+   "pos": 58,
+   "site": "karkkila",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 58
+   }
+  },
+  "karkkila_dji_0020": {
+   "boxes": 140,
+   "clip": "karkkila_dji_0020",
+   "frames": 134,
+   "pos": 134,
+   "site": "karkkila",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "val": 134
+   }
+  },
+  "ruokolahti_dji_0080": {
+   "boxes": 393,
+   "clip": "ruokolahti_dji_0080",
+   "frames": 341,
+   "pos": 341,
+   "site": "ruokolahti",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "val": 341
+   }
+  },
+  "ruokolahti_dji_0081": {
+   "boxes": 135,
+   "clip": "ruokolahti_dji_0081",
+   "frames": 128,
+   "pos": 128,
+   "site": "ruokolahti",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "val": 128
+   }
+  },
+  "ruokolahti_dji_0082": {
+   "boxes": 70,
+   "clip": "ruokolahti_dji_0082",
+   "frames": 70,
+   "pos": 70,
+   "site": "ruokolahti",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 70
+   }
+  },
+  "ruokolahti_dji_0084": {
+   "boxes": 23,
+   "clip": "ruokolahti_dji_0084",
+   "frames": 23,
+   "pos": 23,
+   "site": "ruokolahti",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 23
+   }
+  },
+  "ruokolahti_dji_0085": {
+   "boxes": 176,
+   "clip": "ruokolahti_dji_0085",
+   "frames": 178,
+   "pos": 176,
+   "site": "ruokolahti",
+   "true_neg": 2,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "test": 176,
+    "train": 2
+   }
+  },
+  "ruokolahti_dji_0086": {
+   "boxes": 383,
+   "clip": "ruokolahti_dji_0086",
+   "frames": 328,
+   "pos": 328,
+   "site": "ruokolahti",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 328
+   }
+  },
+  "ruokolahti_dji_0087": {
+   "boxes": 279,
+   "clip": "ruokolahti_dji_0087",
+   "frames": 282,
+   "pos": 279,
+   "site": "ruokolahti",
+   "true_neg": 0,
+   "unlabeled_nonempty": 3,
+   "v1_split": {
+    "train": 282
+   }
+  },
+  "ruokolahti_dji_0088": {
+   "boxes": 336,
+   "clip": "ruokolahti_dji_0088",
+   "frames": 328,
+   "pos": 328,
+   "site": "ruokolahti",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 328
+   }
+  },
+  "ruokolahti_dji_0089": {
+   "boxes": 89,
+   "clip": "ruokolahti_dji_0089",
+   "frames": 89,
+   "pos": 89,
+   "site": "ruokolahti",
+   "true_neg": 0,
+   "unlabeled_nonempty": 0,
+   "v1_split": {
+    "train": 89
+   }
+  }
+ },
+ "construction": {
+  "constraints": {
+   "every_site_in_val_or_test": true,
+   "max_single_clip_share_of_test": 0.4,
+   "max_single_clip_share_of_val": 0.5,
+   "min_clips_in_test": 3,
+   "min_clips_in_val": 3,
+   "min_mixed_negative_clips_in_test": 1,
+   "min_sites_in_test": 3,
+   "min_sites_in_val": 3,
+   "min_true_negative_clips_in_test": 2,
+   "min_true_negative_frames": {
+    "test": 50,
+    "train": 100,
+    "val": 30
+   },
+   "mixed_clip_min_negative_frames": 10,
+   "test_frames": [
+    600,
+    900
+   ],
+   "val_frames": [
+    600,
+    900
+   ]
+  },
+  "design_history": [
+   "candidate 1 (constraints without the three 'added before freezing' rules) was generated and its composition inspected; it was rejected because Evo was absent from val and test and 59 of 61 test negatives came from one all-background clip. The three rules were added and the search rerun. No model was trained or evaluated on candidate 1."
+  ],
+  "n_distinct_local_optima": 392,
+  "near_dup_bits": 4,
+  "objective_uses_model_outputs": false,
+  "objective_value": 0.11926689690047079,
+  "restarts": 400,
+  "scan_sha256_expected": "8a4db032e44c4040872d6b4863af9efefe7b2e5ac3b1f6e48b6f993a3e400e8e",
+  "search": "seeded steepest-descent with random restarts over single moves and pair swaps",
+  "seed": 20261029,
+  "target_fraction": {
+   "test": 0.15,
+   "val": 0.15
+  },
+  "top_alternatives_test_clips": [
+   [
+    "heinola_dji_0033",
+    "heinola_dji_0038",
+    "heinola_dji_0048",
+    "karkkila_dji_0001",
+    "karkkila_dji_0002",
+    "karkkila_dji_0003",
+    "karkkila_dji_0020",
+    "ruokolahti_dji_0082"
+   ],
+   [
+    "evodji_0009",
+    "heinola_dji_0033",
+    "heinola_dji_0048",
+    "karkkila_dji_0002",
+    "karkkila_dji_0003"
+   ],
+   [
+    "heinola_dji_0033",
+    "heinola_dji_0036",
+    "heinola_dji_0048",
+    "karkkila_dji_0003",
+    "karkkila_dji_0007",
+    "karkkila_dji_0008",
+    "ruokolahti_dji_0084"
+   ],
+   [
+    "evodji_0009",
+    "heinola_dji_0033",
+    "heinola_dji_0048",
+    "karkkila_dji_0003",
+    "karkkila_dji_0010",
+    "ruokolahti_dji_0082"
+   ],
+   [
+    "evodji_0009",
+    "heinola_dji_0033",
+    "heinola_dji_0048",
+    "karkkila_dji_0003",
+    "karkkila_dji_0010",
+    "ruokolahti_dji_0082"
+   ]
+  ],
+  "top_objectives": [
+   0.1193,
+   0.1195,
+   0.1207,
+   0.1213,
+   0.1215,
+   0.1215,
+   0.1215,
+   0.1218,
+   0.1218,
+   0.1221
+  ],
+  "unit": "normalised source clip (Empty-Images frames join their clip)",
+  "weights": {
+   "boxes_per_pos": 1.0,
+   "near_pairs": 5.0,
+   "pos_prevalence": 2.0,
+   "size": 10.0
+  }
+ },
+ "name": "boreal_v2",
+ "v1_membership_by_clip": {
+  "test": {
+   "evodji_0007": 328,
+   "karkkila_dji_0003": 26,
+   "karkkila_dji_0004": 71,
+   "karkkila_dji_0006": 100,
+   "ruokolahti_dji_0085": 176
+  },
+  "train": {
+   "evodji_0001": 314,
+   "evodji_0009": 289,
+   "heinola_dji_0024": 59,
+   "heinola_dji_0025": 201,
+   "heinola_dji_0028": 111,
+   "heinola_dji_0029": 106,
+   "heinola_dji_0030": 143,
+   "heinola_dji_0033": 230,
+   "heinola_dji_0036": 45,
+   "heinola_dji_0038": 10,
+   "heinola_dji_0048": 47,
+   "karkkila_dji_0001": 69,
+   "karkkila_dji_0002": 125,
+   "karkkila_dji_0003": 18,
+   "karkkila_dji_0005": 171,
+   "karkkila_dji_0006": 19,
+   "karkkila_dji_0007": 171,
+   "karkkila_dji_0008": 171,
+   "karkkila_dji_0010": 58,
+   "ruokolahti_dji_0082": 70,
+   "ruokolahti_dji_0084": 23,
+   "ruokolahti_dji_0085": 2,
+   "ruokolahti_dji_0086": 328,
+   "ruokolahti_dji_0087": 282,
+   "ruokolahti_dji_0088": 328,
+   "ruokolahti_dji_0089": 89
+  },
+  "val": {
+   "heinola_dji_0028": 156,
+   "heinola_dji_0048": 15,
+   "karkkila_dji_0020": 134,
+   "ruokolahti_dji_0080": 341,
+   "ruokolahti_dji_0081": 128
+  }
+ }
+}
