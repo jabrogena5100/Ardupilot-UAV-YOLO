@@ -363,7 +363,9 @@ Limits (from `CLAUDE.md`): $150 total project, $100 cumulative autonomous, $50 r
 | Boreal integrity scan pod `n5kg8sii9fcrp5` (RTX 4090 $0.89/h, US-IL-1, created 03:37 UTC 2026-10-29, scan about 20 s, terminated minutes later; not yet billed at last read) | not posted; allowance $0.25 (pod time under 17 min) |
 | **Billed October total at last read (2026-10-29)** | **$9.08** (pods GPU $5.98 + CPU $0.15 + disk $0.03, storage $2.92); earlier read 2026-10-28: $8.21 |
 | **Conservative cumulative** (billed + scan pod allowance) | **about $9.3** |
-| **Remaining autonomous allowance** | **about $90.7** (billing-only figure: $90.92) |
+| **Remaining autonomous allowance** | **about $90.7** (billing-only figure: $90.92) as of the 2026-10-29 morning read, **before the Boreal v2 experiment** |
+| Boreal v2 experiment, 2026-10-29 (4 attempts + 7 diagnostic/probe pods; estimated from pod start/stop times x $0.89/h) | **$2.93** estimated; billing had posted $11.27 total at 22:50Z (lags by hours) |
+| **Conservative cumulative after Boreal v2** | **about $12.3** (9.3 + 2.93 + about $0.1 storage); remaining autonomous allowance **about $87.7**. Re-read billing before the next launch; no pod is running (all EXITED; 7 stopped probe/diagnostic pods and 4 attempt pods remain, removable by hand) |
 
 Corrections: the earlier per-experiment estimates in this file ("about $0.60" for Model B, "about $0.13" for generation) came from pod run time and undercount; billing shows about $3.04 for 2026-10-04 (two pods with $1.38 and $1.07 of GPU charges are not individually documented) and $0.30 for 2026-10-05. The experiment documents keep their original estimates; this ledger is authoritative for spend. Pod count after the 2026-10-29 scan: 0 running (`list-pods` empty). Next session: re-read billing (it lags by hours) and replace the estimate with the billed figure. Storage keeps accruing about $0.12/day for the 50 GB volume.
 
@@ -498,13 +500,14 @@ Verified: API key, reads, volume, stop endpoint authorization, live `enforce` (n
 armed (needs merge to `main` + `RUNPOD_API_KEY` secret), live stop on a real pod, create-pod fields. Lifecycle test prepared, worst case $0.56, awaiting owner approval.
 Boreal v2 split + Level 2 evaluation remain the next scientific task, after the lifecycle test passes.
 
-### 2026-10-29 — Boreal v2 (clip-disjoint split): split frozen; GPU run LAUNCHED 19:14:55Z (pod kv3imy4lnltlea, see handoff Update 5)
+### 2026-10-29 — Boreal v2 (clip-disjoint split): COMPLETE (3 Model B seeds trained, Level 2 re-evaluated)
 
-Record: `docs/experiments/boreal_v2.md`. Done (free): 31 normalised clips, seeded constrained search (no model output), train 3462 / val 748 / test 744 frames
-(18 / 5 / 8 clips), video-disjoint, 0 exact duplicates across partitions, 22 train&test frame pairs within 4 dHash bits (documented residue), test has 65 held-out true negatives.
-Frozen file-list hashes: train `5b23b199...5c25`, val `8ef9e902...2e2f`, test `9fa6dbc1...dc8f`. Harness config `eval/datasets_boreal_v2.yaml` (Model A existing pinned checkpoints; Model B v2 seeds 0-2 to be trained),
-pod job `eval/runpod/boreal_v2_train_eval.sh`, materialiser `eval/runpod/boreal_v2_materialize.py`. **Not run**: no GPU spend ($0); blocker = no way for the cloud session to read results back from a pod
-(owner must choose a return path; options in `docs/handoffs/from_cloud_2026-10-29.md` Update 4). Boreal v1 splits, checkpoints and results untouched. Planned cost about $2.5, worst case $5.53.
+Records: `docs/experiments/boreal_v2.md` (split), `docs/experiments/boreal_v2_results.md` (results and inventory), artifacts `docs/experiments/boreal_v2/results/`, handoff `docs/handoffs/from_cloud_2026-10-29.md` Update 6.
+Split frozen first (31 clips; train 3462 / val 748 / test 744; video-disjoint; 22 residual near-duplicate train/test frame pairs documented). Model B v2 seeds 0-2 trained with the Level 2 v2 protocol plus a documented
+speed-only deviation (`cache=ram`, pixel-identical checked); Model A not retrained. Revised 2x2 mAP50 (mean of 3 seeds): Synth->Synth 0.995 (saturated), Synth->Real 0.512 +- 0.095, Real->Synth 0.612 +- 0.104, Real->Real 0.899 +- 0.027.
+Clip-clustered intervals (8 clips) are wide; real empty-scene FP rate (65 held-out frames): Model A 0.14-0.26, Model B-v2 0.015. Not comparable with Boreal v1 numbers. Estimated GPU spend $2.93 (4 attempts + 7 diagnostic pods); pods all EXITED.
+Infrastructure learned: pod-injected key cannot REST-stop (403) but GraphQL `podStop` works (now the supervisor fallback, verified in 3 real runs); RunPod rejects a 300 KB env (60 KB ok); host speed varies 6x (shared CPU).
+Checkpoints are on the volume only (hashes in `models/MODELS.md`); local backup is an owner step.
 
 ### 2026-10-27 — Level 2 v1: harness validation, Model A baseline, first 2x2
 

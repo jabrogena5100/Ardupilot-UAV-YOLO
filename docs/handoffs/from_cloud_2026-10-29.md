@@ -169,3 +169,31 @@ Spend this session $0 (billing read $8.97 total). Pods running: none. No checkpo
 - Return path: the pod serves ONLY `/workspace/runs/boreal_v2/export/` (token-protected) on `https://kv3imy4lnltlea-8000.proxy.runpod.net` until fetched or 15 min after completion. From this sandbox the proxy domain was still blocked at launch; if it was never fetched, retrieve `results_bundle.tgz` from the volume manually (RunPod console / your usual path) and verify against `results_bundle.tgz.sha256`. The results token file lives in the cloud session's scratchpad (not durable); it is also visible in the pod's environment in the RunPod console.
 - Create-pod findings: RunPod rejected a 300 KB environment (HTTP 500 "unmarshal ... invalid character 'I'"); 60 KB works; the bundle was cut to ~70 KB. Three throwaway probe pods (ids `ehlptgu8zl8o5c`, `ez7il6dxm4fkg6`, `1voj5p632zthee`) were created and stopped within seconds (about $0.01 total); they remain in state EXITED and can be removed by hand.
 - Stop-by-REST from the sandbox verified on those probes (state EXITED within 3 s). Pod-side self-stop (injected key) is verified only when this run ends.
+
+---
+
+# Update 6: Boreal v2 COMPLETE (supersedes the "pending" statements in Updates 4-5)
+
+Branch `science/boreal-v2` (local, **not pushed**; start from `main` `c080777`). Full record: `docs/experiments/boreal_v2_results.md`; split: `docs/experiments/boreal_v2.md`; artifacts: `docs/experiments/boreal_v2/results/`.
+
+## Verified infrastructure capabilities (all observed in real runs)
+- RunPod REST create/stop from the cloud session; HTTPS proxy retrieval (token-protected, allowlist-only results endpoint, hash-verified fetch, ack ends the server); live status endpoint.
+- **Pod self-stop: REST stop is 403 with the pod-injected key; GraphQL `podStop` works** and is the supervisor/in-pod-watchdog fallback (3 real pods stopped themselves). The GitHub watchdog (loop mode) was running throughout; a scheduled (cron) run also succeeded earlier.
+- Speed guard, no-overwrite checks, hash-pinned prior checkpoints, seed-subset runs (`--seeds`, `--prior-ckpt`), `cache=ram` pixel-equivalence guard.
+
+## Pending infrastructure / owner items
+- Local backup of the three new checkpoints (hashes in `models/MODELS.md`); volume copies are the only ones.
+- RunPod removal of 11 stopped pods (4 attempt pods + 7 probe/diagnostic pods) if desired; they cost only small disk charges.
+- Pushing/merging `science/boreal-v2` (intentionally unpushed). The orchestration branches were already merged (PRs 1-4).
+- RunPod env limit (~60 KB ok / 300 KB rejected) and 6x host-speed variance are recorded in `docs/runpod/orchestration.md`-adjacent notes only in the commit messages; add to that doc if useful.
+
+## Boreal v2 dataset readiness: DONE (frozen, hashed, audited). Model training: DONE for Model B v2 seeds 0-2 (Model A not retrained). Evaluation: DONE (6 models x 5 datasets), recomputed offline.
+Results (mAP50, mean of 3 seeds +- SD): Synth->Synth 0.995 (saturated); Synth->Real 0.512 +- 0.095; Real->Synth 0.612 +- 0.104; Real->Real 0.899 +- 0.027. Clip-clustered 95% intervals (8 clips) are wide (e.g. Real->Real seed 0 [0.838, 0.966], Synth->Real seed 0 [0.175, 0.810]); the gap's size is not tightly estimated. Real empty-scene FP rate on 65 held-out frames: Model A 0.14/0.17/0.26, Model B-v2 0.015 each. Boreal v1 results untouched and not comparable.
+Checkpoint SHA-256: seed 0 `090c0f4c...c299a05` (try3), seed 1 `5a9616ce...44e9388`, seed 2 `c4d443a8...ae097ef` (try4). Deviation: `cache=ram` (pixel-identical verified; Ultralytics non-determinism warning; seed 1 epochs 1-4 matched across two pods).
+Offline recompute: all detection metrics identical; 107 localisation statistics differ <= 4.2e-6 relative (NumPy versions).
+
+## Spend
+Estimated GPU **$2.93** for the experiment (billing posted $11.27 total at last read, lags). Conservative cumulative about $12.3; remaining autonomous allowance about $87.7. Within the $20 per-experiment limit. No pods running.
+
+## Outstanding research questions
+Robustness to a second clip-disjoint assignment; pixel-level identity of consecutive same-site clips; whether a versioned `synth_smoke_v2` with matched edge-touch closes the Synth->Real gap; Level 3 sensitivity/specificity from Boreal v2 negatives (no calibration code written, as instructed).
