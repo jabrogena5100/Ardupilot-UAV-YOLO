@@ -9,11 +9,12 @@
   status          what is running, deadlines, spend, and the append-only watchdog log (works from any new session)
 
 The pod needs no files on the network volume: this launcher ships the supervisor (and the job files) inside the pod's
-start command as a base64 tar.gz in $ORCH_BUNDLE_B64. The pod's name carries its hard deadline (`<run>__dl<epoch>`), which the
+start command as a base64 tar.gz split over $ORCH_BUNDLE_B64_<i> (repo files under repo/). The pod's name carries its hard deadline (`<run>__dl<epoch>`), which the
 independent GitHub Actions watchdog (.github/workflows/runpod-watchdog.yml) enforces. No delete/terminate call exists here.
 """
 import argparse
 import base64
+import hashlib
 import io
 import json
 import os
@@ -30,41 +31,61 @@ import rp_common as C  # noqa: E402
 DEFAULTS = {"gpu": "NVIDIA GeForce RTX 4090", "data_center": "US-IL-1", "volume_id": "sej40ez3ia", "mount": "/workspace",
             "image": "runpod/pytorch:2.8.0-py3.12-cuda12.8.1-cudnn-devel-ubuntu22.04", "container_disk_gb": 30}
 CORE_FILES = ["rp_common.py", "pod_supervisor.py"]
-MAX_BUNDLE_B64 = 120_000  # keep the env var / start command comfortably small
+CHUNK_B64 = 50_000   # one env var per chunk (execve limit is 128 KiB per string)
+MAX_CHUNKS = 8
 
 
-def make_bundle(extra_files=()):
-    """tar.gz (base64) holding the supervisor + extra files, flat names, deterministic. extra_files are paths inside eval/runpod/."""
+def make_bundle(extra_files=(), repo_paths=()):
+    """Deterministic tar.gz of the supervisor (+ extra eval/runpod files at the top level, + repo files under repo/), base64, split
+    into chunks of at most CHUNK_B64 characters (one environment variable each). Returns (chunks, sha256 of the tarball).
+    repo_paths are repo-relative files or directories (only *.py/*.sh/*.yaml/*.json/*.md files; no caches, weights or data)."""
+    root = os.path.dirname(os.path.dirname(HERE))
+    members = {}
+    for name in sorted(set(CORE_FILES) | set(extra_files)):
+        path = os.path.realpath(os.path.join(HERE, name))
+        if os.path.dirname(path) != os.path.realpath(HERE):
+            raise ValueError(f"bundle files must live in eval/runpod/: {name}")
+        members[os.path.basename(name)] = path
+    for rel in sorted(repo_paths):
+        path = os.path.realpath(os.path.join(root, rel))
+        if not path.startswith(os.path.realpath(root) + os.sep):
+            raise ValueError(f"repo path outside the repository: {rel}")
+        walk = [path] if os.path.isfile(path) else [os.path.join(d, f) for d, _, fs in os.walk(path) for f in fs]
+        for fp in sorted(walk):
+            if "__pycache__" in fp or os.path.splitext(fp)[1] not in (".py", ".sh", ".yaml", ".json", ".md"):
+                continue
+            members["repo/" + os.path.relpath(fp, root)] = fp
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz", format=tarfile.PAX_FORMAT) as tf:
-        for name in sorted(set(CORE_FILES) | set(extra_files)):
-            path = os.path.realpath(os.path.join(HERE, name))
-            if os.path.dirname(path) != os.path.realpath(HERE):
-                raise ValueError(f"bundle files must live in eval/runpod/: {name}")
-            ti = tarfile.TarInfo(os.path.basename(name))
-            with open(path, "rb") as fh:
+        for arc in sorted(members):
+            with open(members[arc], "rb") as fh:
                 data = fh.read()
-            ti.size, ti.mtime, ti.mode = len(data), 0, 0o644
+            ti = tarfile.TarInfo(arc)
+            ti.size, ti.mtime, ti.mode = len(data), 0, 0o755 if arc.endswith(".sh") else 0o644
             tf.addfile(ti, io.BytesIO(data))
-    b64 = base64.b64encode(buf.getvalue()).decode()
-    if len(b64) > MAX_BUNDLE_B64:
-        raise ValueError(f"bundle too large ({len(b64)} chars)")
-    return b64
+    raw = buf.getvalue()
+    b64 = base64.b64encode(raw).decode()
+    chunks = [b64[i:i + CHUNK_B64] for i in range(0, len(b64), CHUNK_B64)]
+    if len(chunks) > MAX_CHUNKS:
+        raise ValueError(f"bundle too large ({len(b64)} chars, {len(chunks)} chunks)")
+    return chunks, hashlib.sha256(raw).hexdigest()
 
 
-def build_spec(a, git_commit, bundle_b64, deadline_epoch):
+def build_spec(a, git_commit, bundle, deadline_epoch):
+    chunks, bundle_sha = bundle
     result_dir = f"{a.mount}/runs/{a.run_name}_orch"
     sup = ["python3", "pod_supervisor.py", "--run-name", a.run_name, "--result-dir", result_dir,
            "--hard-timeout-s", str(a.hard_timeout_s)]
     for art in a.artifact:
         sup += ["--artifact", art]
     sup += ["--"] + shlex.split(a.job)
-    boot = ('set -e; D=$(mktemp -d); printf %s "$ORCH_BUNDLE_B64" | base64 -d | tar xz -C "$D"; cd "$D"; exec '
-            + shlex.join(sup))
+    names = [f"ORCH_BUNDLE_B64_{i}" for i in range(len(chunks))]
+    boot = ('set -e; D=$(mktemp -d); { ' + " ".join(f'printf %s "${n}";' for n in names)
+            + ' } | base64 -d | tar xz -C "$D"; cd "$D"; exec ' + shlex.join(sup))
+    env = {"GIT_COMMIT": git_commit, "BUNDLE_SHA256": bundle_sha, **dict(zip(names, chunks)), **dict(getattr(a, "extra_env", {}) or {})}
     return {"name": C.tag_name(a.run_name, deadline_epoch), "imageName": a.image, "cloudType": "SECURE", "gpuCount": 1,
             "gpuTypeIds": [a.gpu], "dataCenterIds": [a.data_center], "networkVolumeId": a.volume_id,
-            "volumeMountPath": a.mount, "containerDiskInGb": a.container_disk_gb,
-            "env": {"GIT_COMMIT": git_commit, "ORCH_BUNDLE_B64": bundle_b64},
+            "volumeMountPath": a.mount, "containerDiskInGb": a.container_disk_gb, "env": env,
             "dockerStartCmd": ["bash", "-lc", boot]}
 
 
@@ -90,12 +111,12 @@ def preflight(api, a):
 
 
 def launch(api, a, git_commit, now=time.time):
-    bundle = make_bundle(getattr(a, "bundle_files", []))
+    bundle = make_bundle(getattr(a, "bundle_files", []), getattr(a, "repo_paths", []))
     plan = preflight(api, a)
     t_create = now()
     deadline = t_create + a.boot_allowance_s + a.hard_timeout_s  # off-pod watchdog stops the pod after this
     spec = build_spec(a, git_commit, bundle, deadline)
-    out = {"preflight": plan, "spec": redact(spec), "bundle_chars": len(bundle), "created": False,
+    out = {"preflight": plan, "spec": redact(spec), "bundle_chunks": len(bundle[0]), "bundle_sha256": bundle[1], "created": False,
            "deadline_epoch": int(deadline), "deadline_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(deadline))}
     if not plan["ok"]:
         return 3, out
@@ -170,6 +191,7 @@ def add_job_args(p, job_required=True):
     p.add_argument("--watchdog-armed", action="store_true", help="owner/agent attestation that the GitHub watchdog is live")
     p.add_argument("--artifact", action="append", default=[])
     p.add_argument("--bundle-file", action="append", default=[], dest="bundle_files", help="extra file from eval/runpod/")
+    p.add_argument("--repo-path", action="append", default=[], dest="repo_paths", help="repo-relative file/dir shipped under repo/")
     for k, v in (("gpu", DEFAULTS["gpu"]), ("data-center", DEFAULTS["data_center"]), ("volume-id", DEFAULTS["volume_id"]),
                  ("mount", DEFAULTS["mount"]), ("image", DEFAULTS["image"])):
         p.add_argument("--" + k, default=v)

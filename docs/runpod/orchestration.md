@@ -47,7 +47,7 @@ step-by-step verification (manual run with `selftest`, one scheduled run) are in
 those checks pass. GitHub pauses scheduled workflows after 60 days without repository activity.
 
 ## Fresh pod
-No files on the volume are needed: the supervisor and job files travel in `$ORCH_BUNDLE_B64` (about 8 KB) inside the start command (tested in an
+No files on the volume are needed: the supervisor and job files travel in `$ORCH_BUNDLE_B64_<i>` (chunks of at most 50 KB; `--repo-path` adds repo files under `repo/`) inside the start command (tested in an
 empty directory). Needs `bash`, `base64`, `tar`, `python3` in the image. Research jobs must bring their own checkout.
 
 ## Verified vs not verified

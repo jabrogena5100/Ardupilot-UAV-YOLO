@@ -115,7 +115,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertFalse(out["created"])
         self.assertEqual(api.calls, [])
-        self.assertEqual(out["spec"]["env"]["ORCH_BUNDLE_B64"], "<set>")
+        self.assertEqual(out["spec"]["env"]["ORCH_BUNDLE_B64_0"], "<set>")
         self.assertRegex(out["spec"]["name"], r"^t_run__dl\d{10}$")
 
     def test_wrong_confirmation_creates_nothing(self):
@@ -189,7 +189,8 @@ class InfraTests(unittest.TestCase):
         L.launch(api, self.a(confirm_paid="t_run"), "abc")
         spec = api.calls[0][1]
         with tempfile.TemporaryDirectory() as td:
-            env = {"PATH": os.environ["PATH"], "HOME": td, "TMPDIR": td, "ORCH_BUNDLE_B64": spec["env"]["ORCH_BUNDLE_B64"]}
+            env = {"PATH": os.environ["PATH"], "HOME": td, "TMPDIR": td,
+                   **{k: v for k, v in spec["env"].items() if k.startswith("ORCH_BUNDLE_B64_")}}
             r = subprocess.run(["bash", "-c", spec["dockerStartCmd"][-1]], cwd=td, env=env, capture_output=True, text=True,
                                timeout=60)
         self.assertEqual(r.returncode, 5, r.stderr)  # reached the supervisor; no key => refuses to run the job
@@ -198,7 +199,31 @@ class InfraTests(unittest.TestCase):
     def test_bundle_is_deterministic_and_small(self):
         b1, b2 = L.make_bundle(), L.make_bundle()
         self.assertEqual(b1, b2)
-        self.assertLess(len(b1), L.MAX_BUNDLE_B64)
+        self.assertEqual(len(b1[0]), 1)
+
+    def test_repo_bundle_is_chunked_extractable_and_excludes_data(self):
+        import io as _io
+        import base64 as _b64
+        import tarfile as _tf
+        chunks, sha = L.make_bundle(["lifecycle_test_job.py"], ["eval", "docs/experiments/boreal_v2"])
+        self.assertTrue(all(len(c) <= L.CHUNK_B64 for c in chunks))
+        tf = _tf.open(fileobj=_io.BytesIO(_b64.b64decode("".join(chunks))), mode="r:gz")
+        names = tf.getnames()
+        self.assertIn("pod_supervisor.py", names)
+        self.assertIn("repo/eval/run_matrix.py", names)
+        self.assertIn("repo/docs/experiments/boreal_v2/filelists.json", names)
+        self.assertFalse([n for n in names if n.endswith((".pt", ".gz", ".pyc")) or "__pycache__" in n], names)
+        self.assertEqual(L.make_bundle(["lifecycle_test_job.py"], ["eval", "docs/experiments/boreal_v2"])[1], sha)
+
+    def test_boreal_v2_job_pieces_present_in_bundle(self):
+        import io as _io
+        import base64 as _b64
+        import tarfile as _tf
+        chunks, _ = L.make_bundle([], ["eval", "docs/experiments/boreal_v2"])
+        names = _tf.open(fileobj=_io.BytesIO(_b64.b64decode("".join(chunks))), mode="r:gz").getnames()
+        for need in ("repo/eval/runpod/boreal_v2_train_eval.sh", "repo/eval/runpod/boreal_v2_materialize.py",
+                     "repo/eval/datasets_boreal_v2.yaml", "repo/eval/datasets.yaml", "repo/docs/experiments/boreal_v2/split_audit.json"):
+            self.assertIn(need, names)
 
     def test_bundle_rejects_files_outside_eval_runpod(self):
         with self.assertRaises(ValueError):
