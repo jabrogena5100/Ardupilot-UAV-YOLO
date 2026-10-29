@@ -82,6 +82,13 @@ class FrozenArtifacts(unittest.TestCase):
         self.assertEqual(v1["datasets"]["boreal_test"]["filelist_sha256"], "d2a610deddfd0053e046efb42e9aaa9e22158164d7b89a0c63e4789d159fc41b")
         self.assertEqual(v1["models"]["model_b"]["sha256"], "1dc35ef293b6b35bb2dadaf5b6d5887ece89ca9d55a445bfdde258286c8355b6")
 
+    def test_recheck_matches_audit_and_documents_limitations(self):
+        r = j("recheck.json")
+        self.assertEqual(r["n_pairs_le4"], sum(j("split_audit.json")["dhash_cross_partition_pairs_<=4_by_clip_pair"].values()))
+        self.assertEqual(r["n_pairs_le4"], 22)
+        self.assertEqual(len(r["test_frames_with_train_or_val_neighbour_le4"]), 6)
+        self.assertIn("NOT established", r["interpretation"])
+
     def test_construction_is_reproducible(self):
         scan = json.load(gzip.open(SCAN))
         clips = B.clip_table(scan)
@@ -89,6 +96,52 @@ class FrozenArtifacts(unittest.TestCase):
         asg, obj = B.search(clips, near)[0]
         self.assertEqual(asg, j("split_assignment.json")["assignment"])
         self.assertAlmostEqual(obj, j("split_assignment.json")["construction"]["objective_value"], places=9)
+
+
+class JobScriptLint(unittest.TestCase):
+    """Static guarantees about eval/runpod/boreal_v2_train_eval.sh: everything it writes goes to NEW v2 paths; nothing existing is touched."""
+
+    def setUp(self):
+        self.src = open(os.path.join(ROOT, "eval", "runpod", "boreal_v2_train_eval.sh")).read()
+        self.code = "\n".join(l for l in self.src.splitlines() if not l.strip().startswith("#"))
+
+    def test_never_deletes_moves_or_overwrites(self):
+        import re
+        for pat in (r"\brm\b", r"\bmv\b", r"exist_ok=True", r"\bdd\b", r"mkfs", r"git (push|reset|checkout)", r"--force"):
+            self.assertIsNone(re.search(pat, self.code), pat)
+
+    def test_aborts_if_targets_exist(self):
+        self.assertIn('[ -e "$p" ] && { echo "ABORT: $p exists (refusing to overwrite)"; exit 1; }', self.code)
+        for t in ('"$OUT"', '"$SPL2"', '"$SPL2.partial"'):
+            self.assertIn(t, self.code)
+
+    def test_writes_only_under_v2_paths(self):
+        import re
+        self.assertIn("OUT=$RUNS/$TAG", self.code)
+        self.assertEqual(re.findall(r"TAG=\$\{RUN_TAG:-(\w+)\}", self.code), ["boreal_v2"])
+        for m in re.finditer(r"\bcp\s+(.*)", self.code):
+            self.assertRegex(m.group(1), r"\$(OUT|RUN|EXP|SPL2)", m.group(0))
+        self.assertNotIn("splits/boreal_v1", self.code)                 # v1 split is never even referenced
+        self.assertNotIn("real_boreal_best_v1", self.code)
+        self.assertIn("project=$OUT name=$NAME exist_ok=False", self.code)
+
+    def test_protocol_is_unchanged(self):
+        for flag in ("model=yolov8s.pt", "epochs=100", "patience=100", "imgsz=640", "batch=32", "deterministic=True", "workers=8",
+                     "optimizer=AdamW", "lr0=0.002", "momentum=0.9", "warmup_bias_lr=0.0", "data=$SPL2/data.yaml", '"ultralytics==8.4.173"'):
+            self.assertIn(flag, self.code)
+        self.assertIn("for S in 0 1 2; do train_one $S; done", self.code)
+
+    def test_all_artifact_classes_are_saved_and_hashed(self):
+        for need in ("sha256sum $RUN/$CK", "train_config.json", "results.csv", "args.yaml", "results_bundle.tgz", "INTEGRITY.json",
+                     "--bootstrap 1000", "split_manifest_materialised.json", "pip_freeze", "seed_aggregation"):
+            self.assertIn(need, self.code + self.src)
+        self.assertIn("--exclude='*.pt'", self.code)                    # checkpoints stay on the volume, never exported
+
+    def test_serving_is_guarded_by_token_and_only_exports(self):
+        self.assertIn('[ -z "$NO_SERVE" ] && [ -n "$RESULTS_TOKEN" ]', self.code)
+        self.assertIn("results_server.py --root $EXP", self.code)
+        self.assertNotIn("--root $OUT", self.code)
+        self.assertNotIn("--root /workspace", self.code)
 
 
 class Materialise(unittest.TestCase):

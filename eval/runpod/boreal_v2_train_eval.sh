@@ -152,5 +152,25 @@ cd $OUT && tar czf $OUT/results_bundle.tgz --exclude='*.pt' --exclude='weights' 
   real_boreal_v2_seed*/train_config.json real_boreal_v2_seed*_train.log datasets_boreal_v2_pinned.yaml split_manifest_materialised.json INTEGRITY.json run_matrix.log 2>/dev/null
 sha256sum $OUT/results_bundle.tgz | tee $OUT/results_bundle.tgz.sha256; ls -la $OUT/results_bundle.tgz
 n_ok=$(grep -l "\"complete\": true" $OUT/real_boreal_v2_seed*/train_config.json 2>/dev/null | wc -l)
-echo "=== DONE $(date -u +%FT%TZ) total_elapsed=$(( $(date +%s) - T_START ))s trainings_with_config=$n_ok matrix_rc=$MRC"
-[ "$n_ok" = 3 ] && [ "$MRC" = 0 ] && exit 0 || exit 1
+JOB_RC=1; [ "$n_ok" = 3 ] && [ "$MRC" = 0 ] && JOB_RC=0
+echo "=== JOB_RESULT $(date -u +%FT%TZ) total_elapsed=$(( $(date +%s) - T_START ))s trainings_complete=$n_ok matrix_rc=$MRC job_rc=$JOB_RC"
+
+echo "--- export for retrieval (small artifacts only; never checkpoints; copies into a NEW dir, originals untouched)"
+EXP=$OUT/export
+mkdir -p $EXP && cp $OUT/results_bundle.tgz $OUT/results_bundle.tgz.sha256 $OUT/INTEGRITY.json $EXP/ 2>/dev/null
+for S in 0 1 2; do cp $OUT/real_boreal_v2_seed$S/train_config.json $EXP/train_config_seed$S.json 2>/dev/null; done
+python3 - <<PY
+import os, sys
+sys.path.insert(0, "$REPO/eval/runpod")
+import results_server as RS
+names = [n for n in sorted(os.listdir("$EXP")) if n != "export_manifest.json"]
+print("EXPORT_MANIFEST", {k: v["bytes"] for k, v in RS.write_manifest("$EXP", names).items()})
+PY
+if [ -z "$NO_SERVE" ] && [ -n "$RESULTS_TOKEN" ]; then
+  echo "SERVING results on port 8000 for ${SERVE_SECONDS:-1500}s (or until acknowledged) $(date -u +%FT%TZ)"
+  python3 $REPO/eval/runpod/results_server.py --root $EXP --port 8000 --serve-seconds ${SERVE_SECONDS:-1500}
+else
+  echo "NOT serving (NO_SERVE set or RESULTS_TOKEN missing): fetch $OUT/results_bundle.tgz from the volume manually"
+fi
+echo "=== DONE $(date -u +%FT%TZ) total_elapsed=$(( $(date +%s) - T_START ))s"
+exit $JOB_RC

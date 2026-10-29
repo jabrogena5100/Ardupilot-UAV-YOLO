@@ -4,6 +4,7 @@
   check-access    read-only: API reads, volume present, billing, and a NON-MUTATING stop probe on a nonexistent pod id
   preflight       read-only: no pod running, budget check -> plan (exit 0 ok / 3 refused)
   launch          preflight, then (only with --confirm-paid RUN_NAME and --watchdog-armed) create ONE pod. Dry run otherwise.
+  transfer-test   launch preset: serve a 256 KiB disposable artifact through the RunPod HTTPS proxy (tests the return path), 600 s hard timeout
   lifecycle-test  launch preset: disposable job (no model, no dataset), 60 s hard timeout, run name lifecycle_test_*
   enforce         one pass of the off-pod watchdog (same as watchdog.py)
   status          what is running, deadlines, spend, and the append-only watchdog log (works from any new session)
@@ -83,10 +84,15 @@ def build_spec(a, git_commit, bundle, deadline_epoch):
     boot = ('set -e; D=$(mktemp -d); { ' + " ".join(f'printf %s "${n}";' for n in names)
             + ' } | base64 -d | tar xz -C "$D"; cd "$D"; exec ' + shlex.join(sup))
     env = {"GIT_COMMIT": git_commit, "BUNDLE_SHA256": bundle_sha, **dict(zip(names, chunks)), **dict(getattr(a, "extra_env", {}) or {})}
-    return {"name": C.tag_name(a.run_name, deadline_epoch), "imageName": a.image, "cloudType": "SECURE", "gpuCount": 1,
+    if getattr(a, "results_token", None):
+        env["RESULTS_TOKEN"] = a.results_token
+    spec = {"name": C.tag_name(a.run_name, deadline_epoch), "imageName": a.image, "cloudType": "SECURE", "gpuCount": 1,
             "gpuTypeIds": [a.gpu], "dataCenterIds": [a.data_center], "networkVolumeId": a.volume_id,
             "volumeMountPath": a.mount, "containerDiskInGb": a.container_disk_gb, "env": env,
             "dockerStartCmd": ["bash", "-lc", boot]}
+    if getattr(a, "ports", None):
+        spec["ports"] = list(a.ports)
+    return spec
 
 
 def redact(spec):
@@ -135,6 +141,8 @@ def launch(api, a, git_commit, now=time.time):
         out.update(stopped_for_price=True, cost_per_hr=price)
         return 3, out
     out["cost_per_hr"] = price
+    if getattr(a, "ports", None) and pod.get("id"):
+        out["proxy_urls"] = {p.split("/")[0]: f"https://{pod['id']}-{p.split('/')[0]}.proxy.runpod.net" for p in a.ports if p.endswith("/http")}
     return 0, out
 
 
@@ -197,6 +205,8 @@ def add_job_args(p, job_required=True):
         p.add_argument("--" + k, default=v)
     p.add_argument("--container-disk-gb", type=int, default=DEFAULTS["container_disk_gb"])
     p.add_argument("--confirm-paid", default="", help="must equal --run-name to create a pod")
+    p.add_argument("--port", action="append", default=[], dest="ports", help="expose a pod port, e.g. 8000/http (RunPod HTTPS proxy)")
+    p.add_argument("--results-token-file", default="", help="file holding the results-endpoint token (created 0600 if missing; must be outside the repo)")
 
 
 def lifecycle_args(ns):
@@ -210,6 +220,32 @@ def lifecycle_args(ns):
     return ns
 
 
+def transfer_args(ns):
+    ns.run_name = ns.run_name or "transfer_test_" + time.strftime("%Y%m%d_%H%M%S", time.gmtime())
+    if not ns.run_name.startswith("transfer_test_"):
+        raise SystemExit("transfer test run names must start with transfer_test_")
+    ns.job = f"python3 transfer_test_job.py --out {ns.mount}/runs/{ns.run_name}_job --serve-seconds 420"
+    ns.hard_timeout_s = 600
+    ns.artifact = []
+    ns.bundle_files = ["transfer_test_job.py", "results_server.py"]
+    ns.ports = ns.ports or ["8000/http"]
+    return ns
+
+
+def load_token(path):
+    """Read (or create with mode 0600) the results token. Refuses a path inside the repository."""
+    import secrets
+    root = os.path.realpath(os.path.dirname(os.path.dirname(HERE)))
+    path = os.path.realpath(path)
+    if path == root or path.startswith(root + os.sep):
+        raise SystemExit("token file must live outside the repository")
+    if not os.path.exists(path):
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write(secrets.token_urlsafe(32) + "\n")
+    return open(path).read().strip()
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -218,6 +254,9 @@ def main(argv=None):
     sub.add_parser("enforce")
     for name in ("preflight", "launch"):
         add_job_args(sub.add_parser(name))
+    tt = sub.add_parser("transfer-test")
+    add_job_args(tt, job_required=False)
+    tt.set_defaults(run_name="", job="", hard_timeout_s=600)
     lt = sub.add_parser("lifecycle-test")
     add_job_args(lt, job_required=False)
     lt.set_defaults(run_name="", job="", hard_timeout_s=60)
@@ -235,11 +274,16 @@ def main(argv=None):
         return watchdog.enforce(api, lambda n, **f: print(C.utc_now(), n, f))
     if a.cmd == "lifecycle-test":
         a = lifecycle_args(a)
+    if a.cmd == "transfer-test":
+        a = transfer_args(a)
+    a.results_token = load_token(a.results_token_file) if getattr(a, "results_token_file", "") else None
     commit = os.environ.get("GIT_COMMIT", "unknown")
     if a.cmd == "preflight":
         out = {"preflight": preflight(api, a)}
         print(json.dumps(out, indent=2))
         return 0 if out["preflight"]["ok"] else 3
+    if a.cmd == "transfer-test":
+        a.cmd = "launch"
     rc, out = launch(api, a, commit)
     print(json.dumps(out, indent=2))
     return rc

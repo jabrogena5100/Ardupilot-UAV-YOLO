@@ -1,0 +1,238 @@
+{
+ "near_pairs_le4_cross_partition": [
+  {
+   "hamming": 2,
+   "a": "Empty-Images__heinola_DJI_0048_frame103.jpg",
+   "a_partition": "test",
+   "b": "Ruokolahti-Images__ruokolahti_DJI_0089_frame74.jpg",
+   "b_partition": "train"
+  },
+  {
+   "hamming": 2,
+   "a": "Empty-Images__heinola_DJI_0048_frame103.jpg",
+   "a_partition": "test",
+   "b": "Ruokolahti-Images__ruokolahti_DJI_0089_frame75.jpg",
+   "b_partition": "train"
+  },
+  {
+   "hamming": 2,
+   "a": "Empty-Images__heinola_DJI_0048_frame103.jpg",
+   "a_partition": "test",
+   "b": "Ruokolahti-Images__ruokolahti_DJI_0089_frame76.jpg",
+   "b_partition": "train"
+  },
+  {
+   "hamming": 3,
+   "a": "Empty-Images__heinola_DJI_0028_frame0.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame184.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 3,
+   "a": "Empty-Images__heinola_DJI_0028_frame219.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame104.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 3,
+   "a": "Empty-Images__heinola_DJI_0028_frame67.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame103.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 3,
+   "a": "Empty-Images__heinola_DJI_0048_frame187.jpg",
+   "a_partition": "test",
+   "b": "Ruokolahti-Images__ruokolahti_DJI_0089_frame74.jpg",
+   "b_partition": "train"
+  },
+  {
+   "hamming": 3,
+   "a": "Empty-Images__heinola_DJI_0048_frame187.jpg",
+   "a_partition": "test",
+   "b": "Ruokolahti-Images__ruokolahti_DJI_0089_frame75.jpg",
+   "b_partition": "train"
+  },
+  {
+   "hamming": 3,
+   "a": "Empty-Images__heinola_DJI_0048_frame187.jpg",
+   "a_partition": "test",
+   "b": "Ruokolahti-Images__ruokolahti_DJI_0089_frame76.jpg",
+   "b_partition": "train"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame100.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame184.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame218.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame188.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame219.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame188.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame220.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame104.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame224.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame188.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame67.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame187.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame82.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame188.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame92.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame104.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame95.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame100.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame95.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame184.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame96.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame184.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0028_frame97.jpg",
+   "a_partition": "train",
+   "b": "Empty-Images__heinola_DJI_0048_frame184.jpg",
+   "b_partition": "test"
+  },
+  {
+   "hamming": 4,
+   "a": "Empty-Images__heinola_DJI_0048_frame103.jpg",
+   "a_partition": "test",
+   "b": "Ruokolahti-Images__ruokolahti_DJI_0089_frame73.jpg",
+   "b_partition": "train"
+  }
+ ],
+ "n_pairs_le4": 22,
+ "test_frames_with_train_or_val_neighbour_le4": [
+  "Empty-Images__heinola_DJI_0048_frame100.jpg",
+  "Empty-Images__heinola_DJI_0048_frame103.jpg",
+  "Empty-Images__heinola_DJI_0048_frame104.jpg",
+  "Empty-Images__heinola_DJI_0048_frame184.jpg",
+  "Empty-Images__heinola_DJI_0048_frame187.jpg",
+  "Empty-Images__heinola_DJI_0048_frame188.jpg"
+ ],
+ "cross_partition_clip_pairs_le8": {
+  "heinola_dji_0028|heinola_dji_0048": 191,
+  "heinola_dji_0033|ruokolahti_dji_0085": 55,
+  "heinola_dji_0048|ruokolahti_dji_0089": 46,
+  "evodji_0009|heinola_dji_0028": 31,
+  "evodji_0007|heinola_dji_0048": 24,
+  "evodji_0007|evodji_0009": 19,
+  "evodji_0001|heinola_dji_0048": 18,
+  "evodji_0009|heinola_dji_0048": 16,
+  "evodji_0009|ruokolahti_dji_0089": 16,
+  "evodji_0009|heinola_dji_0029": 12,
+  "karkkila_dji_0005|karkkila_dji_0020": 9,
+  "heinola_dji_0029|heinola_dji_0048": 8,
+  "heinola_dji_0033|ruokolahti_dji_0084": 7,
+  "heinola_dji_0048|karkkila_dji_0006": 6,
+  "heinola_dji_0048|ruokolahti_dji_0081": 6,
+  "ruokolahti_dji_0082|ruokolahti_dji_0085": 6,
+  "evodji_0001|karkkila_dji_0007": 3,
+  "ruokolahti_dji_0081|ruokolahti_dji_0082": 3,
+  "heinola_dji_0028|karkkila_dji_0007": 1,
+  "heinola_dji_0030|heinola_dji_0048": 1,
+  "karkkila_dji_0005|karkkila_dji_0008": 1,
+  "ruokolahti_dji_0080|ruokolahti_dji_0082": 1
+ },
+ "consecutive_number_same_site_clips_in_different_partitions": [
+  {
+   "clips": [
+    "heinola_dji_0024",
+    "heinola_dji_0025"
+   ],
+   "partitions": [
+    "val",
+    "train"
+   ],
+   "cross_partition_pairs_le8": 0
+  },
+  {
+   "clips": [
+    "karkkila_dji_0003",
+    "karkkila_dji_0004"
+   ],
+   "partitions": [
+    "test",
+    "train"
+   ],
+   "cross_partition_pairs_le8": 0
+  },
+  {
+   "clips": [
+    "karkkila_dji_0006",
+    "karkkila_dji_0007"
+   ],
+   "partitions": [
+    "train",
+    "val"
+   ],
+   "cross_partition_pairs_le8": 0
+  },
+  {
+   "clips": [
+    "ruokolahti_dji_0081",
+    "ruokolahti_dji_0082"
+   ],
+   "partitions": [
+    "train",
+    "test"
+   ],
+   "cross_partition_pairs_le8": 3
+  }
+ ],
+ "interpretation": "dHash (9x8 grayscale) flags candidates only; consecutive DJI numbers may be segments of one flight. Independence of these clips is NOT established; treat as documented limitations."
+}
