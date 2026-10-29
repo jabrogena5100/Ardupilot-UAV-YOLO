@@ -50,7 +50,11 @@ def load(cells_dir: str) -> Dict[Any, Dict[int, Dict]]:
     return out
 
 
-def aggregate(cells_dir: str) -> Dict[str, Any]:
+def aggregate(cells_dir: str, boreal_ds: str = "boreal_test") -> Dict[str, Any]:
+    """boreal_ds names the real-domain test set (default: the frozen v1 `boreal_test`; Boreal v2 passes `boreal_v2_test`)."""
+    in_domain, cross = dict(IN_DOMAIN), dict(CROSS)
+    in_domain["B"] = boreal_ds
+    cross["A"] = boreal_ds
     data = load(cells_dir)
     res: Dict[str, Any] = {"cells": {}, "deltas": {}, "checkpoints": {}}
     for (fam, ds), by_seed in sorted(data.items()):
@@ -65,7 +69,7 @@ def aggregate(cells_dir: str) -> Dict[str, Any]:
         for s in seeds:
             res["checkpoints"][f"{fam}|seed{s}"] = by_seed[s]["checkpoint_sha256"]
     for fam in "AB":
-        i, x = data.get((fam, IN_DOMAIN[fam]), {}), data.get((fam, CROSS[fam]), {})
+        i, x = data.get((fam, in_domain[fam]), {}), data.get((fam, cross[fam]), {})
         common = sorted(set(i) & set(x))
         if not common:
             continue
@@ -73,7 +77,7 @@ def aggregate(cells_dir: str) -> Dict[str, Any]:
         for name, fn in METRICS:
             diffs = [fn(x[s]["metrics"]) - fn(i[s]["metrics"]) for s in common]
             d[name] = stats(diffs)
-        res["deltas"][fam] = {"seeds": common, "in_domain": IN_DOMAIN[fam], "cross_domain": CROSS[fam], "metrics": d}
+        res["deltas"][fam] = {"seeds": common, "in_domain": in_domain[fam], "cross_domain": cross[fam], "metrics": d}
     return res
 
 
@@ -81,14 +85,16 @@ def fmt(v, nd=3):
     return "n/a" if v is None else f"{v:.{nd}f}"
 
 
-def render(res: Dict[str, Any]) -> str:
+def render(res: Dict[str, Any], boreal_ds: str = "boreal_test") -> str:
+    cell_names = {k: v for k, v in CELL_NAMES.items()}
+    cell_names = {(f, (boreal_ds if d == "boreal_test" else d)): n for (f, d), n in cell_names.items()}
     L = ["# Level 2: seed aggregation", "",
          "Per-seed values come from independently trained checkpoints (seed 0 = level2_v1, seeds 1-2 = level2_v2) evaluated "
          "through the same harness. **SD is the sample standard deviation across seeds (n = number of seeds; with n=3 it is "
          "itself very uncertain). Bootstrap intervals below are a different quantity and are not seed uncertainty.**", ""]
     for mname, _ in METRICS[:3] + METRICS[4:]:
         L += [f"## {mname}", "", "| cell | " + " | ".join(f"seed {s}" for s in range(3)) + " | mean | SD | min-max |", "|---|---|---|---|---|---|---|"]
-        for (fam, ds), lab in CELL_NAMES.items():
+        for (fam, ds), lab in cell_names.items():
             c = res["cells"].get(f"{fam}|{ds}")
             if not c or mname not in c["metrics"]:
                 continue
@@ -108,7 +114,7 @@ def render(res: Dict[str, Any]) -> str:
           "Image-level resampling treats frames as independent. Boreal frames from one video are correlated, so the "
           "video-cluster row (5 test videos) is the more honest one for Boreal; the percentile method is crude with so few clusters.", "",
           "| cell | seed | resampling | mAP50 | mAP50-95 | recall@0.25 |", "|---|---|---|---|---|---|"]
-    for (fam, ds), lab in CELL_NAMES.items():
+    for (fam, ds), lab in cell_names.items():
         c = res["cells"].get(f"{fam}|{ds}")
         if not c:
             continue
@@ -126,9 +132,10 @@ def main(argv=None) -> int:
     ap.add_argument("--cells", required=True)
     ap.add_argument("--out", required=True)
     ap.add_argument("--json")
+    ap.add_argument("--boreal-dataset", default="boreal_test", help="real-domain test dataset name in the cells (v2: boreal_v2_test)")
     a = ap.parse_args(argv)
-    res = aggregate(a.cells)
-    open(a.out, "w").write(render(res))
+    res = aggregate(a.cells, a.boreal_dataset)
+    open(a.out, "w").write(render(res, a.boreal_dataset))
     if a.json:
         json.dump(res, open(a.json, "w"), indent=2)
     return 0

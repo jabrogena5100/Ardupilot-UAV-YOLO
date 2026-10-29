@@ -96,6 +96,9 @@ def load_dataset(name: str, cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 def _clusters(cfg: Dict[str, Any], names) -> Optional[Dict[str, str]]:
     """Cluster id per image for the clustered bootstrap. `cluster: video` = file name up to `_frame<N>` (Boreal)."""
+    if cfg.get("cluster") == "clip":   # normalised source clip: site prefix dropped, case-folded (Boreal v2)
+        from .boreal_split_audit import parse
+        return {n: parse(n)[0] for n in names}
     if cfg.get("cluster") != "video":
         return None
     return {n: (n.rsplit("_frame", 1)[0] if "_frame" in n else n) for n in names}
