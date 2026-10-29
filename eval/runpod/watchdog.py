@@ -57,11 +57,44 @@ def enforce(api, log, now=time.time, stop_untagged=False, grace_s=0, sleep=time.
     return rc
 
 
+def run_loop(api, log, minutes, interval_s=60, stop_untagged=False, grace_s=0, now=time.time, sleep=time.sleep,
+             hb_every_s=600):
+    """Poll for `minutes` minutes, enforcing every interval_s. Gives ~1-minute stop latency without depending on cron.
+
+    Heartbeats and repeated anomalies are throttled (one per hb_every_s per pod) so a long loop does not flood the log; every
+    stop / failure / api_error is always logged. Returns 2 if a stop was ever unconfirmed or the last pass failed, else 0."""
+    last, sticky = {}, 0
+
+    def tlog(event, /, **f):  # positional-only: callers pass name=<pod name> as a field
+        nonlocal sticky
+        name = event
+        if name == "STOP_FAILED":
+            sticky = 2
+        if name in ("heartbeat_running_within_deadline", "untagged_running_pod", "api_error"):
+            key = (name, f.get("pod_id") or f.get("where"))
+            if now() - last.get(key, -1e18) < hb_every_s:
+                return
+            last[key] = now()
+        log(name, **f)
+    end = now() + minutes * 60
+    log("loop_start", minutes=minutes, interval_s=interval_s)
+    rc = 0
+    while True:
+        rc = enforce(api, tlog, now=now, stop_untagged=stop_untagged, grace_s=grace_s, sleep=sleep)
+        if now() >= end:
+            break
+        sleep(min(interval_s, max(0.0, end - now())))
+    log("loop_end", last_pass_rc=rc, sticky_rc=sticky)
+    return max(rc, sticky)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser()
     ap.add_argument("--log", required=True, help="JSONL file to append events to")
     ap.add_argument("--stop-untagged", action="store_true")
     ap.add_argument("--grace-s", type=int, default=0)
+    ap.add_argument("--loop-minutes", type=float, default=0, help="0 = single pass; else keep enforcing for this long")
+    ap.add_argument("--interval-s", type=int, default=60)
     ap.add_argument("--selftest", action="store_true", help="also append one 'selftest' event (proves API read + log write path)")
     a = ap.parse_args(argv)
     try:
@@ -71,10 +104,13 @@ def main(argv=None):
         return 2
     ev = C.EventLog(a.log)
 
-    def log(name, **f):
-        rec = ev.emit(name, **f)
+    def log(event, /, **f):  # positional-only: callers pass name=<pod name> as a field
+        rec = ev.emit(event, **f)
         print(rec)
-    rc = enforce(api, log, stop_untagged=a.stop_untagged, grace_s=a.grace_s)
+    if a.loop_minutes > 0:
+        rc = run_loop(api, log, min(a.loop_minutes, 330), max(15, a.interval_s), a.stop_untagged, a.grace_s)
+    else:
+        rc = enforce(api, log, stop_untagged=a.stop_untagged, grace_s=a.grace_s)
     if a.selftest:
         try:
             pods = api.list_pods()

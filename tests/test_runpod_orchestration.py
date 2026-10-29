@@ -461,6 +461,80 @@ class EnforceTests(unittest.TestCase):
         self.assertEqual(sorted(set(re.findall(r'self\._call\("([A-Z]+)"', src))), ["GET", "POST"])
         self.assertEqual(sorted(set(re.findall(r'self\._call\("POST", f?"([^"]+)"', src))), ["/pods", "/pods/{pod_id}/stop"])
 
+    def test_loop_stops_pod_within_one_interval_after_deadline(self):
+        B = 1_700_000_000
+        api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", B + 300), "RUNNING")))
+        t = {"now": float(B)}
+        ev = []
+        rc = W.run_loop(api, lambda n, **f: ev.append((t["now"], n)), minutes=30, interval_s=60,
+                        now=lambda: t["now"], sleep=lambda s: t.__setitem__("now", t["now"] + max(s, 0.001)))
+        self.assertEqual(rc, 0)
+        stop_t = [x for x, n in ev if n == "pod_stopped"]
+        self.assertEqual(len(stop_t), 1)
+        self.assertLessEqual(stop_t[0] - (B + 300), 70)  # about one interval of latency (plus enforce's own 5 s waits)
+        self.assertEqual(ev[0][1], "loop_start")
+        self.assertEqual(ev[-1][1], "loop_end")
+        self.assertEqual(len(api.stops()), 1)
+
+    def test_loop_throttles_heartbeats(self):
+        B = 1_700_000_000
+        api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", B + 100000), "RUNNING")))
+        t = {"now": float(B)}
+        ev = []
+        W.run_loop(api, lambda n, **f: ev.append(n), minutes=60, interval_s=60, now=lambda: t["now"],
+                   sleep=lambda s: t.__setitem__("now", t["now"] + s))
+        hb = ev.count("heartbeat_running_within_deadline")
+        self.assertTrue(5 <= hb <= 8, hb)  # about 1 per 10 min over 60 min, not 60
+        self.assertEqual(api.stops(), [])
+
+    def test_loop_survives_transient_api_errors(self):
+        B = 1_700_000_000
+
+        class Flaky(FakeAPI):
+            n = 0
+
+            def list_pods(self):
+                Flaky.n += 1
+                if Flaky.n <= 2:
+                    raise C.RunPodError("GET /pods -> HTTP 503", code=503)
+                return super().list_pods()
+        api = Flaky(pods=self.pods(("a", C.tag_name("r1", B + 10), "RUNNING")))
+        t = {"now": float(B)}
+        ev = []
+        rc = W.run_loop(api, lambda n, **f: ev.append(n), minutes=10, interval_s=60, now=lambda: t["now"],
+                        sleep=lambda s: t.__setitem__("now", t["now"] + s))
+        self.assertIn("api_error", ev)
+        self.assertIn("pod_stopped", ev)
+        self.assertEqual(rc, 0)
+
+    def test_loop_failed_stop_is_sticky(self):
+        B = 1_700_000_000
+        api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", B), "RUNNING")), stays_running=True)
+        t = {"now": float(B + 100)}
+        rc = W.run_loop(api, lambda n, **f: None, minutes=3, interval_s=60, now=lambda: t["now"],
+                        sleep=lambda s: t.__setitem__("now", t["now"] + s))
+        self.assertEqual(rc, 2)
+
+    def test_main_end_to_end_with_pod_name_field(self):
+        """Regression: the CLI logger once collided with the `name=<pod name>` field and crashed on the first real pod."""
+        B = 1_700_000_000
+        api = FakeAPI(pods=self.pods(("a", C.tag_name("r1", B), "RUNNING")))
+        import time as _t
+        old_cls, old_sleep = C.RunPodAPI, _t.sleep
+        C.RunPodAPI = lambda: api
+        _t.sleep = lambda s: None
+        try:
+            with tempfile.TemporaryDirectory() as td:
+                log = os.path.join(td, "e.jsonl")
+                rc = W.main(["--log", log])
+                lines = [json.loads(x) for x in read(log).splitlines()]
+        finally:
+            C.RunPodAPI, _t.sleep = old_cls, old_sleep
+        self.assertEqual(rc, 0)
+        self.assertIn("pod_stopped", [x["event"] for x in lines])
+        self.assertTrue(any(x.get("name", "").startswith("r1__dl") for x in lines))
+        self.assertEqual(api.pods["a"]["desiredStatus"], "EXITED")
+
     def test_selftest_cli_requires_key_and_never_touches_pods(self):
         import subprocess
         with tempfile.TemporaryDirectory() as td:
