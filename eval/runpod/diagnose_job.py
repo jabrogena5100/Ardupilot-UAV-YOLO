@@ -74,16 +74,26 @@ try:
 except Exception as e:
     host["image_probe_error"] = type(e).__name__ + ": " + str(e)[:150]
 json.dump(host, open(os.path.join(exp, "host.json"), "w"), indent=1)
-orch = "/workspace/runs/boreal_v2_train_eval_orch"
-for src, dst in ((orch + "/events.jsonl", "orch_events.jsonl"), (orch + "/DONE.json", "orch_done.json"),
-                 (orch + "_watchdog.jsonl", "orch_watchdog.jsonl"), ("/workspace/runs/boreal_v2/real_boreal_v2_seed0/results.csv", "seed0_results.csv"),
-                 ("/workspace/runs/boreal_v2/results_server.log", "results_server.log"), ("/workspace/runs/boreal_v2/.phase", "phase.txt")):
+tag = os.environ.get("DIAG_TAG", "boreal_v2")
+orch = "/workspace/runs/" + ("boreal_v2_train_eval" if tag == "boreal_v2" else tag + "_train_eval") + "_orch"
+run = "/workspace/runs/" + tag
+pairs = [(orch + "/events.jsonl", "orch_events.jsonl"), (orch + "/DONE.json", "orch_done.json"), (orch + "_watchdog.jsonl", "orch_watchdog.jsonl"),
+         (run + "/results_server.log", "results_server.log"), (run + "/.phase", "phase.txt"), (run + "/PROTOCOL_DEVIATION.json", "protocol_deviation.json"),
+         (run + "/INTEGRITY.json", "integrity.json")]
+for sd in (0, 1, 2):
+    pairs += [(f"{run}/real_boreal_v2_seed{sd}/results.csv", f"seed{sd}_results.csv"), (f"{run}/real_boreal_v2_seed{sd}/train_config.json", f"seed{sd}_train_config.json"),
+              (f"{run}/real_boreal_v2_seed{sd}/args.yaml", f"seed{sd}_args.yaml")]
+for src, dst in pairs:
     if os.path.isfile(src):
         open(os.path.join(exp, dst), "wb").write(tail(src, 400_000))
-for src, dst in ((orch + "/job.log", "orch_job_tail.log"), ("/workspace/runs/boreal_v2/real_boreal_v2_seed0_train.log", "seed0_train_tail.log")):
+for src, dst in [(orch + "/job.log", "orch_job_tail.log")] + [(f"{run}/real_boreal_v2_seed{sd}_train.log", f"seed{sd}_train_tail.log") for sd in (0, 1, 2)]:
     if os.path.isfile(src):
         open(os.path.join(exp, dst), "wb").write(tail(src, 120_000))
-open(os.path.join(exp, "ls_runs.txt"), "w").write(sh("ls -la /workspace/runs /workspace/runs/boreal_v2 /workspace/runs/boreal_v2_train_eval_orch /workspace/splits 2>&1 | head -80"))
+sums = []
+for ck in sorted(glob.glob(run + "/real_boreal_v2_seed*/real_boreal_v2_best_seed*.pt")):
+    sums.append(f"{__import__('hashlib').sha256(open(ck, 'rb').read()).hexdigest()}  {ck}  {os.path.getsize(ck)}")
+open(os.path.join(exp, "ckpt_sha256.txt"), "w").write("\n".join(sums) + "\n")
+open(os.path.join(exp, "ls_runs.txt"), "w").write(sh(f"ls -la /workspace/runs {run} {orch} /workspace/splits 2>&1 | head -120"))
 names = [n for n in sorted(os.listdir(exp)) if n not in ("export_manifest.json", "status.json")]
 print("exported", {k: v["bytes"] for k, v in RS.write_manifest(exp, names).items()}, flush=True)
 print("serve result:", RS.serve(exp, 8000, os.environ.get("RESULTS_TOKEN", ""), a.serve_seconds), flush=True)

@@ -267,6 +267,8 @@ def transfer_args(ns):
     ns.artifact = []
     ns.bundle_files = [script, "results_server.py"]
     ns.ports = ns.ports or ["8000/http"]
+    if getattr(ns, "diag_tag", ""):
+        ns.extra_env = {**(getattr(ns, "extra_env", {}) or {}), "DIAG_TAG": ns.diag_tag}
     return ns
 
 
@@ -301,6 +303,7 @@ def main(argv=None):
     tt = sub.add_parser("transfer-test")
     add_job_args(tt, job_required=False)
     tt.set_defaults(run_name="", job="", hard_timeout_s=600)
+    tt.add_argument("--diag-tag", default="", help="with --diagnose: run tag whose logs to export (default boreal_v2)")
     tt.add_argument("--cache-check", action="store_true", help="run cache_check_job.py (Ultralytics cache=ram/disk feasibility and pixel equivalence)")
     tt.add_argument("--stop-probe", action="store_true", help="run stop_probe_job.py (which on-pod method can stop the pod?)")
     tt.add_argument("--diagnose", action="store_true", help="run diagnose_job.py (host probe + export of earlier run logs) instead of the payload test")
