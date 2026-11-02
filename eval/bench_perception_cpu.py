@@ -28,7 +28,7 @@ def main():
     ap.add_argument("--frames", type=int, default=8, help="frames over fire (an equal number are empty)")
     ap.add_argument("--threads", type=int, default=1)
     ap.add_argument("--alt", type=float, default=120.0)
-    ap.add_argument("--pitch", type=float, default=90.0)
+    ap.add_argument("--pitch", type=float, default=60.0)
     ap.add_argument("--scenario-seed", type=int, default=1)
     a = ap.parse_args()
 

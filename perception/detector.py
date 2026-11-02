@@ -16,8 +16,8 @@ Config (the `perception:` section; see exp_swarm_perception.yaml):
     weights: local_data/backups/boreal_v2/real_boreal_v2_best_seed0.pt   # default; never committed
     weights_sha256: <hex>        # required unless the file name is a registry v2 checkpoint (KNOWN_SHA256) or allow_unverified
     model_tag: real_boreal_v2_seed0
-    conf_threshold: 0.25         # PROVISIONAL operating point, not a calibrated scientific setting
-    camera: {hfov_deg: 78, pitch_deg: 90, width: 1280, height: 720}      # nadir, fixed (pitch = degrees below horizon)
+    conf_threshold: 0.25         # per-model value chosen on calibration scenarios (eval/level3_calibrate_detector.py); 0.25 until then
+    camera: {hfov_deg: 78, pitch_deg: 60, width: 1280, height: 720, yaw_to_track: true}   # oblique, fixed; pitch = degrees below the HORIZONTAL (90 = nadir)
     frame_source: {url: http://127.0.0.1:8765, timeout_s: 60}
     cell_anchor: center          # box point projected to the ground: center (default when nadir) | bottom_center
     strict: false                # true: a failed init raises instead of falling back to NullPerception
@@ -136,7 +136,7 @@ class YoloPerception:
         self.grid_spec = GridSpec.from_miles(float(gc.miles), int(gc.cells))     # i-east / j-north, as fog/state.py
         cam = cfg.get("camera") or {}
         self.hfov_deg = float(cam.get("hfov_deg", 78.0))
-        self.pitch_deg = float(cam.get("pitch_deg", 90.0))                     # nadir; degrees BELOW the horizon
+        self.pitch_deg = float(cam.get("pitch_deg", 60.0))                     # degrees BELOW the horizontal (90 = nadir)
         self.anchor = str(cfg.get("cell_anchor", "center" if self.pitch_deg >= 80.0 else "bottom_center"))
         self.sha = None
         weights = cfg.get("weights") or DEFAULT_WEIGHTS

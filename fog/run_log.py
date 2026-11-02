@@ -91,6 +91,12 @@ class RunLogger:
                 self.mission = str(first.get("mission", "") or "")
                 self.strategy = str(first.get("strategy_tag", "") or "")
 
+    def note_gate(self, wait_s: float, pre_gate_detections: int) -> None:
+        """Record when the run-start gate opened (written beside manifest.json)."""
+        self._dump_json(self._p("start_gate.json"), {"wait_s": round(wait_s, 2),
+                                                    "pre_gate_detections_ignored": int(pre_gate_detections)},
+                        "start_gate.json")
+
     def write_args(self, effective: Dict[str, Any]) -> None:
         self._dump_json(self._p("args.json"), effective, "args.json")
 
@@ -189,6 +195,14 @@ class RunLogger:
                               first_t, c.visits, round(c.last_t - t0, 2) if c.last_t else 0.0,
                               int(c.done), self.tag, self.mission, self.strategy, str(self.agents_n)))
         self._write_csv(self.cells_path, cells)
+
+        # cells that burned: when they ignited and when (if ever) a UAV first visited them -> time-to-first-look per fire cell
+        fc = [("i", "j", "fire_state_end", "ignite_t", "first_visit_t", "visited")]
+        for (i, j), ti in sorted(getattr(fog, "fire_first_t", {}).items()):
+            c = fog.grid[i][j]
+            fv = "" if c.visited_first_t == float("inf") else round(c.visited_first_t - t0, 2)
+            fc.append((i, j, fog.fire_state[i][j], round(ti - t0, 2), fv, int(c.visited)))
+        self._write_csv(self._p(f"fire_cells_{self.tag}.csv"), fc)
 
         scores = fog.detection_scores()
         try:

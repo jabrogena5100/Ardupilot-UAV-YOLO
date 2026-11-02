@@ -28,6 +28,7 @@ import math
 import time
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
+from mission.geo import cell_index  # noqa: F401  (moved to mission/geo.py so agent-side code need not import fog; same function)
 from wildfire_sim import FireSim
 
 R_EARTH = 6378137.0
@@ -56,19 +57,6 @@ def ll_to_ne_m(lat: float, lon: float, lat0: float, lon0: float) -> Tuple[float,
     n = R_EARTH * dlat
     e = R_EARTH * dlon * math.cos(math.radians((lat + lat0) / 2.0))
     return n, e
-
-
-def cell_index(n: float, e: float, half_side_m: float, cell_m: float, N: int) -> Optional[Tuple[int, int]]:
-    """Metres-from-origin -> (i, j), or None if outside the grid."""
-    x = e + half_side_m
-    y = n + half_side_m
-    if x < 0.0 or y < 0.0 or x >= 2 * half_side_m or y >= 2 * half_side_m:
-        return None
-    i = int(x // cell_m)
-    j = int(y // cell_m)
-    if 0 <= i < N and 0 <= j < N:
-        return (i, j)
-    return None
 
 
 def local_xy_in_cell(n: float, e: float, i: int, j: int,
@@ -147,6 +135,7 @@ class Fog:
         self.det_false = 0
         self.first_detection_t: Optional[float] = None   # first correct detection
         self.first_ignition_t: Optional[float] = None    # first cell to start burning
+        self.fire_first_t: Dict[Tuple[int, int], float] = {}   # absolute time each cell first burned (for monitoring metrics)
 
         # latest probability map per agent (dashboard + belief-vs-truth metric)
         self.belief_by_sys: Dict[int, List[List[float]]] = {}
@@ -258,6 +247,8 @@ class Fog:
         for i in range(self.N):
             for j in range(self.N):
                 self.fire_state[i][j] = snap[i][j]
+                if snap[i][j] == BURNING and (i, j) not in self.fire_first_t:
+                    self.fire_first_t[(i, j)] = time.time()
                 self.fire_heat[i][j] = clamp(sim.cells[i][j].heat, 0.0, 1.0)
                 if self.first_ignition_t is None and snap[i][j] == BURNING:
                     self.first_ignition_t = sim.time_s

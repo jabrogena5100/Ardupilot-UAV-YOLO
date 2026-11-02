@@ -102,7 +102,8 @@ def setup_fire(cfg: Dict[str, Any], fog: Fog) -> Optional[FireSim]:
     try:
         sim = FireSim.from_config(cfg, fog.N)
         fog.fire_sim = sim
-        sim.ignite_many(fire_cfg.get("initial_ignitions") or [])
+        if not (fire_cfg.get("start_gate") or {}).get("agents"):
+            sim.ignite_many(fire_cfg.get("initial_ignitions") or [])
         fog.sync_fire_from_sim(sim)
         print(f"[fog] FireSim on: {fog.N}x{fog.N}, dt={sim.dt_seconds}s, "
               f"p_ignite={sim.p_ignite}, {sim.neighborhood}")
@@ -110,6 +111,12 @@ def setup_fire(cfg: Dict[str, Any], fog: Fog) -> Optional[FireSim]:
     except Exception as e:
         print(f"[fog] WARN: FireSim init failed ({e}); running without fire.")
         return None
+
+
+def gate_ready(agent_info: Dict[Any, Dict[str, Any]], min_alt_m: float, now: float, fresh_s: float = 5.0) -> int:
+    """Number of agents currently reporting (POSE fresher than fresh_s) an altitude of at least min_alt_m."""
+    return sum(1 for info in agent_info.values()
+               if (info.get("alt") or 0.0) >= min_alt_m and now - float(info.get("last_t", 0.0) or 0.0) < fresh_s)
 
 
 def start_camera_service(cfg: Dict[str, Any], fog: Fog):
@@ -203,6 +210,20 @@ def main() -> None:
         "fire_enabled": fire_sim is not None,
     }
 
+    # ---- run-start gate: the clock, the fire and the scoring start together, once the agents are airborne ----
+    gate = (fire_cfg.get("start_gate") or {}) if fire_sim is not None else {}
+    gate_n = int(gate.get("agents", 0))
+    gate_alt = float(gate.get("min_alt_m", 0.0))
+    gate_settle = float(gate.get("settle_s", 5.0))
+    gate_timeout = float(gate.get("timeout_s", 300.0))
+    gate_open = gate_n <= 0
+    gate_ok_since = None
+    t_wait = time.time()
+    pre_gate_dets = 0
+    if not gate_open:
+        print(f"[fog] start gate: waiting for {gate_n} agent(s) at alt >= {gate_alt} m for {gate_settle}s "
+              f"(timeout {gate_timeout}s); fire not ignited, nothing scored until then")
+
     stopping = {"flag": False}
 
     def _sigint(*_: Any) -> None:
@@ -254,6 +275,9 @@ def main() -> None:
                 )
 
             elif typ == schema.DETECTION:
+                if not gate_open:
+                    pre_gate_dets += 1          # before ignition: not part of the experiment, counted and reported
+                    continue
                 rec = fog.ingest_detection(m, t_rel=time.time() - t0)
                 logger.add_detection(rec)
                 verdict = "HIT " if rec["correct"] else "MISS"
@@ -262,6 +286,26 @@ def main() -> None:
 
             elif typ == schema.BELIEF:
                 fog.ingest_belief(m.get("sys"), m.get("p"), m.get("N", 0))
+
+        # ---------- 1b. run-start gate ----------
+        if not gate_open:
+            ready = gate_ready(fog.agent_info, gate_alt, time.time())
+            gate_ok_since = (gate_ok_since or time.time()) if ready >= gate_n else None
+            if gate_ok_since is not None and time.time() - gate_ok_since >= gate_settle:
+                gate_open = True
+                fire_sim.ignite_many(fire_cfg.get("initial_ignitions") or [])
+                fog.sync_fire_from_sim(fire_sim)
+                t0, next_tick, next_fire_step = time.time(), 0.0, 0.0
+                print(f"[fog] START GATE OPEN after {t0 - t_wait:.1f}s: {ready} agent(s) airborne; fire ignited; "
+                      f"t=0 now ({pre_gate_dets} pre-gate detections ignored)")
+                logger.note_gate(t0 - t_wait, pre_gate_dets)
+            elif stopping["flag"] or time.time() - t_wait > gate_timeout:
+                print("[fog] start gate never opened; ending without a result")
+                bus.close()
+                os._exit(2)
+            else:
+                time.sleep(0.05)
+                continue
 
         # ---------- 2. advance fire (fog owns truth) ----------
         if fire_sim is not None and time.time() >= next_fire_step:

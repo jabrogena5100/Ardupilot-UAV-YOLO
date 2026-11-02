@@ -45,11 +45,12 @@ DEFAULT_CFG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(
 
 @dataclass(frozen=True)
 class CameraSpec:
-    """Documented fixed camera. Default: nadir (pitch 90), 78 deg HORIZONTAL fov, 1280x720 (the dataset's frame)."""
+    """Documented fixed camera. Default: oblique, 60 deg below horizontal, 78 deg HORIZONTAL fov, 1280x720 (the dataset frame).
+    Look direction = vehicle heading (the paired configs set perception.camera.yaw_to_track so heading follows travel)."""
     width: int = 1280
     height: int = 720
     hfov_deg: float = 78.0
-    pitch_deg: float = 90.0          # below the horizon; 90 = straight down
+    pitch_deg: float = 60.0          # degrees BELOW the horizontal: 0 = horizon, 90 = nadir. Level 3 default: oblique 60.
 
 
 @dataclass(frozen=True)
@@ -190,6 +191,12 @@ class FrameSynth:
     def render(self, lat: float, lon: float, alt: float, heading_deg: Optional[float],
                sources: Sequence[SmokeSource], frame_key: Any = 0) -> np.ndarray:
         """uint8 H x W x 3, BGR (Ultralytics' convention for numpy input)."""
+        return self.render_frame(lat, lon, alt, heading_deg, sources, frame_key)[0]
+
+    def render_frame(self, lat: float, lon: float, alt: float, heading_deg: Optional[float],
+                     sources: Sequence[SmokeSource], frame_key: Any = 0) -> Tuple[np.ndarray, np.ndarray]:
+        """(BGR frame, smoke alpha float32 HxW). The alpha is SIMULATION-SIDE truth for calibration (visibility of the
+        smoke in the frame); the camera service never returns it."""
         n, e = latlon_to_ne(lat, lon, self.lat0, self.lon0)
         hdg = 0.0 if heading_deg is None else float(heading_deg)
         sp = self.scene_for(n, e, alt, hdg)
@@ -200,4 +207,4 @@ class FrameSynth:
         if sigma > 1e-4:
             rng = np.random.default_rng(_stable_seed("noise", self.scenario_seed, frame_key))
             rgb = np.clip(rgb.astype(np.float32) + rng.normal(0.0, sigma * 255.0, rgb.shape), 0, 255).astype(np.uint8)
-        return np.ascontiguousarray(rgb[..., ::-1])
+        return np.ascontiguousarray(rgb[..., ::-1]), res.smoke_alpha

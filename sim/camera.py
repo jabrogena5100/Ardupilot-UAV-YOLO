@@ -42,8 +42,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from fog.state import cell_index          # grid indexing is owned by fog/state.py
-from mission.geo import M_PER_MILE, latlon_to_ne
+from mission.geo import M_PER_MILE, cell_index, latlon_to_ne   # cell_index: same function fog/state.py re-exports
 
 _EPS = 1e-9
 

@@ -118,8 +118,9 @@ class TestDetectionMapping(unittest.TestCase):
     def test_default_anchor_follows_pitch(self):
         gm = GridMission(GridCfg(lat0=LAT0, lon0=LON0))
         mk = lambda c: det.YoloPerception(c, grid=gm, frame_source=FixedFrames(None), predictor=lambda f: [])
-        self.assertEqual(mk({}).anchor, "center")
-        self.assertEqual(mk({"camera": {"pitch_deg": 35}}).anchor, "bottom_center")
+        self.assertEqual(mk({}).anchor, "bottom_center")                       # default camera: oblique 60 deg
+        self.assertEqual(mk({"camera": {"pitch_deg": 90}}).anchor, "center")   # nadir: box centre
+        self.assertEqual(mk({}).pitch_deg, 60.0)
 
 
 class TestWeights(unittest.TestCase):
@@ -192,7 +193,7 @@ class TestRenderer(unittest.TestCase):
 
     def test_smoke_lands_where_the_shared_projection_says(self):
         none = self.synth.render(*self.pose(0, 0), [], "k")
-        n, e = 12.0, -9.0
+        n, e = 70.0, -9.0                                  # ahead of a north-looking, 60-degree camera at 120 m
         img = self.synth.render(*self.pose(0, 0), [SmokeSource(n, e, height_m=30.0, spread_m=6.0, seed=1)], "k")
         diff = np.abs(img.astype(int) - none.astype(int)).sum(-1)
         ys, xs = np.nonzero(diff > 40)
@@ -207,6 +208,7 @@ class TestRenderer(unittest.TestCase):
         far = self.synth.render(*self.pose(0, 0), [SmokeSource(600.0, 600.0)], "k")
         self.assertTrue(np.array_equal(none, far))
         self.assertEqual(self.synth.last_visible_sources, 0)
+        self.assertEqual(self.synth.camera.pitch_deg, 60.0)
 
     def test_burning_cells_become_sources_deterministically(self):
         a = sources_from_fire_cells([(4, 5, 1.0), (5, 5, 0.5)], self.g, PlumeModel(), 9)
@@ -275,7 +277,7 @@ class TestTruthIsolation(unittest.TestCase):
 
     def test_service_returns_only_jpeg_pixels_and_no_truth_endpoint(self):
         n, e = self.g.center_ne(5, 5)
-        lat, lon = ne_to_latlon(n, e, LAT0, LON0)
+        lat, lon = ne_to_latlon(n - 100.0, e, LAT0, LON0)
         status, headers, data = self._post({"sysid": 1, "lat": lat, "lon": lon, "alt": 120.0, "heading_deg": 0.0, "frame_id": "a"})
         self.assertEqual((status, headers["Content-Type"]), (200, "image/jpeg"))
         self.assertTrue(data[:2] == b"\xff\xd8")
@@ -287,7 +289,7 @@ class TestTruthIsolation(unittest.TestCase):
 
     def test_fire_changes_pixels_only_through_rendering(self):
         n, e = self.g.center_ne(5, 5)
-        lat, lon = ne_to_latlon(n, e, LAT0, LON0)
+        lat, lon = ne_to_latlon(n - 100.0, e, LAT0, LON0)         # 100 m south of the fire, camera looking north
         body = {"sysid": 1, "lat": lat, "lon": lon, "alt": 120.0, "heading_deg": 0.0, "frame_id": "b"}
         with_fire = self._post(body)[2]
         self.fog.cells[:] = []
@@ -307,6 +309,47 @@ class TestTruthIsolation(unittest.TestCase):
                                predictor=lambda f: [])
         for k, v in vars(d).items():
             self.assertNotIsInstance(v, (FakeFog, FrameService, FrameSynth, SmokeSource), k)
+
+
+class TestAsyncPerception(unittest.TestCase):
+    """A slow observe() must never stall the control loop, and its detections must still reach the planner."""
+
+    def test_slow_observe_does_not_block_run_perception(self):
+        import queue
+        import threading
+        import time
+        import swarm_agent
+        from planning.priority import PriorityPlanner
+
+        class Slow:
+            enabled = True
+
+            def observe(self, pose):
+                time.sleep(0.6)
+                return [pbase.Detection(i=2, j=3, cls="smoke", conf=0.9, bbox=(0, 0, 1, 1), frame_id=1)]
+
+            def close(self):
+                pass
+
+        sent = []
+        a = swarm_agent.Agent.__new__(swarm_agent.Agent)
+        a.perception, a.perception_async, a.perception_period, a._next_perception_t = Slow(), True, 0.0, 0.0
+        a._perc_in, a._perc_out, a._perc_thread, a.stop = queue.Queue(maxsize=1), queue.Queue(), None, False
+        a.planner, a.sysid, a.cur_cell, a.model_tag = PriorityPlanner(conf_threshold=0.1), 1, None, "m"
+        a.gossip = type("G", (), {"send": lambda self, m: sent.append(m)})()
+        a._vp = lambda *x: None
+        mine = {"lat": LAT0, "lon": LON0, "alt": 120.0, "hdg": 0.0}
+        t0 = time.time()
+        a.run_perception(mine, 100.0)
+        self.assertLess(time.time() - t0, 0.2)                     # returned without waiting for the 0.6 s observe
+        a.run_perception(mine, 100.1)                              # worker busy: frame skipped, still instant
+        self.assertLess(time.time() - t0, 0.3)
+        time.sleep(0.9)
+        a.run_perception(mine, 101.0)                              # drains the finished frame
+        a.stop = True
+        a._perc_thread.join(timeout=2)
+        self.assertEqual(len(sent), 1)
+        self.assertIn((2, 3), a.planner.evidence)
 
 
 class TestManifest(unittest.TestCase):

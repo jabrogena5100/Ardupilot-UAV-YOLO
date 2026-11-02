@@ -1,0 +1,397 @@
+{
+ "T_s": 600,
+ "p_ignite": 0.0025,
+ "burn_steps": 300,
+ "burn_time_dist": "fixed",
+ "neighborhood": "von_neumann",
+ "wind_strength": 0.0,
+ "dt_seconds": 1.0,
+ "rule_version": 2,
+ "rule": "(written before the sweep was run):\n\n  a candidate is ADMISSIBLE if, in EVERY calibration scenario,\n      LO <= (burning + burnt cells at T) / N^2 <= HI          (the fire is neither trivial nor saturating: room for coverage to matter)\n      and at least one cell is still burning at T             (a target exists for the whole run)\n      and at least EARLY cells are burning at t = 60 s        (a detectable event exists early enough for latency to be measured)\n\n  RULE VERSION 1 (before any sweep): LO=0.08, HI=0.30, EARLY=3, grid p in {.002,.003,.005,.008,.012,.02} x burn in {150,300,450}.\n      Result: NO candidate admissible (fire growth is a steep percolation-like transition between p=0.003 and 0.005; every candidate\n      either saturated or had < 3 cells at 60 s). Recorded in docs/experiments/level3_calibration_v1.md.\n  RULE VERSION 2 (AMENDED after seeing the version-1 CALIBRATION sweep only; held-out scenarios never run): LO=0.05, HI=0.35,\n      EARLY=2, finer grid p in {.0020,.0025,.0030,.0035} x burn in {300,450,600}. The amendment is disclosed, not hidden.\n  among admissible candidates choose the one whose MEAN burned fraction at T is closest to 0.20; ties -> smaller p_ignite, then larger burn_steps.\n  If none is admissible the sweep is reported as failed and nothing is frozen.",
+ "sweep": [
+  {
+   "p_ignite": 0.002,
+   "burn_steps": 300,
+   "admissible": false,
+   "mean_burned_frac": 0.09,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.03,
+     "burning_at_T": 0,
+     "burning_at_60s": 1
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.02,
+     "burning_at_T": 0,
+     "burning_at_60s": 1
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.15,
+     "burning_at_T": 6,
+     "burning_at_60s": 3
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.16,
+     "burning_at_T": 7,
+     "burning_at_60s": 1
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.002,
+   "burn_steps": 450,
+   "admissible": false,
+   "mean_burned_frac": 0.12,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.08,
+     "burning_at_T": 6,
+     "burning_at_60s": 1
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.05,
+     "burning_at_T": 3,
+     "burning_at_60s": 1
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.16,
+     "burning_at_T": 13,
+     "burning_at_60s": 3
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.19,
+     "burning_at_T": 15,
+     "burning_at_60s": 1
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.002,
+   "burn_steps": 600,
+   "admissible": false,
+   "mean_burned_frac": 0.125,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.1,
+     "burning_at_T": 9,
+     "burning_at_60s": 1
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.05,
+     "burning_at_T": 4,
+     "burning_at_60s": 1
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.16,
+     "burning_at_T": 15,
+     "burning_at_60s": 3
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.19,
+     "burning_at_T": 18,
+     "burning_at_60s": 1
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.0025,
+   "burn_steps": 300,
+   "admissible": true,
+   "mean_burned_frac": 0.2125,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.2,
+     "burning_at_T": 15,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.17,
+     "burning_at_T": 8,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.24,
+     "burning_at_T": 10,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.24,
+     "burning_at_T": 9,
+     "burning_at_60s": 2
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.0025,
+   "burn_steps": 450,
+   "admissible": true,
+   "mean_burned_frac": 0.2375,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.22,
+     "burning_at_T": 19,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.18,
+     "burning_at_T": 14,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.27,
+     "burning_at_T": 20,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.28,
+     "burning_at_T": 21,
+     "burning_at_60s": 2
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.0025,
+   "burn_steps": 600,
+   "admissible": true,
+   "mean_burned_frac": 0.24,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.22,
+     "burning_at_T": 21,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.18,
+     "burning_at_T": 17,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.29,
+     "burning_at_T": 28,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.27,
+     "burning_at_T": 26,
+     "burning_at_60s": 2
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.003,
+   "burn_steps": 300,
+   "admissible": false,
+   "mean_burned_frac": 0.3125,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.2,
+     "burning_at_T": 15,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.38,
+     "burning_at_T": 23,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.34,
+     "burning_at_T": 20,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.33,
+     "burning_at_T": 17,
+     "burning_at_60s": 2
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.003,
+   "burn_steps": 450,
+   "admissible": false,
+   "mean_burned_frac": 0.3275,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.22,
+     "burning_at_T": 19,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.41,
+     "burning_at_T": 32,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.35,
+     "burning_at_T": 28,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.33,
+     "burning_at_T": 26,
+     "burning_at_60s": 2
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.003,
+   "burn_steps": 600,
+   "admissible": false,
+   "mean_burned_frac": 0.3275,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.22,
+     "burning_at_T": 21,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.41,
+     "burning_at_T": 40,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.35,
+     "burning_at_T": 34,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.33,
+     "burning_at_T": 32,
+     "burning_at_60s": 2
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.0035,
+   "burn_steps": 300,
+   "admissible": false,
+   "mean_burned_frac": 0.405,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.26,
+     "burning_at_T": 19,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.41,
+     "burning_at_T": 26,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.43,
+     "burning_at_T": 27,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.52,
+     "burning_at_T": 31,
+     "burning_at_60s": 2
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.0035,
+   "burn_steps": 450,
+   "admissible": false,
+   "mean_burned_frac": 0.4375,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.32,
+     "burning_at_T": 29,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.43,
+     "burning_at_T": 34,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.47,
+     "burning_at_T": 40,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.53,
+     "burning_at_T": 45,
+     "burning_at_60s": 2
+    }
+   ]
+  },
+  {
+   "p_ignite": 0.0035,
+   "burn_steps": 600,
+   "admissible": false,
+   "mean_burned_frac": 0.4275,
+   "per_scenario": [
+    {
+     "seed": 1001,
+     "burned_frac": 0.32,
+     "burning_at_T": 31,
+     "burning_at_60s": 2
+    },
+    {
+     "seed": 1002,
+     "burned_frac": 0.43,
+     "burning_at_T": 42,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1003,
+     "burned_frac": 0.47,
+     "burning_at_T": 46,
+     "burning_at_60s": 4
+    },
+    {
+     "seed": 1005,
+     "burned_frac": 0.49,
+     "burning_at_T": 48,
+     "burning_at_60s": 2
+    }
+   ]
+  }
+ ]
+}
