@@ -31,6 +31,17 @@ sys.path.insert(0, ROOT)
 PATH = os.path.join(ROOT, "eval", "level3_scenarios.json")
 CAL_SLOTS, HELD_SLOTS = (0, 1, 2), (3, 4, 5)
 N_CAL, N_HELD = 4, 8
+# Calibration ignition cells, version 2 (2026-11-02). Version 1 (random cells >= 3 from takeoff, i+j even) put every fire outside the
+# camera's reach: the pilot logged 0 camera-visible frames of burning cells (docs/experiments/level3_methodology.md section 10).
+# Rule fixed BEFORE the post-fix pilot was run, applied to the geometry of one recorded BASELINE flight (the baseline ignores fire, so its
+# flight does not depend on the ignition; eval/level3_visibility.py, local_data/level3/pilot2/vis_baseline_postfix.json):
+#   eligible = even parity (keeps the cells disjoint from the held-out odd-parity cells), Chebyshev distance >= 2 from the takeoff cell
+#   (not at takeoff), first geometrically visible at 60-300 s (early patrol, not in the first minute) and >= 4 perception frames in
+#   which the plume base is inside the image (a realistic opportunity). Exactly four cells qualify; they are assigned to the four
+#   calibration seeds in order of first-visible time. The ignition is simulation-side only: no agent sees it.
+# The held-out ignitions are NOT changed here (pinned, hash-checked); they must be re-derived by the same rule from a baseline flight
+# before any final evaluation (a separate, explicit step).
+CAL_IGNITION_V2 = {1001: [2, 2], 1002: [3, 1], 1003: [1, 1], 1005: [0, 0]}
 TAKEOFF_CELL = (5, 5)          # the SITL home (grid origin) is the corner of cells (4..5, 4..5); (5,5) is the reference cell
 LAT0, LON0 = 21.2970, -157.8170
 
@@ -67,7 +78,10 @@ def build():
         seed = base
         while len(out[split]) < n:
             slot = texture_slot(seed)
-            ign = ignition_cell(seed, parity)
+            ign = CAL_IGNITION_V2.get(seed) if split == "calibration" else ignition_cell(seed, parity)
+            if ign is None:
+                seed += 1
+                continue
             if slot in slots and ign not in [s["ignition"] for s in out[split]]:
                 out[split].append({"seed": seed, "split": split, "texture_slot": slot, "ignition": ign, "fire_seed": seed})
             seed += 1

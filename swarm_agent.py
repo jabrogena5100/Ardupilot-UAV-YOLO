@@ -491,7 +491,8 @@ class Agent:
             d = math.hypot(push_n, push_e) + 1e-6
             if self.params.verbose:
                 print(f"[{self.name}|sys{self.sysid}] GEOFENCE: pushback")
-            return -3.0 * (push_n / d), -3.0 * (push_e / d)
+            # push_* already points INWARD (excess beyond the fence, negated); the previous `-3.0 *` drove the vehicle further out
+            return 3.0 * (push_n / d), 3.0 * (push_e / d)
 
         def taper(pos: float) -> float:
             return clamp((half - abs(pos)) / margin, 0.1, 1.0) if abs(pos) > (half - margin) else 1.0
