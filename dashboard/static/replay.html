@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Level 3 Run Replay</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="replay.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Level 3 run replay <small>saved results only</small></h1>
+      <div class="head-right">
+        <nav class="tabs">
+          <button id="tab-replay" class="on">Replay</button>
+          <button id="tab-compare">Compare arms</button>
+        </nav>
+        <span class="badge badge-ok">read-only</span>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside id="runlist" class="panel"></aside>
+
+      <section id="stage">
+        <div class="panel controls">
+          <button id="play">Play</button>
+          <select id="speed">
+            <option value="5">5x</option>
+            <option value="20" selected>20x</option>
+            <option value="60">60x</option>
+          </select>
+          <input id="slider" type="range" min="0" max="600" step="1" value="0" />
+          <span id="clock" class="mono">t = 0 s</span>
+          <span class="layers">
+            <label><input type="checkbox" id="l-cov" checked /> coverage</label>
+            <label><input type="checkbox" id="l-fire" checked /> fire</label>
+            <label><input type="checkbox" id="l-det" checked /> detections</label>
+            <label><input type="checkbox" id="l-trail" checked /> UAV path</label>
+          </span>
+        </div>
+        <div id="notice"></div>
+        <div id="maps"></div>
+        <div class="legend">
+          <span><i class="sw sw-visited"></i>visited</span>
+          <span><i class="sw sw-burning"></i>burning</span>
+          <span><i class="sw sw-burnt"></i>burnt</span>
+          <span><i class="sw" style="background:#35d07f"></i>true detection</span>
+          <span><i class="sw" style="background:#f4564a"></i>false positive</span>
+          <span><i class="sw" style="background:#fff;border-radius:50%"></i>UAV</span>
+          <span><i class="sw" style="border:2px solid #ffc61a;background:none"></i>ignition cell</span>
+        </div>
+        <div id="summary"></div>
+        <div id="charts"></div>
+        <div id="dets" class="panel"></div>
+      </section>
+    </div>
+    <script src="replay.js"></script>
+  </body>
+</html>
