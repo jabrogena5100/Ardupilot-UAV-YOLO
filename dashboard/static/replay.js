@@ -13,6 +13,14 @@ const S = {
 };
 
 async function api(url) {
+  const E = window.__REPLAY_EMBEDDED__;  // set only by dashboard/replay_export.py (standalone file)
+  if (E) {
+    const u = new URL(url, "http://x");
+    if (u.pathname === "/api/runs") return E.runs;
+    const d = E.run[u.searchParams.get("id")];
+    if (!d) throw new Error("run not embedded in this file: " + u.searchParams.get("id"));
+    return d;
+  }
   const r = await fetch(url);
   if (!r.ok) throw new Error(url + " -> " + r.status);
   return r.json();
