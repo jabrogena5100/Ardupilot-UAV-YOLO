@@ -197,3 +197,45 @@ Estimated GPU **$2.93** for the experiment (billing posted $11.27 total at last 
 
 ## Outstanding research questions
 Robustness to a second clip-disjoint assignment; pixel-level identity of consecutive same-site clips; whether a versioned `synth_smoke_v2` with matched edge-touch closes the Synth->Real gap; Level 3 sensitivity/specificity from Boreal v2 negatives (no calibration code written, as instructed).
+
+---
+
+# Update 7 (2026-11-02): audit, preservation, backup route, ArduPilot plan
+
+No GPU was started, nothing was retrained or re-scored, no checkpoint was downloaded, nothing was merged into `main`.
+
+## What was done
+- **Scientific audit (read-only): PASS WITH DOCUMENTED CAVEATS.** `docs/experiments/boreal_v2_audit.md` (VERIFIED / INFERRED / UNKNOWN tables) and the re-runnable `python3 -m eval.boreal_v2_audit` (`docs/experiments/boreal_v2/audit.json`: 49 checks, 49 VERIFIED, 0 FAILED; includes an offline recompute of all detection metrics and the clip-cluster bootstrap intervals).
+  It is a self-audit by the same session lineage: please have it confirmed (owner or Codex). Not established: present on-volume state of the checkpoints (last hashed 2026-10-29), pixel-level identity of near-duplicate/consecutive clips, full-run bit-reproducibility, CPU latency.
+- **Preservation:** working tree reviewed (21 commits, 5.2 MB added, no `.pt`/archives/images, secret scan of the whole diff clean for the RunPod key, results token and `AWS_*` values and for generic secret patterns), then `science/boreal-v2` pushed (not merged).
+- **Checkpoint backup route:** `docs/handoffs/checkpoint_backup.md` (paths, hashes, `checkpoints.SHA256SUMS`, Route A RunPod S3 API = free but unconfirmed for US-IL-1, Route B a short pod launched from the VM, about $0.10-0.20, worst case $1.25). Code for Route B (`eval/runpod/checkpoint_backup_job.py`, `--checkpoint-backup`, results-server opt-in for exactly the three names) is tested but **never run**.
+- **ArduPilot integration plan (planning only):** `docs/handoffs/ardupilot_integration_plan.md`.
+
+## Final model inventory (Model B v2; Model A unchanged)
+| File | Seed | Volume path | SHA-256 |
+|---|---|---|---|
+| `real_boreal_v2_best_seed0.pt` | 0 | `/workspace/runs/boreal_v2_try3/real_boreal_v2_seed0/` | `090c0f4cbe2718d2b084a41b8a3736fa27b673bc66b20c64672b13c83c299a05` |
+| `real_boreal_v2_best_seed1.pt` | 1 | `/workspace/runs/boreal_v2_try4/real_boreal_v2_seed1/` | `5a9616cefddd3bca6eccf31d0691f7b1a2fadb572f84cf7948c85296644e9388` |
+| `real_boreal_v2_best_seed2.pt` | 2 | `/workspace/runs/boreal_v2_try4/real_boreal_v2_seed2/` | `c4d443a8af919c6b00e4319b117a5dfbe90bd8b29750c75e3970a9389ae097ef` |
+Results (mAP50, 3-seed mean +- SD): Synth->Synth 0.995 (saturated); Synth->Real 0.512 +- 0.095; Real->Synth 0.612 +- 0.104; Real->Real 0.899 +- 0.027 (clip-clustered intervals, 8 clips, are wide). Deviation: `cache=ram`. Spend: about $2.93 GPU for the experiment (estimate); RunPod billing read $12.35 total on 2026-11-02; no pod running; conservative cumulative about $12.3-12.4 of the $100 allowance.
+
+## Resume on the Ubuntu VM
+```bash
+cd ~/src/Ardupilot-UAV-YOLO
+git status                                   # must be clean (stash/commit your own work first); never reset it blindly
+git fetch origin
+git checkout science/boreal-v2               # or: git switch -c science/boreal-v2 origin/science/boreal-v2
+git log --oneline -3                         # compare with the HEAD recorded in the final report
+python3 -m unittest tests.test_boreal_split_audit tests.test_eval_metrics tests.test_run_matrix tests.test_aggregate_seeds tests.test_boreal_v2 tests.test_boreal_v2_report tests.test_boreal_v2_audit tests.test_results_transfer tests.test_runpod_orchestration
+python3 -m eval.boreal_v2_audit              # expect: {'VERIFIED': 49, 'FAILED': 0, 'SKIPPED': 0}
+# then back up the checkpoints: docs/handoffs/checkpoint_backup.md (try Route A first), verify with checkpoints.SHA256SUMS
+# then read: docs/handoffs/ardupilot_integration_plan.md  (section 6 is the recommended next step)
+```
+Read first: `CLAUDE.md`, `docs/project-status.md`, `docs/experiments/boreal_v2_results.md`, `docs/experiments/boreal_v2_audit.md`.
+
+## Outstanding items for the owner
+1. Run the checkpoint backup (section above) and delete any temporary RunPod S3 key afterwards.
+2. Decide whether to merge `science/boreal-v2` into `main` (not done); the orchestration branches were already merged (PRs 1-4).
+3. Confirm the audit (self-audit only) and the three open research questions in `boreal_v2_results.md` section 7.
+4. ArduPilot plan decisions before implementation: imagery domain (gap 2), renderer truth channel (gap 1), camera conventions (gap 3), operating threshold (gap 4).
+5. Stopped RunPod pods (11) can be removed in the console; this tooling never deletes pods.
