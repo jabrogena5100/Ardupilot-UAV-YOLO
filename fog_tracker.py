@@ -112,6 +112,32 @@ def setup_fire(cfg: Dict[str, Any], fog: Fog) -> Optional[FireSim]:
         return None
 
 
+def start_camera_service(cfg: Dict[str, Any], fog: Fog):
+    """Start the virtual-camera service (sim/camera_service.py) when perception.camera_service.enabled.
+
+    Fog owns the fire, so fog is the only process that turns it into pixels; agents get JPEGs for their own pose
+    and never see fire truth. Off by default: with it off, behaviour is exactly the pre-perception baseline."""
+    pc = cfg.get("perception", {}) if isinstance(cfg, dict) else {}
+    sc = (pc.get("camera_service") or {}) if isinstance(pc, dict) else {}
+    if not sc.get("enabled", False):
+        return None
+    try:
+        from sim.camera import GridSpec
+        from sim.camera_service import FireCellsTruth, FrameService
+        from sim.frame_synth import CameraSpec, FrameSynth, PlumeModel
+        cam = CameraSpec(**{k: v for k, v in (pc.get("camera") or {}).items() if k in CameraSpec.__dataclass_fields__})
+        plume = PlumeModel(**{k: v for k, v in (pc.get("plume") or {}).items() if k in PlumeModel.__dataclass_fields__})
+        seed = int(sc.get("scenario_seed", 0))
+        synth = FrameSynth(seed, fog.lat0, fog.lon0, camera=cam, plume=plume)
+        truth = FireCellsTruth(fog, GridSpec(n_cells=fog.N, cell_m=fog.cell_m), plume, seed)
+        svc = FrameService(synth, truth, port=int(sc.get("port", 8765))).start()
+        print(f"[fog] camera service on 127.0.0.1:{svc.port} | scenario_seed={seed} | camera={cam}")
+        return svc
+    except Exception as e:
+        print(f"[fog] WARN: camera service failed to start ({e}); agents will get no frames.")
+        return None
+
+
 def main() -> None:
     args = parse_args()
     if args.end_when == "all_done":
@@ -163,6 +189,7 @@ def main() -> None:
     logger.write_manifest(cfg)
 
     bus = GossipBus(args.gossip_group, args.gossip_port, name="fog")
+    camera_service = start_camera_service(cfg, fog)
 
     t0 = time.time()
     next_tick = 0.0

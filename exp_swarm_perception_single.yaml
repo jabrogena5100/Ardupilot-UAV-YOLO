@@ -1,0 +1,47 @@
+# ============================================================
+#  Single-UAV perception demo (wiring check, NOT an experiment)
+#  YOLO on a virtual nadir camera -> grid detections -> fog scoring.
+#  The fire starts next to the takeoff point so the demo sees smoke quickly;
+#  a real Level 3 scenario would not. Oracle OFF: the UAV only knows what the detector reports.
+#
+#    python3 launch_sitl_swarm.py --count 1                       # SITL on udp:127.0.0.1:14555
+#    python3 fog_tracker.py --origin-lat 21.2970 --origin-lon -157.8170 --grid-miles 1.0 --grid-cells 10 \
+#        --config exp_swarm_perception_single.yaml
+#    ~/venvs/yolo-cpu/bin/python swarm_agent.py --conn udp:127.0.0.1:14555 --origin-lat 21.2970 \
+#        --origin-lon -157.8170 --mission grid_frontier --alt 120 --config exp_swarm_perception_single.yaml
+# ============================================================
+
+experiment_tag: perception-single-demo
+
+origin: {lat: 21.2970, lon: -157.8170}
+grid: {miles: 1.0, cells: 10, traverse_frac: 0.8}
+comms: {group: 239.255.0.1, port: 5005, comm_grid_radius: 2}
+timing: {end_when: time, max_seconds: 420}
+fog_tracker: {enable: true, tick_rate_hz: 2, max_seconds: 600, end_when: time}
+
+fire_model:
+  enabled: true
+  oracle_hazards: false            # must stay false for any perception result
+  neighborhood: von_neumann
+  p_ignite: 0.02
+  burn_steps: 240
+  burn_time_dist: fixed
+  dt_seconds: 1.0
+  initial_ignitions: [[5, 5]]
+  wind_direction_deg: 0
+  wind_strength: 0.0
+  random_seed: 42
+
+perception:
+  enabled: true
+  model_tag: real_boreal_v2_seed0
+  weights: local_data/backups/boreal_v2/real_boreal_v2_best_seed0.pt     # sha256 checked against the registry
+  conf_threshold: 0.25             # PROVISIONAL operating point, not calibrated
+  rate_hz: 0.25
+  camera: {hfov_deg: 78, pitch_deg: 90, width: 1280, height: 720}       # fixed nadir camera
+  frame_source: {url: "http://127.0.0.1:8765", timeout_s: 120}
+  camera_service: {enabled: true, port: 8765, scenario_seed: 1}
+  truth_radius_cells: 1
+
+agents:
+  - {name: A, conn: "udp:127.0.0.1:14555", mission: grid_frontier, strategy_tag: perception, comm_mode: full, seed: 1}

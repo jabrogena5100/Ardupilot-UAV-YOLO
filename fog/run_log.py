@@ -94,6 +94,24 @@ class RunLogger:
     def write_args(self, effective: Dict[str, Any]) -> None:
         self._dump_json(self._p("args.json"), effective, "args.json")
 
+    @staticmethod
+    def _versions() -> Dict[str, Any]:
+        import platform
+        import subprocess
+        v: Dict[str, Any] = {"python": platform.python_version()}
+        for mod in ("ultralytics", "torch", "numpy", "cv2"):
+            try:
+                v[mod] = __import__(mod).__version__
+            except Exception:
+                v[mod] = None
+        try:
+            root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            v["git_commit"] = subprocess.run(["git", "-C", root, "rev-parse", "HEAD"], capture_output=True, text=True,
+                                             timeout=5).stdout.strip() or None
+        except Exception:
+            v["git_commit"] = None
+        return v
+
     def write_manifest(self, cfg: Dict[str, Any]) -> None:
         """Record which model weights this run depended on, with size and mtime
         so a silently-retrained .pt is detectable after the fact."""
@@ -106,6 +124,15 @@ class RunLogger:
             rec: Dict[str, Any] = {"key": key, "path": path, "exists": os.path.exists(path)}
             if rec["exists"]:
                 st = os.stat(path)
+                try:
+                    import hashlib
+                    h = hashlib.sha256()
+                    with open(path, "rb") as f:
+                        for b in iter(lambda: f.read(1 << 20), b""):
+                            h.update(b)
+                    rec["sha256"] = h.hexdigest()
+                except Exception as e:
+                    rec["sha256_error"] = str(e)
                 rec["size_bytes"] = st.st_size
                 rec["mtime"] = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(st.st_mtime))
             entries.append(rec)
@@ -116,6 +143,13 @@ class RunLogger:
             "model_tag": percep.get("model_tag", ""),
             "conf_threshold": percep.get("conf_threshold"),
             "perception_enabled": bool(percep.get("enabled", False)),
+            # what else determines the pixels and the detections (Level 3 reproducibility)
+            "camera": percep.get("camera"),
+            "camera_service": percep.get("camera_service"),
+            "plume": percep.get("plume"),
+            "rate_hz": percep.get("rate_hz"),
+            "oracle_hazards": bool((cfg.get("fire_model", {}) or {}).get("oracle_hazards", False)),
+            "versions": self._versions(),
         }
         self._dump_json(self._p("manifest.json"), manifest, "manifest.json")
 
