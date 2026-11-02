@@ -67,3 +67,24 @@ On the Ubuntu VM, **after the checkpoint backup is verified**: implement `percep
 - Identical seeds/scenarios/thresholds across models; manifest records weights SHA-256, ultralytics/torch versions, camera conventions and `tau`.
 - Oracle off; `detections_<tag>.csv` scored at ingest; no `FireSim` in `swarm_agent.py`.
 - Level 2 box-level numbers are never used as Level 3 likelihoods (contract section 5).
+
+## 8. Review and implementation plan (added 2026-11-02, Ubuntu session; planning only, no integration code written)
+Review against the code, with `docs/handoffs/` claims re-checked:
+- **Confirmed [VERIFIED]:** `perception/detector.py`, `sim/frame_synth.py`, `mapping/probability_map.py` are 0 bytes; no DroneKit import anywhere; `swarm_agent.run_perception` / `Pose` / `from_config` behave as section 1 says
+  (a constructor that raises returns `NullPerception` with a warning: tested by monkeypatching); `manifest.json` records no SHA-256.
+- **New finding 1 (interface):** `swarm_agent` calls `from_config(pcfg, grid=self.grid)`, where `self.grid` is a `mission.GridMission`, **not** `sim.camera.GridSpec`. `YoloPerception` must build
+  `GridSpec.from_miles(grid.cfg.miles, grid.cfg.cells)` and take `lat0/lon0` from `grid.cfg`. The index convention agrees: `i` runs east and `j` north in `fog/state.cell_index`, `GridSpec` and `GridMission`.
+- **New finding 2 (resources):** this Ubuntu VM has **1 vCPU, about 2 GB RAM**, Python 3.10.18, and neither `ultralytics` nor `torch` installed. CPU YOLOv8s inference alongside several ArduCopter SITL processes may not fit;
+  measure first (step 1). Fallback: run inference on a bigger machine or one process serving all agents. Pods used Python 3.12; torch 2.8.0 / ultralytics 8.4.173 both support 3.10 [INFERRED: not yet installed here].
+- **New finding 3 (docs):** the `from_config` docstring still names `models/synthetic_best.pt` (legacy); update when `YoloPerception` lands. `.gitignore` on the science branch lacked `local_data/` (only `*.pt`); added.
+- No contradiction found in the checkpoint-selection logic (section 2): seed 0 for wiring only, 3+3 seeds for any reported comparison.
+
+Implementation order (each step is its own small commit with tests; none touches frozen Level 2/Boreal v2 results or flight code until step 4):
+1. **Environment + latency:** CPU wheels (`pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu`, `ultralytics==8.4.173`) in a venv; time `predict(imgsz=640)` for the six registry checkpoints on a few synthetic frames; record RAM. Gate: decide agent count / rate_hz.
+2. **`perception/detector.py::YoloPerception`** with injected frame source (protocol `FrameSource.get(pose) -> BGR uint8 HxWx3`): weights path + `weights_sha256` check (raise on mismatch), `model_tag`, `conf_threshold`, `camera: {hfov_deg, pitch_deg_below_horizon, width, height}`, `GridSpec` from `grid.cfg`; boxes -> `Camera.bbox_to_cell` -> `Detection`; log one start line with tag and hash prefix. Unit tests with a stub model and a fake frame source (hash refusal, bbox->cell, out-of-grid box dropped, no tensors returned).
+3. **Provenance:** add `weights_sha256`, ultralytics/torch versions, camera conventions and `tau` to `fog/run_log.py` manifest.
+4. **Frame source + truth channel** (decisions first: imagery domain, fog-owned render-truth channel, section 5 gaps 1-2): `sim/frame_synth.py`, fed only by fog, never `FireSim` in the agent; oracle stays off.
+5. **Smoke run** in SITL with `real_boreal_v2_best_seed0.pt`: check it produces `detections_<tag>.csv`, no NullPerception warning. This is wiring evidence only.
+6. **Level 3 experiment** (Model A x3 seeds vs Model B-v2 x3 seeds, identical scenarios, seeds and `tau`) is the only step that can support a statement about autonomous monitoring.
+
+**Scope guard:** Level 2 box-level metrics are perception evidence only. No claim of improved coverage, time to detection or misdirection is made or implied until step 6 produces it; steps 1-5 yield no such evidence.

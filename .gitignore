@@ -24,3 +24,6 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Large local data (datasets, backups, checkpoints copies); never committed
+local_data/

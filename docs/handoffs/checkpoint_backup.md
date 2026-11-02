@@ -96,3 +96,10 @@ Stopped pods keep a tiny disk charge and can be removed in the console; this too
 - Never commit `*.pt`, the S3 key, the results-token file or `RUNPOD_API_KEY`.
 - Route A and Route B both leave the three files as plain files; neither changes any recorded hash.
 - Keep the same copies next to `SHA256SUMS` plus `docs/experiments/boreal_v2/results/` so a reviewer can reproduce the evaluation (`python3 -m eval.run_matrix --preds-from ...` needs only the saved predictions, not the checkpoints).
+
+## 6. Executed 2026-11-02 (Route C: pod launched through the RunPod MCP, no S3 key, no `RUNPOD_API_KEY` in the VM shell)
+Neither route above was usable as written (no S3 keys, no API key in the shell), so a one-off RTX 4090 pod (`g02e1nlir1927z`, $0.89/h, about 2 min) mounted `wildfire-datasets` (read/write mount; the script only reads from it),
+re-hashed the three originals against the table in section 1 (it refuses to serve on any mismatch), and served exactly those three files plus `SHA256SUMS`
+over the RunPod HTTPS proxy behind a random one-use bearer token. The files were downloaded to `local_data/backups/boreal_v2/` and `sha256sum -c` printed OK for all three
+(22,501,098 bytes each). The pod was then deleted; the volume and the originals were not touched. Provenance: `local_data/backups/boreal_v2/PROVENANCE.txt` (not committed).
+The pod script was an inline 60-line Python server (not committed; superseded by `eval/runpod/checkpoint_backup_job.py` for the launcher route).

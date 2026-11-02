@@ -239,3 +239,11 @@ Read first: `CLAUDE.md`, `docs/project-status.md`, `docs/experiments/boreal_v2_r
 3. Confirm the audit (self-audit only) and the three open research questions in `boreal_v2_results.md` section 7.
 4. ArduPilot plan decisions before implementation: imagery domain (gap 2), renderer truth channel (gap 1), camera conventions (gap 3), operating threshold (gap 4).
 5. Stopped RunPod pods (11) can be removed in the console; this tooling never deletes pods.
+
+---
+# Update 8 (2026-11-02, Ubuntu session): checkpoint backup executed, plan reviewed
+- Remote `science/boreal-v2` was `f321818` when checked; this work is on branch `integration/yolo-perception-prep` (from that commit).
+- **Checkpoints backed up and verified** to `local_data/backups/boreal_v2/` (gitignored): seed0 `090c0f4c...a05`, seed1 `5a9616ce...388`, seed2 `c4d443a8...7ef`, each 22,501,098 bytes; `sha256sum -c` OK; pod re-hashed the originals on the volume first. Details: `checkpoint_backup.md` section 6.
+- **Spend:** one pod about 2 min at $0.89/h, estimated under $0.04 (not yet billed); cumulative about $12.4, remaining autonomous about $87.6. Pod deleted; 0 running; volume kept.
+- **Tests:** full `python3 -m unittest discover -s tests -t .` -> 172 tests OK (about 100 s) on this branch. `eval.boreal_v2_audit --recompute` -> 49 VERIFIED, 0 FAILED. Frozen Boreal v2 results untouched.
+- **Integration plan reviewed:** `ardupilot_integration_plan.md` section 8 (new findings: `grid` object type mismatch, 1 vCPU / 2 GB VM, stale docstring; ordered implementation steps). Nothing implemented.
