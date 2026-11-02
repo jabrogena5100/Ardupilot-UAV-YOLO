@@ -24,6 +24,8 @@ import time
 
 NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$")
 BLOCKED_EXT = (".pt", ".pth", ".ckpt", ".bin", ".safetensors", ".onnx")
+# Checkpoint export is opt-in (--allow-v2-checkpoints) and exempts ONLY these three exact names from the extension block; any other .pt stays blocked.
+V2_CKPT_RE = re.compile(r"^real_boreal_v2_best_seed[012]\.pt$")
 MAX_FAILS = 20
 
 
@@ -35,14 +37,15 @@ def sha256_file(p):
     return h.hexdigest()
 
 
-def load_manifest(root):
+def load_manifest(root, allow_v2_ckpt=False):
     """Validated allowlist {name: {bytes, sha256}}; raises ValueError on anything that should not be served."""
     with open(os.path.join(root, "export_manifest.json")) as f:
         m = json.load(f)
     real_root = os.path.realpath(root)
     out = {}
     for name, ent in m["files"].items():
-        if not NAME_RE.match(name) or name.lower().endswith(BLOCKED_EXT) or name in ("export_manifest.json", "status.json"):
+        blocked = name.lower().endswith(BLOCKED_EXT) and not (allow_v2_ckpt and V2_CKPT_RE.match(name))
+        if not NAME_RE.match(name) or blocked or name in ("export_manifest.json", "status.json"):
             raise ValueError("not servable: " + name)
         p = os.path.join(root, name)
         if os.path.islink(p) or not os.path.isfile(p) or os.path.dirname(os.path.realpath(p)) != real_root:
@@ -69,14 +72,14 @@ def write_manifest(root, names):
 STATUS_MAX = 65536
 
 
-def current_allow(root):
+def current_allow(root, allow_v2_ckpt=False):
     try:
-        return load_manifest(root)
+        return load_manifest(root, allow_v2_ckpt)
     except (ValueError, OSError, KeyError):
         return {}            # fail closed: an invalid manifest serves nothing
 
 
-def make_handler(root, token, allow, state):
+def make_handler(root, token, allow, state, allow_v2_ckpt=False):
     tok = token.encode()
 
     class H(http.server.BaseHTTPRequestHandler):
@@ -116,7 +119,7 @@ def make_handler(root, token, allow, state):
             path = self.path.split("?", 1)[0]
             if path == "/healthz":
                 return self._send(200, b"ok")
-            allow = current_allow(root)
+            allow = current_allow(root, allow_v2_ckpt)
             if path == "/status":      # one fixed, size-capped progress file written by the job; not part of the manifest
                 sp = os.path.join(root, "status.json")
                 if os.path.islink(sp) or not os.path.isfile(sp):
@@ -162,12 +165,12 @@ def make_handler(root, token, allow, state):
     return H
 
 
-def serve(root, port, token, serve_seconds, host="0.0.0.0", poll=1.0):
+def serve(root, port, token, serve_seconds, host="0.0.0.0", poll=1.0, allow_v2_ckpt=False):
     if not token or len(token) < 24:
         raise SystemExit("RESULTS_TOKEN missing or too short (>= 24 chars required)")
-    allow = current_allow(root)
+    allow = current_allow(root, allow_v2_ckpt)
     state = {"acked": False, "fails": 0}
-    srv = http.server.ThreadingHTTPServer((host, port), make_handler(root, token, allow, state))
+    srv = http.server.ThreadingHTTPServer((host, port), make_handler(root, token, allow, state, allow_v2_ckpt))
     srv.daemon_threads = True
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     t_end = time.time() + serve_seconds
@@ -183,8 +186,9 @@ def main(argv=None):
     ap.add_argument("--root", required=True)
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--serve-seconds", type=int, default=1500)
+    ap.add_argument("--allow-v2-checkpoints", action="store_true", help="also serve files named exactly real_boreal_v2_best_seed{0,1,2}.pt")
     a = ap.parse_args(argv)
-    res = serve(os.path.realpath(a.root), a.port, os.environ.get("RESULTS_TOKEN", ""), a.serve_seconds)
+    res = serve(os.path.realpath(a.root), a.port, os.environ.get("RESULTS_TOKEN", ""), a.serve_seconds, allow_v2_ckpt=a.allow_v2_checkpoints)
     print("results_server finished:", res)
     return 0
 

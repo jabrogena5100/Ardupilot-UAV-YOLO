@@ -203,6 +203,18 @@ class InfraTests(unittest.TestCase):
         self.assertEqual(r.returncode, 5, r.stderr)  # reached the supervisor; no key => refuses to run the job
         self.assertIn("refusing to run a job that cannot self-stop", r.stderr)
 
+    def test_bundle_hash_does_not_depend_on_the_clock(self):
+        import time as _t
+        real = _t.time
+        try:
+            _t.time = lambda: 1_700_000_000.0
+            a = L.make_bundle(["lifecycle_test_job.py"], ["docs/experiments/boreal_v2/split_audit.json"])
+            _t.time = lambda: 1_800_000_123.0            # a different second (and year): gzip headers must not change
+            b = L.make_bundle(["lifecycle_test_job.py"], ["docs/experiments/boreal_v2/split_audit.json"])
+        finally:
+            _t.time = real
+        self.assertEqual(a, b)
+
     def test_bundle_is_deterministic_and_small(self):
         b1, b2 = L.make_bundle(), L.make_bundle()
         self.assertEqual(b1, b2)

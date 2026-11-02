@@ -155,6 +155,60 @@ class DynamicAndStatus(unittest.TestCase):
             t.join(10)
 
 
+class CheckpointExportMode(unittest.TestCase):
+    def mk(self, td, names):
+        root = os.path.join(td, "e")
+        os.makedirs(root)
+        for n in names:
+            open(os.path.join(root, n), "wb").write(b"weights-" + n.encode())
+        files = {n: {"bytes": os.path.getsize(os.path.join(root, n)), "sha256": RS.sha256_file(os.path.join(root, n))} for n in names}
+        json.dump({"files": files}, open(os.path.join(root, "export_manifest.json"), "w"))
+        return root
+
+    def test_only_the_three_exact_names_pass_and_only_in_opt_in_mode(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = self.mk(td, ["real_boreal_v2_best_seed0.pt", "real_boreal_v2_best_seed2.pt"])
+            with self.assertRaises(ValueError):
+                RS.load_manifest(root)                                  # default mode: any .pt is blocked
+            self.assertEqual(set(RS.load_manifest(root, allow_v2_ckpt=True)), {"real_boreal_v2_best_seed0.pt", "real_boreal_v2_best_seed2.pt"})
+        for bad in ("real_boreal_best_v1.pt", "real_boreal_v2_best_seed3.pt", "real_boreal_v2_best_seed0.pth", "synth_smoke_best_v1.pt", "evil.safetensors"):
+            with tempfile.TemporaryDirectory() as td:
+                root = self.mk(td, [bad])
+                with self.assertRaises(ValueError, msg=bad):
+                    RS.load_manifest(root, allow_v2_ckpt=True)
+
+    def test_server_serves_checkpoint_only_with_token_and_flag(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = self.mk(td, ["real_boreal_v2_best_seed1.pt", "SHA256SUMS.txt"])
+            port = free_port()
+            res = {}
+            t = threading.Thread(target=lambda: res.update(r=RS.serve(root, port, TOKEN, 20, host="127.0.0.1", poll=0.05, allow_v2_ckpt=True)))
+            t.start()
+            time.sleep(0.5)
+            s = Served.__new__(Served)
+            s.base = f"http://127.0.0.1:{port}"
+            self.assertEqual(Served.req(s, "/f/real_boreal_v2_best_seed1.pt", token=None)[0], 401)
+            self.assertEqual(Served.req(s, "/f/real_boreal_v2_best_seed1.pt"), (200, b"weights-real_boreal_v2_best_seed1.pt"))
+            self.assertEqual(Served.req(s, "/f/real_boreal_best_v1.pt")[0], 404)
+            Served.req(s, "/ack", method="POST")
+            t.join(10)
+
+    def test_backup_job_contract(self):
+        import checkpoint_backup_job as B
+        self.assertEqual(sorted(B.CKPTS), ["real_boreal_v2_best_seed0.pt", "real_boreal_v2_best_seed1.pt", "real_boreal_v2_best_seed2.pt"])
+        for name, (src, sha) in B.CKPTS.items():
+            self.assertTrue(RS.V2_CKPT_RE.match(name) and src.startswith("/workspace/runs/boreal_v2_try") and len(sha) == 64)
+        src = open(os.path.join(RP, "checkpoint_backup_job.py")).read()
+        self.assertNotIn("os.remove", src)
+        self.assertNotIn("shutil.move", src)
+        self.assertNotIn("rmtree", src)
+        import subprocess
+        for bad in ("/workspace/runs/real_boreal", "/tmp/transfer_test_x"):
+            r = subprocess.run([sys.executable, os.path.join(RP, "checkpoint_backup_job.py"), "--out", bad], capture_output=True, text=True, timeout=60)
+            self.assertNotEqual(r.returncode, 0)
+            self.assertFalse(os.path.exists(bad))
+
+
 class ManifestValidation(unittest.TestCase):
     def test_refuses_checkpoint_symlink_traversal_and_size_mismatch(self):
         with tempfile.TemporaryDirectory() as td:

@@ -16,6 +16,7 @@ independent GitHub Actions watchdog (.github/workflows/runpod-watchdog.yml) enfo
 """
 import argparse
 import base64
+import gzip
 import hashlib
 import io
 import json
@@ -58,7 +59,8 @@ def make_bundle(extra_files=(), repo_paths=()):
                 continue
             members["repo/" + os.path.relpath(fp, root)] = fp
     buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz", format=tarfile.PAX_FORMAT) as tf:
+    # gzip's header carries a timestamp: pin it to 0 so the same files always give the same bytes (and the same BUNDLE_SHA256)
+    with gzip.GzipFile(fileobj=buf, mode="wb", mtime=0) as gz, tarfile.open(fileobj=gz, mode="w", format=tarfile.PAX_FORMAT) as tf:
         for arc in sorted(members):
             with open(members[arc], "rb") as fh:
                 data = fh.read()
@@ -270,11 +272,13 @@ def transfer_args(ns):
     ns.run_name = ns.run_name or "transfer_test_" + time.strftime("%Y%m%d_%H%M%S", time.gmtime())
     if not ns.run_name.startswith("transfer_test_"):
         raise SystemExit("transfer test run names must start with transfer_test_")
-    script = ("cache_check_job.py" if getattr(ns, "cache_check", False) else
+    script = ("checkpoint_backup_job.py" if getattr(ns, "checkpoint_backup", False) else
+              "cache_check_job.py" if getattr(ns, "cache_check", False) else
               "stop_probe_job.py" if getattr(ns, "stop_probe", False) else
               "diagnose_job.py" if getattr(ns, "diagnose", False) else "transfer_test_job.py")
-    ns.job = f"python3 {script} --out {ns.mount}/runs/{ns.run_name}_job --serve-seconds {600 if script in ('diagnose_job.py', 'cache_check_job.py') else 420}" if script != "stop_probe_job.py" else f"python3 stop_probe_job.py --out {ns.mount}/runs/{ns.run_name}_job"
-    ns.hard_timeout_s = 1200 if script == "cache_check_job.py" else 900 if script == "diagnose_job.py" else 600
+    ns.job = f"python3 {script} --out {ns.mount}/runs/{ns.run_name}_job --serve-seconds {1800 if script == 'checkpoint_backup_job.py' else 600 if script in ('diagnose_job.py', 'cache_check_job.py') else 420}" if script != "stop_probe_job.py" else f"python3 stop_probe_job.py --out {ns.mount}/runs/{ns.run_name}_job"
+    ns.hard_timeout_s = (2400 if script == "checkpoint_backup_job.py" else 1200 if script == "cache_check_job.py"
+                         else 900 if script == "diagnose_job.py" else 600)
     ns.artifact = []
     ns.bundle_files = [script, "results_server.py"]
     ns.ports = ns.ports or ["8000/http"]
@@ -317,6 +321,7 @@ def main(argv=None):
     add_job_args(tt, job_required=False)
     tt.set_defaults(run_name="", job="", hard_timeout_s=600)
     tt.add_argument("--diag-tag", default="", help="with --diagnose: run tag whose logs to export (default boreal_v2)")
+    tt.add_argument("--checkpoint-backup", action="store_true", help="run checkpoint_backup_job.py: export exactly the three Model B v2 checkpoints behind the token")
     tt.add_argument("--cache-check", action="store_true", help="run cache_check_job.py (Ultralytics cache=ram/disk feasibility and pixel equivalence)")
     tt.add_argument("--stop-probe", action="store_true", help="run stop_probe_job.py (which on-pod method can stop the pod?)")
     tt.add_argument("--diagnose", action="store_true", help="run diagnose_job.py (host probe + export of earlier run logs) instead of the payload test")
