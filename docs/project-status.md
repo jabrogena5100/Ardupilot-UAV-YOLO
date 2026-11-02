@@ -169,10 +169,10 @@ The projection implementation must be reusable by `sim/camera.py` so that synthe
 
 * `perception/base.py` — perception interface
 * `NullPerception` remains the default fallback; `from_config()` fails soft to it with a warning
-* `perception/detector.py` (YOLO wrapper) is an empty stub, so no trained checkpoint is wired into the agents yet
-* `perception/base.py`'s docstring example still names `models/synthetic_best.pt` (legacy name; code left unchanged)
+* `perception/detector.py` (`YoloPerception`: SHA-256-verified weights, Ultralytics CPU, box -> grid cell) and `perception/frames.py` (HTTP frame client) exist; wired and demonstrated with one UAV on branch `integration/yolo-perception-prep` (2026-11-02, wiring only, no Level 3 result)
+* `perception/base.py`'s docstring example now names the Boreal v2 seed 0 default; `perception.strict: true` makes a failed init raise instead of falling back
 * `sim/camera.py` — shared pinhole projection, round-trip tests; confirm `tilt_deg`/`fov_deg` conventions before Level 3 use
-* `sim/frame_synth.py` (camera frame rendering for the agent) is an empty stub
+* `sim/frame_synth.py` (virtual nadir camera over the unchanged synthgen renderer) and `sim/camera_service.py` (fog-side frame service; truth never leaves fog) exist; settings (nadir, conf 0.25, plume model) are provisional
 
 ### Dashboard
 
@@ -511,6 +511,9 @@ Clip-clustered intervals (8 clips) are wide; real empty-scene FP rate (65 held-o
 Infrastructure learned: pod-injected key cannot REST-stop (403) but GraphQL `podStop` works (now the supervisor fallback, verified in 3 real runs); RunPod rejects a 300 KB env (60 KB ok); host speed varies 6x (shared CPU).
 Checkpoints are on the volume only (hashes in `models/MODELS.md`); local backup is an owner step (`docs/handoffs/checkpoint_backup.md`).
 **Post-experiment (2026-11-02):** self-audit PASS with documented caveats (`docs/experiments/boreal_v2_audit.md`, 49/49 checks, `eval/boreal_v2_audit.py`); branch `science/boreal-v2` pushed for preservation (not merged); ArduPilot integration plan written, nothing implemented (`docs/handoffs/ardupilot_integration_plan.md`).
+
+### 2026-11-02 — Perception integration v0 (no training; $0 beyond the backup pod)
+Branch `integration/yolo-perception-prep`. Virtual camera + YOLO adapter + fog-side frame service + paired-run planner (`eval/level3_pairs.py`) implemented and tested; CPU benchmark of all six registry checkpoints on this VM (about 0.3 s YOLO + 0.5 s render per frame, about 740 MB peak); one single-UAV end-to-end run (51 detections scored at ingest). **No Level 3 result and no claim about coverage, detection time or mission performance.** This 1 vCPU / 2 GB VM cannot carry multiple UAVs with in-process models. Record, findings and next step: `docs/experiments/perception_integration_v0.md`.
 
 ### 2026-10-27 — Level 2 v1: harness validation, Model A baseline, first 2x2
 

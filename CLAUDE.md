@@ -104,7 +104,7 @@ The harness reproduced Model B within tolerance and produced the first 2x2 (`doc
 - Flight/ground side: `fog_tracker.py` + `fog/`, `swarm_agent.py`, `mission/`, `mapping/bitmap.py`, `planning/`,
   `comms/`, `dashboard/`, `wildfire_sim.py`, `launch_*.py`, `exp_swarm_*.yaml`.
 - ML side: `sim/camera.py`, `synthgen/`, `eval/` (`validate_dataset.py`, harness), `eval/runpod/` (archived one-off launchers), `models/`, `tests/`.
-- Still empty stubs (verify with `wc -l`): `perception/detector.py`, `sim/frame_synth.py`, `mapping/probability_map.py`.
+- Still an empty stub (verify with `wc -l`): `mapping/probability_map.py`. `perception/detector.py`, `perception/frames.py`, `sim/frame_synth.py`, `sim/camera_service.py` exist (wiring only; `docs/experiments/perception_integration_v0.md`).
 - Large local data (datasets, backups, POC outputs) is under gitignored `local_data/`; checkpoints (`*.pt`) are never committed.
 
 ## Autonomous Development and Compute Policy

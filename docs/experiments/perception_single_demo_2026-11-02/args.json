@@ -1,0 +1,18 @@
+{
+  "origin_lat": 21.297,
+  "origin_lon": -157.817,
+  "grid_miles": 1.0,
+  "grid_cells": 10,
+  "traverse_frac": 0.8,
+  "gossip_group": "239.255.0.1",
+  "gossip_port": 5005,
+  "tick_rate_hz": 2.0,
+  "end_when": "time",
+  "max_seconds": 420.0,
+  "experiment_tag_effective": "perception-single-demo",
+  "stamp": "20261102-015838",
+  "outdir": "/home/joshua/src/Ardupilot-UAV-YOLO/runs/20261102-015838-perception-single-demo",
+  "config_path": "/home/joshua/src/Ardupilot-UAV-YOLO/exp_swarm_perception_single.yaml",
+  "oracle_hazards": false,
+  "detection_truth_radius": 1
+}

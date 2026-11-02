@@ -1,0 +1,17 @@
+reason=timeout
+time_s=420.04
+visited_frac=0.050000
+traverse_frac=0.020000
+tag=perception-single-demo
+mission=grid_frontier
+strategy=perception
+agents_n=1
+burnt_cnt=76
+burnt_frac=0.760000
+det_true=46
+det_false=5
+det_total=51
+precision=0.9019607843137255
+first_ignition_t=0.0
+first_detection_t=23.994088172912598
+detection_lag_s=23.99

@@ -88,3 +88,6 @@ Implementation order (each step is its own small commit with tests; none touches
 6. **Level 3 experiment** (Model A x3 seeds vs Model B-v2 x3 seeds, identical scenarios, seeds and `tau`) is the only step that can support a statement about autonomous monitoring.
 
 **Scope guard:** Level 2 box-level metrics are perception evidence only. No claim of improved coverage, time to detection or misdirection is made or implied until step 6 produces it; steps 1-5 yield no such evidence.
+
+## 9. Implementation status (2026-11-02, Ubuntu session)
+Steps 1-3 of section 8 are done (benchmark, `YoloPerception`, manifest provenance) and the frame source/truth channel (step 4) is implemented as a fog-side HTTP service with a nadir camera; a single-UAV run (step 5) works. Step 6 (the Level 3 matrix) is not run. Interface decisions: the truth channel is `sim/camera_service.py` (fog-owned; JPEG only), the agent sees `perception/frames.py::FrameSource`, `GridSpec` comes from `grid.cfg`, the nadir box centre (not the box bottom) is the ground anchor. Details, measurements, findings and the recommended next experiment: `docs/experiments/perception_integration_v0.md`.
