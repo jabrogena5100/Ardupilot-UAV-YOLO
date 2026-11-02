@@ -91,7 +91,7 @@ Protocol (unchanged from Level 2 v2): YOLOv8s from COCO `yolov8s.pt`, 100 epochs
 
 **Documented protocol deviation: `cache=ram`** for all three seeds (Ultralytics decodes and resizes each image once and keeps it in RAM). Reason: two successive RunPod hosts decoded the 4K frames about 6x slower than the v1 pod (130-150 s/epoch). Checks before training (`results/PROTOCOL_DEVIATION.json`, `eval/runpod/cache_equivalence_check.py`, probe pod `hvpedopu4i1ics`): cached and uncached loads are byte-identical on 24/24 probe images and 16/16 in-job images (shape 338x640x3 uint8); RAM need 2.76 GB for train+val vs 41-83 GB available; `cache=disk` was pixel-identical too but would need about 111 GB (rejected, volume is 50 GB). v1 Model B was trained without a cache. Ultralytics prints that `cache=ram` 'may produce non-deterministic training results'; evidence here: seed 1's first 4 epochs trained on two different pods matched exactly (44 values, max abs diff 0), but only 4 epochs were comparable.
 
-| seed | run (attempt) | epochs | train wall (s) | median epoch (s) | best epoch (val mAP50-95) | val mAP50 / mAP50-95 at best | checkpoint SHA-256 |
+| seed | run (attempt) | epochs | train wall (s) | median epoch (s) | best epoch (Ultralytics fitness; same epoch as argmax val mAP50-95 in all 3 runs) | val mAP50 / mAP50-95 at best | checkpoint SHA-256 |
 |---|---|---|---|---|---|---|---|
 | 0 | `boreal_v2_try3` | 100 | 4983 | 45.1 | 86 | 0.951 / 0.620 | `090c0f4cbe2718d2b084a41b8a3736fa27b673bc66b20c64672b13c83c299a05` |
 | 1 | `boreal_v2_try4` | 100 | 1021 | 9.5 | 66 | 0.959 / 0.625 | `5a9616cefddd3bca6eccf31d0691f7b1a2fadb572f84cf7948c85296644e9388` |

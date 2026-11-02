@@ -1,0 +1,348 @@
+{
+ "checks": [
+  {
+   "id": "ckpt.seed0.hash_recorded",
+   "status": "VERIFIED",
+   "evidence": "090c0f4cbe2718d2b084a41b8a3736fa27b673bc66b20c64672b13c83c299a05"
+  },
+  {
+   "id": "ckpt.seed0.complete_100_epochs",
+   "status": "VERIFIED",
+   "evidence": "complete=True epochs=100 csv_rows=100"
+  },
+  {
+   "id": "ckpt.seed0.protocol_args",
+   "status": "VERIFIED",
+   "evidence": {
+    "model": "yolov8s.pt",
+    "epochs": 100,
+    "patience": 100,
+    "imgsz": 640,
+    "batch": 32,
+    "deterministic": true,
+    "workers": 8,
+    "optimizer": "AdamW",
+    "lr0": 0.002,
+    "momentum": 0.9,
+    "warmup_bias_lr": 0.0,
+    "seed": 0
+   }
+  },
+  {
+   "id": "ckpt.seed0.cache_ram_recorded_in_args",
+   "status": "VERIFIED",
+   "evidence": "args.yaml cache=ram"
+  },
+  {
+   "id": "ckpt.seed0.data_is_boreal_v2",
+   "status": "VERIFIED",
+   "evidence": "/workspace/splits/boreal_v2/data.yaml"
+  },
+  {
+   "id": "ckpt.seed0.env",
+   "status": "VERIFIED",
+   "evidence": {
+    "ultralytics": "8.4.173",
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "driver": "595.91.07"
+   }
+  },
+  {
+   "id": "ckpt.seed0.evaluated_file_hash_matches",
+   "status": "VERIFIED",
+   "evidence": "5 cells, shas=['090c0f4cbe27'], pinned=True"
+  },
+  {
+   "id": "ckpt.seed0.volume_path",
+   "status": "VERIFIED",
+   "evidence": [
+    "/workspace/runs/boreal_v2_try3/real_boreal_v2_seed0/real_boreal_v2_best_seed0.pt"
+   ]
+  },
+  {
+   "id": "ckpt.seed1.hash_recorded",
+   "status": "VERIFIED",
+   "evidence": "5a9616cefddd3bca6eccf31d0691f7b1a2fadb572f84cf7948c85296644e9388"
+  },
+  {
+   "id": "ckpt.seed1.complete_100_epochs",
+   "status": "VERIFIED",
+   "evidence": "complete=True epochs=100 csv_rows=100"
+  },
+  {
+   "id": "ckpt.seed1.protocol_args",
+   "status": "VERIFIED",
+   "evidence": {
+    "model": "yolov8s.pt",
+    "epochs": 100,
+    "patience": 100,
+    "imgsz": 640,
+    "batch": 32,
+    "deterministic": true,
+    "workers": 8,
+    "optimizer": "AdamW",
+    "lr0": 0.002,
+    "momentum": 0.9,
+    "warmup_bias_lr": 0.0,
+    "seed": 1
+   }
+  },
+  {
+   "id": "ckpt.seed1.cache_ram_recorded_in_args",
+   "status": "VERIFIED",
+   "evidence": "args.yaml cache=ram"
+  },
+  {
+   "id": "ckpt.seed1.data_is_boreal_v2",
+   "status": "VERIFIED",
+   "evidence": "/workspace/splits/boreal_v2/data.yaml"
+  },
+  {
+   "id": "ckpt.seed1.env",
+   "status": "VERIFIED",
+   "evidence": {
+    "ultralytics": "8.4.173",
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "driver": "595.91.07"
+   }
+  },
+  {
+   "id": "ckpt.seed1.evaluated_file_hash_matches",
+   "status": "VERIFIED",
+   "evidence": "5 cells, shas=['5a9616cefddd'], pinned=True"
+  },
+  {
+   "id": "ckpt.seed1.volume_path",
+   "status": "VERIFIED",
+   "evidence": [
+    "/workspace/runs/boreal_v2_try4/real_boreal_v2_seed1/real_boreal_v2_best_seed1.pt"
+   ]
+  },
+  {
+   "id": "ckpt.seed2.hash_recorded",
+   "status": "VERIFIED",
+   "evidence": "c4d443a8af919c6b00e4319b117a5dfbe90bd8b29750c75e3970a9389ae097ef"
+  },
+  {
+   "id": "ckpt.seed2.complete_100_epochs",
+   "status": "VERIFIED",
+   "evidence": "complete=True epochs=100 csv_rows=100"
+  },
+  {
+   "id": "ckpt.seed2.protocol_args",
+   "status": "VERIFIED",
+   "evidence": {
+    "model": "yolov8s.pt",
+    "epochs": 100,
+    "patience": 100,
+    "imgsz": 640,
+    "batch": 32,
+    "deterministic": true,
+    "workers": 8,
+    "optimizer": "AdamW",
+    "lr0": 0.002,
+    "momentum": 0.9,
+    "warmup_bias_lr": 0.0,
+    "seed": 2
+   }
+  },
+  {
+   "id": "ckpt.seed2.cache_ram_recorded_in_args",
+   "status": "VERIFIED",
+   "evidence": "args.yaml cache=ram"
+  },
+  {
+   "id": "ckpt.seed2.data_is_boreal_v2",
+   "status": "VERIFIED",
+   "evidence": "/workspace/splits/boreal_v2/data.yaml"
+  },
+  {
+   "id": "ckpt.seed2.env",
+   "status": "VERIFIED",
+   "evidence": {
+    "ultralytics": "8.4.173",
+    "torch": "2.8.0+cu128",
+    "cuda": "12.8",
+    "gpu": "NVIDIA GeForce RTX 4090",
+    "driver": "595.91.07"
+   }
+  },
+  {
+   "id": "ckpt.seed2.evaluated_file_hash_matches",
+   "status": "VERIFIED",
+   "evidence": "5 cells, shas=['c4d443a8af91'], pinned=True"
+  },
+  {
+   "id": "ckpt.seed2.volume_path",
+   "status": "VERIFIED",
+   "evidence": [
+    "/workspace/runs/boreal_v2_try4/real_boreal_v2_seed2/real_boreal_v2_best_seed2.pt"
+   ]
+  },
+  {
+   "id": "v1.existing_checkpoints_unchanged_after_run",
+   "status": "VERIFIED",
+   "evidence": "6 checkpoints re-hashed on the pod"
+  },
+  {
+   "id": "cells.count_30_full_cross_product",
+   "status": "VERIFIED",
+   "evidence": "30 cells"
+  },
+  {
+   "id": "cells.dataset_pins_and_settings",
+   "status": "VERIFIED",
+   "evidence": "all 30 cells match eval/datasets_boreal_v2.yaml pins; imgsz 640, conf 0.001, NMS 0.7, max_det 300, report 0.25"
+  },
+  {
+   "id": "cells.model_a_are_existing_pinned_checkpoints",
+   "status": "VERIFIED",
+   "evidence": "Model A seeds 0-2 = the pinned v1 checkpoints"
+  },
+  {
+   "id": "split.scan_is_pinned",
+   "status": "VERIFIED",
+   "evidence": "boreal_scan.json.gz sha256 8a4db032..."
+  },
+  {
+   "id": "split.filelist_hashes_frozen",
+   "status": "VERIFIED",
+   "evidence": {
+    "test": "9fa6dbc1d0eb9fa437e989be29afadc9a459f7850502f1c18c350379afcddc8f",
+    "train": "5b23b199965dfc47372e6100f4d5bfd41d57ef5b0b16b5ed83e91db056245c25",
+    "val": "8ef9e902bb24a720112bef32d20248d6aa33c17d67efc9771643daa87d252e2f"
+   }
+  },
+  {
+   "id": "split.video_disjoint_recomputed",
+   "status": "VERIFIED",
+   "evidence": "31 clips, intersections {'train&val': [], 'train&test': [], 'val&test': []}"
+  },
+  {
+   "id": "split.covers_every_scanned_file_once",
+   "status": "VERIFIED",
+   "evidence": "4954 files"
+  },
+  {
+   "id": "split.no_exact_duplicates_across_partitions",
+   "status": "VERIFIED",
+   "evidence": "0 md5 groups span partitions (dataset-wide duplicate groups: 0)"
+  },
+  {
+   "id": "split.harness_views_pinned",
+   "status": "VERIFIED",
+   "evidence": {
+    "boreal_v2_test": 744,
+    "boreal_v2_test_pos": 679,
+    "boreal_v2_test_neg": 65
+   }
+  },
+  {
+   "id": "leakage.recheck_reproduces",
+   "status": "VERIFIED",
+   "evidence": "22 pairs <=4 bits (recomputed == committed)"
+  },
+  {
+   "id": "leakage.six_distinct_test_frames",
+   "status": "VERIFIED",
+   "evidence": [
+    "Empty-Images__heinola_DJI_0048_frame100.jpg",
+    "Empty-Images__heinola_DJI_0048_frame103.jpg",
+    "Empty-Images__heinola_DJI_0048_frame104.jpg",
+    "Empty-Images__heinola_DJI_0048_frame184.jpg",
+    "Empty-Images__heinola_DJI_0048_frame187.jpg",
+    "Empty-Images__heinola_DJI_0048_frame188.jpg"
+   ]
+  },
+  {
+   "id": "leakage.only_two_clip_pairs",
+   "status": "VERIFIED",
+   "evidence": [
+    [
+     "heinola_dji_0028",
+     "heinola_dji_0048"
+    ],
+    [
+     "heinola_dji_0048",
+     "ruokolahti_dji_0089"
+    ]
+   ]
+  },
+  {
+   "id": "leakage.sensitivity_max_mAP50_change",
+   "status": "VERIFIED",
+   "evidence": "max |mAP50 change| = 0.00069 over 6 models"
+  },
+  {
+   "id": "leakage.karkkila_0007_0008_together",
+   "status": "VERIFIED",
+   "evidence": "both in val"
+  },
+  {
+   "id": "deviation.cache_ram_documented",
+   "status": "VERIFIED",
+   "evidence": "PROTOCOL_DEVIATION.json + results doc + MODELS.md + handoff + status all mention cache=ram"
+  },
+  {
+   "id": "deviation.non_determinism_warning_and_limited_evidence_stated",
+   "status": "VERIFIED",
+   "evidence": "results doc states Ultralytics warning and the 4-epoch evidence limit"
+  },
+  {
+   "id": "docs.hash_090c0f4c_in_registry",
+   "status": "VERIFIED",
+   "evidence": "present in MODELS.md and results doc"
+  },
+  {
+   "id": "docs.hash_5a9616ce_in_registry",
+   "status": "VERIFIED",
+   "evidence": "present in MODELS.md and results doc"
+  },
+  {
+   "id": "docs.hash_c4d443a8_in_registry",
+   "status": "VERIFIED",
+   "evidence": "present in MODELS.md and results doc"
+  },
+  {
+   "id": "docs.headline_means_match_cells",
+   "status": "VERIFIED",
+   "evidence": "0.512 / 0.612 / 0.899 recomputed from report.json"
+  },
+  {
+   "id": "docs.negative_counts_9_11_17_and_1_1_1",
+   "status": "VERIFIED",
+   "evidence": {
+    "A_seed0": 9,
+    "A_seed1": 11,
+    "A_seed2": 17,
+    "B_seed0": 1,
+    "B_seed1": 1,
+    "B_seed2": 1
+   }
+  },
+  {
+   "id": "preservation.v1_and_historical_v2_files_unchanged_vs_main",
+   "status": "VERIFIED",
+   "evidence": "0 changed files among 9 protected paths since c080777d"
+  },
+  {
+   "id": "preservation.models_md_append_only",
+   "status": "VERIFIED",
+   "evidence": "MODELS.md: +14 -0 lines"
+  },
+  {
+   "id": "metrics.detection_metrics_recomputed_exact",
+   "status": "VERIFIED",
+   "evidence": "678 values recomputed from saved predictions/gts; non-localisation differences: 0 []; localisation-only float differences: 40"
+  }
+ ],
+ "summary": {
+  "VERIFIED": 49,
+  "FAILED": 0,
+  "SKIPPED": 0
+ }
+}
