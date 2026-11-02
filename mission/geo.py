@@ -44,6 +44,15 @@ def latlon_to_ne(lat_deg: float, lon_deg: float,
     return dn, de
 
 
+def ne_to_latlon(n_m: float, e_m: float,
+                 lat0_deg: float, lon0_deg: float) -> Tuple[float, float]:
+    """Exact inverse of latlon_to_ne (same cos(lat0) form)."""
+    lat0 = math.radians(lat0_deg)
+    lat = lat0_deg + math.degrees(n_m / R_EARTH)
+    lon = lon0_deg + math.degrees(e_m / (R_EARTH * math.cos(lat0)))
+    return lat, lon
+
+
 def cheby_dist(a: Tuple[int, int], b: Tuple[int, int]) -> int:
     """Chebyshev (chessboard-king) distance in grid cells. This is the metric
     comm_grid_radius is expressed in: radius 2 means a 5x5 neighbourhood."""
