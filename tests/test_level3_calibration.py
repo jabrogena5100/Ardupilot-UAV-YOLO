@@ -20,7 +20,7 @@ class TestScenarioSplit(unittest.TestCase):
         self.assertEqual((len(sc["calibration"]), len(sc["heldout"])), (SC.N_CAL, SC.N_HELD))
         self.assertTrue({s["texture_slot"] for s in sc["calibration"]} <= set(SC.CAL_SLOTS))
         self.assertTrue({s["texture_slot"] for s in sc["heldout"]} <= set(SC.HELD_SLOTS))
-        for split, dmin in (("calibration", 2), ("heldout", 3)):      # calibration ignition v2: early patrol region, not at takeoff
+        for split, dmin in (("calibration", 2), ("heldout", 2)):      # calibration ignition v2: early patrol region, not at takeoff
             for s in sc[split]:
                 i, j = s["ignition"]
                 self.assertGreaterEqual(max(abs(i - SC.TAKEOFF_CELL[0]), abs(j - SC.TAKEOFF_CELL[1])), dmin)

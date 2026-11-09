@@ -42,6 +42,13 @@ N_CAL, N_HELD = 4, 8
 # The held-out ignitions are NOT changed here (pinned, hash-checked); they must be re-derived by the same rule from a baseline flight
 # before any final evaluation (a separate, explicit step).
 CAL_IGNITION_V2 = {1001: [2, 2], 1002: [3, 1], 1003: [1, 1], 1005: [0, 0]}
+# Held-out ignition cells, version 2 (amendment 2026-11-09, made BEFORE any held-out run, from the same recorded baseline flight and the same
+# visibility rule as above, parity odd): first geometrically visible 60-400 s (window widened from 300 s: only 3 odd cells qualify at 300 s),
+# >= 4 visible frames, Chebyshev distance >= 2 from takeoff. Exactly four cells qualify: (3,2) 84 s/11 frames, (2,1) 172 s/4, (1,0) 196 s/11,
+# (0,1) 320 s/12. Eight held-out scenarios therefore REUSE each cell twice, with different fire seeds and (by construction below) different
+# texture slots; this relaxes the "distinct ignition cells within the set" control (cells stay disjoint from calibration by parity).
+# Version 1 (random cells, pinned hash 558f7282...) is superseded and was never flown.
+HELD_IGNITION_V2 = {2001: [3, 2], 2005: [3, 2], 2002: [2, 1], 2012: [2, 1], 2004: [1, 0], 2014: [1, 0], 2006: [0, 1], 2015: [0, 1]}
 TAKEOFF_CELL = (5, 5)          # the SITL home (grid origin) is the corner of cells (4..5, 4..5); (5,5) is the reference cell
 LAT0, LON0 = 21.2970, -157.8170
 
@@ -78,11 +85,11 @@ def build():
         seed = base
         while len(out[split]) < n:
             slot = texture_slot(seed)
-            ign = CAL_IGNITION_V2.get(seed) if split == "calibration" else ignition_cell(seed, parity)
+            ign = (CAL_IGNITION_V2 if split == "calibration" else HELD_IGNITION_V2).get(seed)
             if ign is None:
                 seed += 1
                 continue
-            if slot in slots and ign not in [s["ignition"] for s in out[split]]:
+            if slot in slots and (split == "heldout" or ign not in [s["ignition"] for s in out[split]]):
                 out[split].append({"seed": seed, "split": split, "texture_slot": slot, "ignition": ign, "fire_seed": seed})
             seed += 1
     return out
@@ -97,6 +104,9 @@ def verify(sc: dict) -> None:
     assert not ({s["seed"] for s in cal} & {s["seed"] for s in held}), "seed overlap"
     assert not ({s["texture_slot"] for s in cal} & {s["texture_slot"] for s in held}), "texture slot overlap"
     assert not ({tuple(s["ignition"]) for s in cal} & {tuple(s["ignition"]) for s in held}), "ignition overlap"
+    for c in {tuple(s["ignition"]) for s in held}:       # a reused held-out cell must come with different texture slots and fire seeds
+        grp = [s for s in held if tuple(s["ignition"]) == c]
+        assert len({s["texture_slot"] for s in grp}) == len(grp) and len({s["fire_seed"] for s in grp}) == len(grp), "reused cell not varied"
     for s in cal + held:
         assert texture_slot(s["seed"]) == s["texture_slot"]
 
