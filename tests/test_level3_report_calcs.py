@@ -60,6 +60,18 @@ class TestHelpers(unittest.TestCase):
             e = T.extra_rows([{"run": "l3-B2s0-2001"}], tmp)[0]
             self.assertEqual((e["det_false_obs"], e["det_false_cells"], e["det_true_obs"], e["det_true_cells"]), (4, 2, 2, 1))
 
+    def test_extra_rows_excludes_records_after_the_600s_window(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = os.path.join(tmp, "l3-B2s0-2014")
+            os.makedirs(d)
+            with open(os.path.join(d, "detections_l3-B2s0-2014.csv"), "w", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(["t", "sys", "i", "j", "cls", "conf", "model", "truth_state", "correct", "tag", "strategy"])
+                for t, i, j, ok in [(599.0, 3, 2, 1), (600.0, 3, 2, 1), (600.1, 3, 2, 1), (600.16, 3, 3, 1), (600.5, 8, 8, 0)]:
+                    w.writerow([t, 1, i, j, "smoke", 0.5, "m", 0, ok, "t", "s"])
+            e = T.extra_rows([{"run": "l3-B2s0-2014"}], tmp)[0]
+            self.assertEqual((e["det_true_obs"], e["det_false_obs"], e["det_after_window"]), (2, 0, 3))
+
 
 class TestSeedSummary(unittest.TestCase):
     def build(self):
@@ -183,6 +195,34 @@ class TestClusterStats(unittest.TestCase):
         self.assertEqual(r[("first_true_det_s", "A-B")]["cell_diffs"], {"0,0": 30.0, "1,1": 10.0})
         self.assertAlmostEqual(r[("first_true_det_s", "A-B")]["mean_diff"], 20.0)
 
+    def test_era_subsets_report_the_cells_each_subset_actually_covers(self):
+        # real design: sequential-only {2001,2002,2004} covers cells (3,2),(2,1),(1,0); parallel-only {2006,2012,2014,2015} covers (0,1),(2,1),(1,0): three cells each, not four
+        self.assertEqual(sorted({T.CELL_OF[s] for s in (2001, 2002, 2004)}), [(1, 0), (2, 1), (3, 2)])
+        self.assertEqual(sorted({T.CELL_OF[s] for s in (2006, 2012, 2014, 2015)}), [(0, 1), (1, 0), (2, 1)])
+        fa = {s: 1.0 for s in SCEN}
+        fb = {s: 0.0 for s in SCEN}
+        era = {2001: "seq", 2002: "seq", 2004: "seq", 2005: "mixed", 2006: "par", 2012: "par", 2014: "par", 2015: "par"}
+        r, res, out = self.run_stats(fa, fb, era=era)
+        md = open(os.path.join(out, "cluster_stats.md")).read()
+        self.assertIn("(3 cells: [(1, 0), (2, 1), (3, 2)])", md)
+        self.assertIn("(3 cells: [(0, 1), (1, 0), (2, 1)])", md)
+        self.assertNotIn("all 4 cells", md)
+        dp = {(m, c): rest for m, c, *rest in T.direction_counts(list(r.values()), res["sensitivity_by_era"]["parallel_scenarios"])}
+        self.assertEqual(dp[("first_true_det_s", "A-B")][-2:], [4, 3])                 # n_scenarios = 4, n_cells = 3
+
+    def test_spearman_known_values(self):
+        self.assertAlmostEqual(T.spearman([1, 2, 3, 4], [10, 20, 30, 40]), 1.0)
+        self.assertAlmostEqual(T.spearman([1, 2, 3, 4], [4, 3, 2, 1]), -1.0)
+        self.assertAlmostEqual(T.spearman([1, 2, 2, 4], [1, 2, 2, 4]), 1.0)             # ties get average ranks
+
+    def test_capped_interpretation_text_does_not_claim_a_bound_on_differences(self):
+        rows = [mk("A0", 2001, ign_first_visit_s=100), mk("B2s0", 2001, ign_first_visit_s=None)]
+        with tempfile.TemporaryDirectory() as out:
+            T.censoring(rows, out)
+            t = open(os.path.join(out, "censoring.md")).read()
+        self.assertIn("not** a bound on the true difference", t)
+        self.assertNotIn("lower bounds on the size of the difference", t)
+
     def test_era_of_scenarios_classification(self):
         prov = [{"set": "results", "run": "l3-A0-2001", "parallel_slot": None}, {"set": "results", "run": "l3-B2s0-2001", "parallel_slot": ""},
                 {"set": "results", "run": "l3-A0-2005", "parallel_slot": None}, {"set": "results", "run": "l3-B2s1-2005", "parallel_slot": 1},
@@ -231,6 +271,24 @@ class TestFireClock(unittest.TestCase):
         self.assertAlmostEqual(rows["l3-baseline-2006"]["fire_ratio_vs_baseline"], 1.0)
         self.assertAlmostEqual(rows["l3-A0-2006"]["fog_ticks_per_s"], 1 / 0.55, places=6)
         self.assertEqual(rows["l3-A0-2006"]["mode"], "par")
+
+    def test_fire_clock_report_states_measured_associations_and_no_bias_claims(self):
+        base = {(1, 0): 0.0, (2, 0): 10.0, (3, 0): 20.0, (4, 0): 40.0}
+        with tempfile.TemporaryDirectory() as root, tempfile.TemporaryDirectory() as out:
+            self.write(root, "l3-baseline-2006", base, 0.5, True)
+            # three perception runs, slower fire (ratio 1.02, 1.04, 1.06) with lower and lower fog tick rate (0.50 s, 0.52 s, 0.55 s per tick)
+            for arm, ratio, tick in (("A0", 1.02, 0.52), ("A1", 1.04, 0.55), ("B2s0", 1.06, 0.60)):
+                self.write(root, f"l3-{arm}-2006", {c: t * ratio for c, t in base.items()}, tick, True)
+            per_run = [{"run": f"l3-{a}-2006", "first_true_det_s": str(100 + i)} for i, a in enumerate(("A0", "A1", "B2s0"))]
+            T.fire_clock(root, out, per_run=per_run)
+            md = open(os.path.join(out, "fire_clock.md")).read()
+            rows = {r["run"]: r for r in csv_rows(os.path.join(out, "fire_clock.csv"))}
+        self.assertIn("3 of 3 perception runs have a fire ratio above 1.0", md)
+        self.assertIn("= -1.00 (n = 3)", md)                                         # tick rate falls as the fire ratio rises
+        self.assertIn("association, not proof", md)
+        self.assertIn("Not established", md)
+        self.assertNotIn("fire ran fastest", md)
+        self.assertAlmostEqual(float(rows["l3-A1-2006"]["fire_ratio_vs_baseline"]), 1.04)
 
 
 class TestLinkageMapping(unittest.TestCase):

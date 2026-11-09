@@ -15,6 +15,11 @@ Per-run metrics (all measured from the run's recorded artifacts; fire truth is u
   inv_true_s / inv_false_s  1 Hz HUD seconds in INVESTIGATE mode on targets within Chebyshev 1 of a cell that burned at any time in the run
                        (true diversion) or not (FALSE-PRIORITY DIVERSION). Time-agnostic truth: a target near a cell that ignites later counts as true,
                        so inv_false_s is a lower bound on misdirection.
+Window: only detections stamped 0 <= t <= T_END (600 s) are counted. fog stops a few tenths of a second after T_END (run end 600.01-600.94 s) and
+may log detections in that tail; they are excluded and counted in `det_after_window` for transparency. Coverage (`visited_frac`) is read at the run end.
+Censoring: first_true_det_s and ign_first_visit_s are None when the event was not observed in the window. For the paired statistics a missing value is set to T_END (a CAPPED value).
+A capped value is a lower bound on that run's true time. The capped means and the paired differences/CIs/p-values treat the cap as if it were an observed time: the difference of two
+capped means is NOT a bound on the true difference unless the censoring is confined to the later arm; the intervals are descriptive, not censoring-aware.
 Statistics (per contrast, e.g. A-baseline, B-baseline, A-B): mean paired difference over scenarios, percentile bootstrap CI over
 scenarios (resampling scenarios, 10,000 draws, fixed seed) and an exact two-sided sign-flip permutation p-value on the scenario
 differences. With n scenarios the p-value cannot be smaller than 2/2^n. These describe scenario sampling only; the seed spread is reported separately.
@@ -37,6 +42,7 @@ sys.path.insert(0, ROOT)
 
 T_END = 600.0
 FAMILY = {"baseline": "baseline", "A0": "A", "A1": "A", "A2": "A", "B2s0": "B", "B2s1": "B", "B2s2": "B"}
+ARM_ORDER = ["baseline", "A0", "A1", "A2", "B2s0", "B2s1", "B2s2"]          # fixed order: deterministic marker jitter in the figure
 METRICS = ["first_true_det_s", "ign_first_visit_s", "visited_frac", "det_false", "inv_false_s", "inv_true_s"]
 
 
@@ -49,6 +55,14 @@ def kv(path):
     return d
 
 
+def run_mode(d):
+    """'par' if the run used a parallel slot, 'seq' if sequential, '' if run_meta.json is absent."""
+    try:
+        return "par" if "slot" in json.load(open(os.path.join(d, "run_meta.json"))) else "seq"
+    except (OSError, ValueError):
+        return ""
+
+
 def run_metrics(d):
     end = kv(glob.glob(os.path.join(d, "experiment_end_*.txt"))[0])
     tag = end["tag"]
@@ -56,11 +70,14 @@ def run_metrics(d):
     arm, scen = parts[1], int(parts[-1])
     fire = list(csv.DictReader(open(glob.glob(os.path.join(d, "fire_cells_*.csv"))[0])))
     dets = list(csv.DictReader(open(glob.glob(os.path.join(d, "detections_*.csv"))[0])))
-    tp = sorted(float(r["t"]) for r in dets if r["correct"] == "1" and float(r["t"]) >= 0)
-    fp = [float(r["t"]) for r in dets if r["correct"] == "0" and float(r["t"]) >= 0]
+    tp = sorted(float(r["t"]) for r in dets if r["correct"] == "1" and 0 <= float(r["t"]) <= T_END)
+    fp = [float(r["t"]) for r in dets if r["correct"] == "0" and 0 <= float(r["t"]) <= T_END]
+    late = sum(1 for r in dets if float(r["t"]) > T_END)                  # logged after the 600 s window: excluded from every count
     burned = {(int(r["i"]), int(r["j"])) for r in fire}
     ign = [r for r in fire if float(r["ignite_t"]) <= 0.5]       # the scenario's ignition cell burns from t=0, so a visit is always during the fire
     ign_visit = float(ign[0]["first_visit_t"]) if ign and ign[0]["first_visit_t"] != "" else None
+    if ign_visit is not None and ign_visit > T_END:                # a visit stamped after the window is not an observation within it
+        ign_visit = None
     inv_true = inv_false = 0
     targets = {}
     log = os.path.join(d, "agent_A.log")
@@ -79,9 +96,10 @@ def run_metrics(d):
     row = {
         "run": os.path.basename(d.rstrip("/")), "tag": tag, "arm": arm, "family": FAMILY[arm], "scenario": scen,
         "first_true_det_s": tp[0] if tp else None, "ign_first_visit_s": ign_visit,
-        "fire_cells": len(fire), "fire_cells_visited": sum(1 for r in fire if r["visited"] == "1"),
+        "fire_cells": len(fire), "fire_cells_visited": sum(1 for r in fire if r["first_visit_t"] != "" and float(r["first_visit_t"]) <= T_END),
         "visited_frac": float(end["visited_frac"]), "det_true": len(tp), "det_false": len(fp),
         "inv_true_s": inv_true, "inv_false_s": inv_false, "n_investigate_targets": len(targets),
+        "det_after_window": late, "mode": run_mode(d), "ign_cell": f"{ign[0]['i']},{ign[0]['j']}" if ign else "",
     }
     row["fire_cells_visited_frac"] = row["fire_cells_visited"] / max(1, row["fire_cells"])
     return row
@@ -144,27 +162,43 @@ def seed_table(rows):
 
 
 def figures(rows, outdir):
+    """Per-scenario run values. Marker: circle = sequential run, triangle = 2-slot parallel run, no marker distinction when the mode is unknown;
+    hollow = the event was not observed in the 600 s window (plotted AT the 600 s cap, a lower bound, not an observed time). Short bars = mean of the family's runs in that scenario
+    (baseline: one run; A and B: 3 seeds). No lines join scenarios: they are not an ordered series."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib.lines import Line2D
     col = {"baseline": "#6b6b6b", "A": "#1f77b4", "B": "#d95f02"}
     scs = sorted({r["scenario"] for r in rows})
-    specs = [("ign_first_visit_s", "first visit to ignition cell (s, censored 600)"), ("visited_frac", "grid coverage at end"),
-             ("inv_false_s", "false-priority diversion (s in INVESTIGATE)"), ("det_false", "false detections per run")]
-    fig, axs = plt.subplots(2, 2, figsize=(10, 7))
+    cell = {r["scenario"]: r.get("ign_cell", "") for r in rows}
+    specs = [("ign_first_visit_s", "first visit of ignition cell (s)\nhollow = not observed, drawn at the 600 s cap"), ("visited_frac", "grid coverage at run end"),
+             ("inv_false_s", "INVESTIGATE log lines on false targets\n(approximate seconds, not exact)"), ("det_false", "false detection observations per run\n(repeated observations, not incidents)")]
+    fig, axs = plt.subplots(2, 2, figsize=(10.5, 7.6))
     for ax, (key, lab) in zip(axs.ravel(), specs):
         for k, fam in enumerate(("baseline", "A", "B")):
+            xo = (k - 1) * 0.22
             for r in rows:
-                if r["family"] == fam:
-                    ax.plot(scs.index(r["scenario"]) + (k - 1) * 0.2, censored(r, key), "o", color=col[fam], alpha=0.55, ms=5)
+                if r["family"] != fam:
+                    continue
+                cap = key in ("first_true_det_s", "ign_first_visit_s") and r.get(key) is None
+                mk = "^" if r.get("mode") == "par" else "o"
+                ax.scatter([scs.index(r["scenario"]) + xo + (ARM_ORDER.index(r["arm"]) - 3) * 0.012], [censored(r, key)], marker=mk, s=26, linewidths=1.2,
+                           facecolors="none" if cap else col[fam], edgecolors=col[fam], alpha=0.8)
             fm = family_by_scenario(rows, fam, key)
-            ax.plot([scs.index(s) + (k - 1) * 0.2 for s in sorted(fm)], [fm[s] for s in sorted(fm)], "-", color=col[fam], lw=1.2, label=fam)
+            for sc_, v in fm.items():
+                ax.plot([scs.index(sc_) + xo - 0.09, scs.index(sc_) + xo + 0.09], [v, v], "-", color=col[fam], lw=2.0)
         ax.set_xticks(range(len(scs)))
-        ax.set_xticklabels([str(s) for s in scs], rotation=45, fontsize=7)
-        ax.set_xlabel("scenario seed")
+        ax.set_xticklabels([f"{sc_}\n({cell.get(sc_, '')})" if cell.get(sc_) else str(sc_) for sc_ in scs], fontsize=7)
+        ax.set_xlabel("scenario seed (ignition cell)", fontsize=8)
         ax.set_ylabel(lab, fontsize=8)
-    axs[0, 0].legend(title="family (dots = runs, line = seed mean)", fontsize=7)
-    fig.tight_layout()
+    fig.legend(handles=[Line2D([], [], marker="s", ls="", color=col["baseline"], label="baseline (no detector)"), Line2D([], [], marker="s", ls="", color=col["A"], label="Model A (3 seeds)"),
+                        Line2D([], [], marker="s", ls="", color=col["B"], label="Model B v2 (3 seeds)"), Line2D([], [], marker="o", ls="", mfc="k", mec="k", label="sequential run"),
+                        Line2D([], [], marker="^", ls="", mfc="k", mec="k", label="2-slot parallel run"), Line2D([], [], marker="o", ls="", mfc="none", mec="k", label="not observed (at cap)"),
+                        Line2D([], [], color="k", lw=2, label="mean over the family's runs")], loc="lower center", ncol=4, fontsize=7)
+    fig.suptitle("Level 3 final evaluation: one marker per run, 8 held-out scenarios on 4 ignition cells (2001/2005, 2002/2012, 2004/2014, 2006/2015). Descriptive only; no inference implied.\n"
+                 "Parallel runs had a different realized fire than the baseline (see fire_clock.md).", fontsize=8)
+    fig.tight_layout(rect=(0, 0.08, 1, 0.94))
     fig.savefig(os.path.join(outdir, "fig_level3_scenarios.png"), dpi=150)
     plt.close(fig)
 

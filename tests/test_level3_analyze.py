@@ -88,6 +88,37 @@ class TestRunMetrics(unittest.TestCase):
         d = write_run(self.tmp.name, "l3-A1-2005", [(3, 3, 0.6, 5.0, 1), (3, 2, 0.4, 111.0, 1)], [], None)      # the non-ignition cell is listed first on purpose
         self.assertEqual(A.run_metrics(d)["ign_first_visit_s"], 111.0)
 
+    def test_600s_window_boundary_and_late_records(self):
+        # fog may log detections up to ~1 s after the 600 s window; they are outside the window and must not be counted
+        dets = [(599.9, 3, 2, 1), (600.0, 3, 2, 1), (600.01, 3, 2, 1), (600.16, 3, 2, 1), (600.2, 9, 9, 0), (-1.0, 9, 9, 0)]
+        d = write_run(self.tmp.name, "l3-A0-2006", [(0, 1, 0.0, 9.0, 1)], dets, [])
+        m = A.run_metrics(d)
+        self.assertEqual((m["det_true"], m["det_false"], m["det_after_window"]), (2, 0, 3))    # 599.9 and exactly 600.0 count; 600.01, 600.16, 600.2 do not
+        self.assertEqual(m["first_true_det_s"], 599.9)
+
+    def test_only_late_true_detection_is_censored_not_observed(self):
+        d = write_run(self.tmp.name, "l3-B2s0-2014", [(0, 1, 0.0, 9.0, 1)], [(600.16, 0, 1, 1)], [])
+        m = A.run_metrics(d)
+        self.assertIsNone(m["first_true_det_s"])
+        self.assertEqual(A.censored(m, "first_true_det_s"), A.T_END)
+        self.assertEqual((m["det_true"], m["det_after_window"]), (0, 1))
+
+    def test_ignition_cell_visit_stamped_after_the_window_is_not_observed(self):
+        d = write_run(self.tmp.name, "l3-A0-2012", [(2, 1, 0.0, 600.3, 1), (2, 2, 40.0, 600.4, 1), (2, 3, 60.0, 100.0, 1)], [], None)
+        m = A.run_metrics(d)
+        self.assertIsNone(m["ign_first_visit_s"])
+        self.assertEqual(m["fire_cells_visited"], 1)                    # only the visit at 100 s lies inside the window
+
+    def test_mode_and_ignition_cell_fields(self):
+        import json
+        seq = write_run(self.tmp.name, "l3-A0-2001", [(3, 2, 0.0, 10.0, 1)], [], None)
+        par = write_run(self.tmp.name, "l3-A1-2001", [(3, 2, 0.0, 10.0, 1)], [], None)
+        none = write_run(self.tmp.name, "l3-A2-2001", [(3, 2, 0.0, 10.0, 1)], [], None)
+        json.dump({"git_dirty": False}, open(os.path.join(seq, "run_meta.json"), "w"))
+        json.dump({"slot": 0}, open(os.path.join(par, "run_meta.json"), "w"))
+        self.assertEqual((A.run_metrics(seq)["mode"], A.run_metrics(par)["mode"], A.run_metrics(none)["mode"]), ("seq", "par", ""))
+        self.assertEqual(A.run_metrics(seq)["ign_cell"], "3,2")
+
     def test_family_mapping_covers_all_seven_arms(self):
         self.assertEqual(A.FAMILY, {"baseline": "baseline", "A0": "A", "A1": "A", "A2": "A", "B2s0": "B", "B2s1": "B", "B2s2": "B"})
         for arm, fam in A.FAMILY.items():

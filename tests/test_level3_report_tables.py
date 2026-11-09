@@ -43,6 +43,18 @@ class TestArtifacts(unittest.TestCase):
     def setUp(self):
         self.rows = rd("per_run.csv")
 
+    def test_window_correction_in_committed_per_run(self):
+        r = {x["run"]: x for x in self.rows}["l3-B2s0-2014"]
+        self.assertEqual((r["det_true"], r["det_after_window"]), ("67", "9"))           # 9 records stamped 600.01-600.16 s are excluded
+        self.assertEqual(sum(int(x["det_after_window"]) for x in self.rows), 9)
+        self.assertEqual(sum(x["mode"] == "seq" for x in self.rows), 26)
+        self.assertEqual(sum(x["mode"] == "par" for x in self.rows), 30)
+
+    def test_era_subset_cell_counts_in_committed_stats(self):
+        sens = json.load(open(os.path.join(OUT, "cluster_stats.json")))["sensitivity_by_era"]
+        self.assertEqual((sens["sequential_scenarios"], sens["parallel_scenarios"]), ([2001, 2002, 2004], [2006, 2012, 2014, 2015]))
+        self.assertTrue(all(v["sequential"][-1] == 3 and v["parallel"][-1] == 3 for v in sens["counts"].values()))   # cells per subset: three, not four
+
     def test_run_count_and_censoring(self):
         self.assertEqual(len(self.rows), 56)
         self.assertEqual(sum(1 for r in self.rows if r["ign_first_visit_s"] == ""), 15)
@@ -129,6 +141,20 @@ class TestDocsConsistency(unittest.TestCase):
                 self.assertIn(n.lower(), t, (d, n))
         for d in ("docs/experiments/level3_final.md", "docs/experiments/level3_methodology.md"):
             self.assertNotIn("the scene, fire and detector are deterministic", text(d).lower(), d)
+
+    def test_no_four_cell_claim_for_the_parallel_only_subset(self):
+        import re
+        for d in ("docs/experiments/level3_final.md", "docs/experiments/level3_methodology.md", "docs/handoffs/level3_final_audit.md", "docs/experiments/level3_final/cluster_stats.md"):
+            t = text(d)
+            self.assertIsNone(re.search(r"2006, 2012, 2014, 2015[^)\n]{0,40}4 cells", t), d)
+            self.assertIsNone(re.search(r"parallel-only[^.\n]{0,120}all 4 cells", t), d)
+
+    def test_docs_state_capped_interpretation_and_fire_clock_limits(self):
+        t = text("docs/experiments/level3_final.md").lower()
+        for needle in ("capped", "in general a bound on the true difference", "0 <= t <= 600.0", "association, not proof", "not established"):
+            self.assertTrue(needle in t, "missing: " + needle)
+        for bad in ("a lower bound on the gap", "lower bounds on the size of the difference", "whose fire ran fastest", "adds noise to a-b rather than a systematic"):
+            self.assertFalse(bad in t, "stale claim: " + bad)
 
     def test_baseline_first_detection_is_not_applicable_in_csv(self):
         base = [r for r in rd("seed_summary.csv") if r["arm"] == "baseline"][0]
