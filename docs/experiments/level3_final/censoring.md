@@ -1,6 +1,6 @@
 # Right-censoring and coverage (generated)
 
-A run is **censored** for a time-to-event metric when the event was not observed within the 600 s window. The true time is then only known to exceed 600 s; it is never an exact time. Means that substitute 600 s are lower bounds.
+A run is **censored** for a time-to-event metric when the event was not observed within the 600 s window. The true time is then only known to exceed 600 s; it is never an exact time. A capped mean (600 s substituted) is a lower bound on that arm's own true mean.
 
 | arm | runs | ignition cell visited by 600 s | no observed visit (censored) | observed-only median visit (s) | true detection observed | no true detection (censored) | coverage mean +- SD over scenarios |
 |---|---|---|---|---|---|---|---|
@@ -16,4 +16,4 @@ Total runs with no observed ignition-cell visit by 600 s: **15 of 56**. The obse
 Censored runs by scenario (ignition-cell visit): 2001: 0, 2002: 1, 2004: 2, 2005: 0, 2006: 4, 2012: 2, 2014: 3, 2015: 3.
 Runs with no observed true detection (perception arms): l3-B2s1-2004.
 
-Direction of the bias: substituting 600 s for an unobserved time understates that run's true time, and the arm with more censored runs (B for the ignition-cell visit) is understated more, so time contrasts between arms are lower bounds on the size of the difference, not estimates of it. No survival model was fitted (4 clusters, 8 scenarios).
+**Interpreting capped values.** A capped value (600 s) is a lower bound on that run's true time, so a capped arm mean is a lower bound on that arm's true mean. A capped *difference* between two arms is **not** a bound on the true difference: it equals the true difference only if neither arm is censored; if only the later arm is censored the true gap is larger in magnitude than the capped gap; if both arms have censored runs (ignition-cell visit: A0 has 1, B has 14) the data do not determine the direction of the error. Capped contrasts are therefore descriptive, and the cell/scenario direction counts and any interval or p computed on them inherit that. No censoring-aware (survival) analysis was fitted (4 clusters, 8 scenarios). Runs end 0.01-0.94 s after 600 s; events stamped after 600.0 s are outside the window and are not counted.
