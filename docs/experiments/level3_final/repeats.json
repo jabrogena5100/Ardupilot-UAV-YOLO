@@ -1,0 +1,38 @@
+{
+ "l3-baseline-2001": {
+  "orig": {
+   "first_true_det_s": null,
+   "ign_first_visit_s": 87.0,
+   "visited_frac": 0.22,
+   "det_false": 0,
+   "inv_false_s": 0,
+   "inv_true_s": 0
+  },
+  "repeat": {
+   "first_true_det_s": null,
+   "ign_first_visit_s": 100.06,
+   "visited_frac": 0.18,
+   "det_false": 0,
+   "inv_false_s": 0,
+   "inv_true_s": 0
+  }
+ },
+ "l3-A0-2001": {
+  "orig": {
+   "first_true_det_s": 101.2,
+   "ign_first_visit_s": 108.3,
+   "visited_frac": 0.21,
+   "det_false": 2,
+   "inv_false_s": 0,
+   "inv_true_s": 59
+  },
+  "repeat": {
+   "first_true_det_s": 114.93,
+   "ign_first_visit_s": 121.98,
+   "visited_frac": 0.19,
+   "det_false": 1,
+   "inv_false_s": 0,
+   "inv_true_s": 43
+  }
+ }
+}

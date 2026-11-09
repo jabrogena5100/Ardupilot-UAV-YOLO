@@ -1,0 +1,354 @@
+{
+ "split": "heldout",
+ "arms": [
+  "baseline",
+  "A0",
+  "A1",
+  "A2",
+  "B2s0",
+  "B2s1",
+  "B2s2"
+ ],
+ "n_agents": 1,
+ "runs": [
+  {
+   "scenario": 2001,
+   "split": "heldout",
+   "arm": "baseline",
+   "config": "local_data/level3/final/l3-baseline-2001.yaml"
+  },
+  {
+   "scenario": 2001,
+   "split": "heldout",
+   "arm": "A0",
+   "config": "local_data/level3/final/l3-A0-2001.yaml"
+  },
+  {
+   "scenario": 2001,
+   "split": "heldout",
+   "arm": "A1",
+   "config": "local_data/level3/final/l3-A1-2001.yaml"
+  },
+  {
+   "scenario": 2001,
+   "split": "heldout",
+   "arm": "A2",
+   "config": "local_data/level3/final/l3-A2-2001.yaml"
+  },
+  {
+   "scenario": 2001,
+   "split": "heldout",
+   "arm": "B2s0",
+   "config": "local_data/level3/final/l3-B2s0-2001.yaml"
+  },
+  {
+   "scenario": 2001,
+   "split": "heldout",
+   "arm": "B2s1",
+   "config": "local_data/level3/final/l3-B2s1-2001.yaml"
+  },
+  {
+   "scenario": 2001,
+   "split": "heldout",
+   "arm": "B2s2",
+   "config": "local_data/level3/final/l3-B2s2-2001.yaml"
+  },
+  {
+   "scenario": 2002,
+   "split": "heldout",
+   "arm": "baseline",
+   "config": "local_data/level3/final/l3-baseline-2002.yaml"
+  },
+  {
+   "scenario": 2002,
+   "split": "heldout",
+   "arm": "A0",
+   "config": "local_data/level3/final/l3-A0-2002.yaml"
+  },
+  {
+   "scenario": 2002,
+   "split": "heldout",
+   "arm": "A1",
+   "config": "local_data/level3/final/l3-A1-2002.yaml"
+  },
+  {
+   "scenario": 2002,
+   "split": "heldout",
+   "arm": "A2",
+   "config": "local_data/level3/final/l3-A2-2002.yaml"
+  },
+  {
+   "scenario": 2002,
+   "split": "heldout",
+   "arm": "B2s0",
+   "config": "local_data/level3/final/l3-B2s0-2002.yaml"
+  },
+  {
+   "scenario": 2002,
+   "split": "heldout",
+   "arm": "B2s1",
+   "config": "local_data/level3/final/l3-B2s1-2002.yaml"
+  },
+  {
+   "scenario": 2002,
+   "split": "heldout",
+   "arm": "B2s2",
+   "config": "local_data/level3/final/l3-B2s2-2002.yaml"
+  },
+  {
+   "scenario": 2004,
+   "split": "heldout",
+   "arm": "baseline",
+   "config": "local_data/level3/final/l3-baseline-2004.yaml"
+  },
+  {
+   "scenario": 2004,
+   "split": "heldout",
+   "arm": "A0",
+   "config": "local_data/level3/final/l3-A0-2004.yaml"
+  },
+  {
+   "scenario": 2004,
+   "split": "heldout",
+   "arm": "A1",
+   "config": "local_data/level3/final/l3-A1-2004.yaml"
+  },
+  {
+   "scenario": 2004,
+   "split": "heldout",
+   "arm": "A2",
+   "config": "local_data/level3/final/l3-A2-2004.yaml"
+  },
+  {
+   "scenario": 2004,
+   "split": "heldout",
+   "arm": "B2s0",
+   "config": "local_data/level3/final/l3-B2s0-2004.yaml"
+  },
+  {
+   "scenario": 2004,
+   "split": "heldout",
+   "arm": "B2s1",
+   "config": "local_data/level3/final/l3-B2s1-2004.yaml"
+  },
+  {
+   "scenario": 2004,
+   "split": "heldout",
+   "arm": "B2s2",
+   "config": "local_data/level3/final/l3-B2s2-2004.yaml"
+  },
+  {
+   "scenario": 2005,
+   "split": "heldout",
+   "arm": "baseline",
+   "config": "local_data/level3/final/l3-baseline-2005.yaml"
+  },
+  {
+   "scenario": 2005,
+   "split": "heldout",
+   "arm": "A0",
+   "config": "local_data/level3/final/l3-A0-2005.yaml"
+  },
+  {
+   "scenario": 2005,
+   "split": "heldout",
+   "arm": "A1",
+   "config": "local_data/level3/final/l3-A1-2005.yaml"
+  },
+  {
+   "scenario": 2005,
+   "split": "heldout",
+   "arm": "A2",
+   "config": "local_data/level3/final/l3-A2-2005.yaml"
+  },
+  {
+   "scenario": 2005,
+   "split": "heldout",
+   "arm": "B2s0",
+   "config": "local_data/level3/final/l3-B2s0-2005.yaml"
+  },
+  {
+   "scenario": 2005,
+   "split": "heldout",
+   "arm": "B2s1",
+   "config": "local_data/level3/final/l3-B2s1-2005.yaml"
+  },
+  {
+   "scenario": 2005,
+   "split": "heldout",
+   "arm": "B2s2",
+   "config": "local_data/level3/final/l3-B2s2-2005.yaml"
+  },
+  {
+   "scenario": 2006,
+   "split": "heldout",
+   "arm": "baseline",
+   "config": "local_data/level3/final/l3-baseline-2006.yaml"
+  },
+  {
+   "scenario": 2006,
+   "split": "heldout",
+   "arm": "A0",
+   "config": "local_data/level3/final/l3-A0-2006.yaml"
+  },
+  {
+   "scenario": 2006,
+   "split": "heldout",
+   "arm": "A1",
+   "config": "local_data/level3/final/l3-A1-2006.yaml"
+  },
+  {
+   "scenario": 2006,
+   "split": "heldout",
+   "arm": "A2",
+   "config": "local_data/level3/final/l3-A2-2006.yaml"
+  },
+  {
+   "scenario": 2006,
+   "split": "heldout",
+   "arm": "B2s0",
+   "config": "local_data/level3/final/l3-B2s0-2006.yaml"
+  },
+  {
+   "scenario": 2006,
+   "split": "heldout",
+   "arm": "B2s1",
+   "config": "local_data/level3/final/l3-B2s1-2006.yaml"
+  },
+  {
+   "scenario": 2006,
+   "split": "heldout",
+   "arm": "B2s2",
+   "config": "local_data/level3/final/l3-B2s2-2006.yaml"
+  },
+  {
+   "scenario": 2012,
+   "split": "heldout",
+   "arm": "baseline",
+   "config": "local_data/level3/final/l3-baseline-2012.yaml"
+  },
+  {
+   "scenario": 2012,
+   "split": "heldout",
+   "arm": "A0",
+   "config": "local_data/level3/final/l3-A0-2012.yaml"
+  },
+  {
+   "scenario": 2012,
+   "split": "heldout",
+   "arm": "A1",
+   "config": "local_data/level3/final/l3-A1-2012.yaml"
+  },
+  {
+   "scenario": 2012,
+   "split": "heldout",
+   "arm": "A2",
+   "config": "local_data/level3/final/l3-A2-2012.yaml"
+  },
+  {
+   "scenario": 2012,
+   "split": "heldout",
+   "arm": "B2s0",
+   "config": "local_data/level3/final/l3-B2s0-2012.yaml"
+  },
+  {
+   "scenario": 2012,
+   "split": "heldout",
+   "arm": "B2s1",
+   "config": "local_data/level3/final/l3-B2s1-2012.yaml"
+  },
+  {
+   "scenario": 2012,
+   "split": "heldout",
+   "arm": "B2s2",
+   "config": "local_data/level3/final/l3-B2s2-2012.yaml"
+  },
+  {
+   "scenario": 2014,
+   "split": "heldout",
+   "arm": "baseline",
+   "config": "local_data/level3/final/l3-baseline-2014.yaml"
+  },
+  {
+   "scenario": 2014,
+   "split": "heldout",
+   "arm": "A0",
+   "config": "local_data/level3/final/l3-A0-2014.yaml"
+  },
+  {
+   "scenario": 2014,
+   "split": "heldout",
+   "arm": "A1",
+   "config": "local_data/level3/final/l3-A1-2014.yaml"
+  },
+  {
+   "scenario": 2014,
+   "split": "heldout",
+   "arm": "A2",
+   "config": "local_data/level3/final/l3-A2-2014.yaml"
+  },
+  {
+   "scenario": 2014,
+   "split": "heldout",
+   "arm": "B2s0",
+   "config": "local_data/level3/final/l3-B2s0-2014.yaml"
+  },
+  {
+   "scenario": 2014,
+   "split": "heldout",
+   "arm": "B2s1",
+   "config": "local_data/level3/final/l3-B2s1-2014.yaml"
+  },
+  {
+   "scenario": 2014,
+   "split": "heldout",
+   "arm": "B2s2",
+   "config": "local_data/level3/final/l3-B2s2-2014.yaml"
+  },
+  {
+   "scenario": 2015,
+   "split": "heldout",
+   "arm": "baseline",
+   "config": "local_data/level3/final/l3-baseline-2015.yaml"
+  },
+  {
+   "scenario": 2015,
+   "split": "heldout",
+   "arm": "A0",
+   "config": "local_data/level3/final/l3-A0-2015.yaml"
+  },
+  {
+   "scenario": 2015,
+   "split": "heldout",
+   "arm": "A1",
+   "config": "local_data/level3/final/l3-A1-2015.yaml"
+  },
+  {
+   "scenario": 2015,
+   "split": "heldout",
+   "arm": "A2",
+   "config": "local_data/level3/final/l3-A2-2015.yaml"
+  },
+  {
+   "scenario": 2015,
+   "split": "heldout",
+   "arm": "B2s0",
+   "config": "local_data/level3/final/l3-B2s0-2015.yaml"
+  },
+  {
+   "scenario": 2015,
+   "split": "heldout",
+   "arm": "B2s1",
+   "config": "local_data/level3/final/l3-B2s1-2015.yaml"
+  },
+  {
+   "scenario": 2015,
+   "split": "heldout",
+   "arm": "B2s2",
+   "config": "local_data/level3/final/l3-B2s2-2015.yaml"
+  }
+ ],
+ "scenarios_sha256": "d20603e4d29e63357d8badc2ec1d4866282fc9bce7bd24d11c2c1c4eb3d62bb5",
+ "fire_sha256": "bb2291e3fbc4875f788eeab5a7a453371eb7dcbfe5b46c645a531c2c5c6973ab",
+ "thresholds_sha256": "81448cf9d8bb20a5c6ed590e82593d47b88049a6e0c86b074a7b3eda5723cc8e"
+}
