@@ -20,4 +20,4 @@ Time-to-event metrics are right-censored at 600 s: the value shown is the mean w
 | A | 177.1 +- 7.0 | 268.0 +- 31.1 | 0.183 +- 0.003 | 60.0 +- 1.7 | 0.3 +- 0.2 | 0.2 +- 0.2 | 173.7 +- 10.1 | 1.6 +- 2.7 |
 | B | 296.6 +- 48.0 | 487.7 +- 14.4 | 0.147 +- 0.007 | 73.9 +- 17.5 | 55.7 +- 23.0 | 6.4 +- 1.2 | 237.1 +- 41.2 | 80.6 +- 47.8 |
 
-The baseline has one arm (no detector, no seeds). Its 'false' and detection columns are 0 by construction.
+The baseline has one arm (no detector, no seeds). Its detection and false-detection columns are 0 by construction and its first-true-detection is not applicable (`NA` in `seed_summary.csv`).

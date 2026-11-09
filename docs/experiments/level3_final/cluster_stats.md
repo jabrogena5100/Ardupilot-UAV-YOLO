@@ -43,25 +43,27 @@ Unit of analysis: the **ignition cell** (4 clusters, each flown in 2 scenarios w
 | INVESTIGATE log lines on false targets (~s) | A-baseline | 6 | 0 | 0 | 6 | 0 | 0 | 0 | 0 |
 | INVESTIGATE log lines on false targets (~s) | B-baseline | 54 | 42 | 169 | 0 | 143 | 57 | 51 | 128 |
 
-**Sensitivity: scenario 2005 excluded** (its B2s1/B2s2 runs used the parallel harness, its other five arms the sequential one). Direction counts over the remaining 7 scenarios (cell (3,2) then rests on scenario 2001 alone):
+**Sensitivity by execution era (fire-clock confound).** In the 2-slot parallel runs fog's wall-clock-scheduled fire advanced more slowly and differently per arm (`fire_clock.md`), so contrasts there compare unequal realized fires. Direction counts over the sequential-only scenarios [2001, 2002, 2004] (3 cells), the parallel-only scenarios [2006, 2012, 2014, 2015] (all 4 cells), with the mixed-mode scenario(s) [2005] in neither:
 
-| metric | contrast | scenarios + / - | cells + / - |
-|---|---|---|---|
-| first true detection (s) | A-B | 0/7 | 0/4 |
-| first visit of ignition cell (s) | A-B | 0/7 | 0/4 |
-| first visit of ignition cell (s) | A-baseline | 5/2 | 4/0 |
-| first visit of ignition cell (s) | B-baseline | 7/0 | 4/0 |
-| grid coverage at 600 s | A-B | 7/0 | 4/0 |
-| grid coverage at 600 s | A-baseline | 0/7 | 0/4 |
-| grid coverage at 600 s | B-baseline | 0/7 | 0/4 |
-| true detection observations / run | A-B | 2/5 | 1/3 |
-| false detection observations / run | A-B | 0/7 | 0/4 |
-| distinct cells with a false detection / run | A-B | 0/7 | 0/4 |
-| INVESTIGATE log lines on burned-adjacent targets (~s) | A-B | 3/4 | 2/2 |
-| INVESTIGATE log lines on burned-adjacent targets (~s) | A-baseline | 7/0 | 4/0 |
-| INVESTIGATE log lines on burned-adjacent targets (~s) | B-baseline | 7/0 | 4/0 |
-| INVESTIGATE log lines on false targets (~s) | A-B | 0/7 | 0/4 |
-| INVESTIGATE log lines on false targets (~s) | A-baseline | 1/0 | 1/0 |
-| INVESTIGATE log lines on false targets (~s) | B-baseline | 7/0 | 4/0 |
+| metric | contrast | sequential scen + / - | sequential cells + / - | parallel scen + / - | parallel cells + / - |
+|---|---|---|---|---|---|
+| first true detection (s) | A-B | 0/3 of 3 | 0/3 of 3 | 0/4 of 4 | 0/3 of 3 |
+| first visit of ignition cell (s) | A-B | 0/3 of 3 | 0/3 of 3 | 0/4 of 4 | 0/3 of 3 |
+| first visit of ignition cell (s) | A-baseline | 3/0 of 3 | 3/0 of 3 | 2/2 of 4 | 2/1 of 3 |
+| first visit of ignition cell (s) | B-baseline | 3/0 of 3 | 3/0 of 3 | 4/0 of 4 | 3/0 of 3 |
+| grid coverage at 600 s | A-B | 3/0 of 3 | 3/0 of 3 | 4/0 of 4 | 3/0 of 3 |
+| grid coverage at 600 s | A-baseline | 0/3 of 3 | 0/3 of 3 | 0/4 of 4 | 0/3 of 3 |
+| grid coverage at 600 s | B-baseline | 0/3 of 3 | 0/3 of 3 | 0/4 of 4 | 0/3 of 3 |
+| true detection observations / run | A-B | 0/3 of 3 | 0/3 of 3 | 2/2 of 4 | 2/1 of 3 |
+| false detection observations / run | A-B | 0/3 of 3 | 0/3 of 3 | 0/4 of 4 | 0/3 of 3 |
+| distinct cells with a false detection / run | A-B | 0/3 of 3 | 0/3 of 3 | 0/4 of 4 | 0/3 of 3 |
+| INVESTIGATE log lines on burned-adjacent targets (~s) | A-B | 1/2 of 3 | 1/2 of 3 | 2/2 of 4 | 2/1 of 3 |
+| INVESTIGATE log lines on burned-adjacent targets (~s) | A-baseline | 3/0 of 3 | 3/0 of 3 | 4/0 of 4 | 3/0 of 3 |
+| INVESTIGATE log lines on burned-adjacent targets (~s) | B-baseline | 3/0 of 3 | 3/0 of 3 | 4/0 of 4 | 3/0 of 3 |
+| INVESTIGATE log lines on false targets (~s) | A-B | 0/3 of 3 | 0/3 of 3 | 0/4 of 4 | 0/3 of 3 |
+| INVESTIGATE log lines on false targets (~s) | A-baseline | 1/0 of 3 | 1/0 of 3 | 0/0 of 4 | 0/0 of 3 |
+| INVESTIGATE log lines on false targets (~s) | B-baseline | 3/0 of 3 | 3/0 of 3 | 4/0 of 4 | 3/0 of 3 |
+
+Where the two columns agree the direction does not depend on the execution mode; where a sequential-only count rests on 3 cells and 3 scenarios it is weak evidence on its own. The sequential-only subset is the less confounded one for contrasts against the baseline.
 
 Cells: (0,1) = scenarios [2006, 2015]; (1,0) = scenarios [2004, 2014]; (2,1) = scenarios [2002, 2012]; (3,2) = scenarios [2001, 2005]

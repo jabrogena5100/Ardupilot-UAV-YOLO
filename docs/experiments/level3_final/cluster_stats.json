@@ -548,5 +548,319 @@
    "p_signflip_scenarios_unadj_for_reference_only": 0.015625,
    "p_cells_holm": 1.0
   }
- ]
+ ],
+ "sensitivity_by_era": {
+  "sequential_scenarios": [
+   2001,
+   2002,
+   2004
+  ],
+  "parallel_scenarios": [
+   2006,
+   2012,
+   2014,
+   2015
+  ],
+  "mixed_scenarios": [
+   2005
+  ],
+  "counts": {
+   "first_true_det_s|A-B": {
+    "sequential": [
+     0,
+     3,
+     0,
+     3,
+     3,
+     3
+    ],
+    "parallel": [
+     0,
+     4,
+     0,
+     3,
+     4,
+     3
+    ]
+   },
+   "ign_first_visit_s|A-B": {
+    "sequential": [
+     0,
+     3,
+     0,
+     3,
+     3,
+     3
+    ],
+    "parallel": [
+     0,
+     4,
+     0,
+     3,
+     4,
+     3
+    ]
+   },
+   "ign_first_visit_s|A-baseline": {
+    "sequential": [
+     3,
+     0,
+     3,
+     0,
+     3,
+     3
+    ],
+    "parallel": [
+     2,
+     2,
+     2,
+     1,
+     4,
+     3
+    ]
+   },
+   "ign_first_visit_s|B-baseline": {
+    "sequential": [
+     3,
+     0,
+     3,
+     0,
+     3,
+     3
+    ],
+    "parallel": [
+     4,
+     0,
+     3,
+     0,
+     4,
+     3
+    ]
+   },
+   "visited_frac|A-B": {
+    "sequential": [
+     3,
+     0,
+     3,
+     0,
+     3,
+     3
+    ],
+    "parallel": [
+     4,
+     0,
+     3,
+     0,
+     4,
+     3
+    ]
+   },
+   "visited_frac|A-baseline": {
+    "sequential": [
+     0,
+     3,
+     0,
+     3,
+     3,
+     3
+    ],
+    "parallel": [
+     0,
+     4,
+     0,
+     3,
+     4,
+     3
+    ]
+   },
+   "visited_frac|B-baseline": {
+    "sequential": [
+     0,
+     3,
+     0,
+     3,
+     3,
+     3
+    ],
+    "parallel": [
+     0,
+     4,
+     0,
+     3,
+     4,
+     3
+    ]
+   },
+   "det_true|A-B": {
+    "sequential": [
+     0,
+     3,
+     0,
+     3,
+     3,
+     3
+    ],
+    "parallel": [
+     2,
+     2,
+     2,
+     1,
+     4,
+     3
+    ]
+   },
+   "det_false|A-B": {
+    "sequential": [
+     0,
+     3,
+     0,
+     3,
+     3,
+     3
+    ],
+    "parallel": [
+     0,
+     4,
+     0,
+     3,
+     4,
+     3
+    ]
+   },
+   "det_false_cells|A-B": {
+    "sequential": [
+     0,
+     3,
+     0,
+     3,
+     3,
+     3
+    ],
+    "parallel": [
+     0,
+     4,
+     0,
+     3,
+     4,
+     3
+    ]
+   },
+   "inv_true_s|A-B": {
+    "sequential": [
+     1,
+     2,
+     1,
+     2,
+     3,
+     3
+    ],
+    "parallel": [
+     2,
+     2,
+     2,
+     1,
+     4,
+     3
+    ]
+   },
+   "inv_true_s|A-baseline": {
+    "sequential": [
+     3,
+     0,
+     3,
+     0,
+     3,
+     3
+    ],
+    "parallel": [
+     4,
+     0,
+     3,
+     0,
+     4,
+     3
+    ]
+   },
+   "inv_true_s|B-baseline": {
+    "sequential": [
+     3,
+     0,
+     3,
+     0,
+     3,
+     3
+    ],
+    "parallel": [
+     4,
+     0,
+     3,
+     0,
+     4,
+     3
+    ]
+   },
+   "inv_false_s|A-B": {
+    "sequential": [
+     0,
+     3,
+     0,
+     3,
+     3,
+     3
+    ],
+    "parallel": [
+     0,
+     4,
+     0,
+     3,
+     4,
+     3
+    ]
+   },
+   "inv_false_s|A-baseline": {
+    "sequential": [
+     1,
+     0,
+     1,
+     0,
+     3,
+     3
+    ],
+    "parallel": [
+     0,
+     0,
+     0,
+     0,
+     4,
+     3
+    ]
+   },
+   "inv_false_s|B-baseline": {
+    "sequential": [
+     3,
+     0,
+     3,
+     0,
+     3,
+     3
+    ],
+    "parallel": [
+     4,
+     0,
+     3,
+     0,
+     4,
+     3
+    ]
+   }
+  },
+  "fields": [
+   "scen_pos",
+   "scen_neg",
+   "cells_pos",
+   "cells_neg",
+   "n_scen",
+   "n_cells"
+  ]
+ }
 }
