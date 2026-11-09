@@ -99,5 +99,124 @@ class TestPairs(unittest.TestCase):
         self.assertEqual(L._pids({"definitely_not_a_running_program.py"}), set())
 
 
+class TestParallelSlots(unittest.TestCase):
+    """Parallel slots must isolate every endpoint and leave the scientific config untouched; sequential stays the default."""
+
+    def cfg(self, arm="A0"):
+        return L.make_config(L.build_base(), arm, SC.load()["heldout"][0], {})
+
+    def test_slot_plans_are_pairwise_disjoint(self):
+        plans = [L.slot_plan(k) for k in range(6)]
+        for key in ("gossip_port", "camera_port", "instance_base", "sysid_base", "tmux_socket", "session"):
+            vals = [p[key] for p in plans]
+            self.assertEqual(len(set(vals)), len(vals), key)
+        flat = [x for p in plans for x in p["agent_ports"]]
+        self.assertEqual(len(set(flat)), len(flat))
+        sitl = [5760 + 10 * p["instance_base"] for p in plans]
+        self.assertEqual(len(set(sitl)), len(sitl))
+        self.assertNotIn(14550, flat)                              # the QGC port is never an agent port
+
+    def test_slot_config_changes_only_endpoints(self):
+        c = self.cfg()
+        s = L.slot_config(c, L.slot_plan(2))
+        self.assertEqual(L.unslot(c), L.unslot(s))
+        self.assertNotEqual(c, s)
+        self.assertEqual(s["comms"]["port"], 5007)
+        self.assertEqual(s["perception"]["camera_service"]["port"], 8767)
+        self.assertTrue(s["perception"]["frame_source"]["url"].endswith(":8767"))
+        self.assertEqual(s["agents"][0]["conn"], "udp:127.0.0.1:14575")
+        for key in ("fire_model", "timing", "vehicle_defaults", "grid", "origin", "fog_tracker"):
+            self.assertEqual(c[key], s[key])
+        self.assertEqual(c["perception"]["conf_threshold"], s["perception"]["conf_threshold"])
+        self.assertEqual(c["agents"][0]["seed"], s["agents"][0]["seed"])
+
+    def test_slot_config_does_not_mutate_input_and_keeps_pairing(self):
+        a, b = self.cfg("A0"), self.cfg("B2s0")
+        before = copy.deepcopy(a)
+        sa, sb = L.slot_config(a, L.slot_plan(1)), L.slot_config(b, L.slot_plan(2))
+        self.assertEqual(a, before)
+        self.assertEqual(L.unslot(L.strip_arm(sa)), L.unslot(L.strip_arm(sb)))   # different slots, same science
+
+    def test_slot_zero_plan_starts_from_the_sequential_ports(self):
+        p0 = L.slot_plan(0)
+        self.assertEqual((p0["gossip_port"], p0["camera_port"], p0["agent_ports"][0], p0["instance_base"]), (5005, 8765, 14555, 1))
+
+    def test_start_check_only_refuses_on_own_ports(self):
+        import socket
+        busy = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        busy.bind(("127.0.0.1", 0))
+        busy.listen(1)
+        port = busy.getsockname()[1]
+        try:
+            plan = L.slot_plan(3)
+            plan["camera_port"] = port                             # this slot's own camera port is taken
+            self.assertIn(("camera/tcp", port), L.slot_ports_in_use(plan))
+            other = L.slot_plan(4)                                  # another slot's ports are free: no refusal
+            other["gossip_port"], other["camera_port"] = 45871, 45872
+            other["agent_ports"] = [45873]
+            other["instance_base"] = 4000                           # sitl tcp 45760+... never in use
+            self.assertEqual(L.slot_ports_in_use(other), [])
+        finally:
+            busy.close()
+
+    def test_start_check_ignores_time_wait_but_not_a_live_listener(self):
+        import socket
+        srv = socket.socket(); srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        srv.bind(("127.0.0.1", 0)); srv.listen(1)
+        port = srv.getsockname()[1]
+        cli = socket.create_connection(("127.0.0.1", port))
+        conn, _ = srv.accept()
+        self.assertFalse(L._bind_free(port, socket.SOCK_STREAM))          # live listener: refused
+        conn.close(); cli.close(); srv.close()                             # server side closes first -> TIME_WAIT on `port`
+        self.assertTrue(L._bind_free(port, socket.SOCK_STREAM))           # TIME_WAIT only: allowed
+
+    def test_start_check_sees_a_multicast_listener_on_the_gossip_port(self):
+        import socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        s.bind(("", 0))
+        port = s.getsockname()[1]
+        try:
+            plan = L.slot_plan(5)
+            plan["gossip_port"] = port
+            self.assertIn(("gossip/udp", port), L.slot_ports_in_use(plan))
+        finally:
+            s.close()
+
+    def test_tagged_pids_find_only_this_runs_children(self):
+        import subprocess
+        import sys
+        import time
+        tag = f"unit-{os.getpid()}"
+        mine = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], env=dict(os.environ, L3_RUN_TAG=tag))
+        other = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], env=dict(os.environ, L3_RUN_TAG=tag + "-x"))
+        try:
+            time.sleep(0.5)
+            found = L._tagged_pids(tag)
+            self.assertEqual(found, {mine.pid})                    # not the other tag, not an unrelated process, not a prefix match
+            L._signal_pids(found, 15)
+            mine.wait(timeout=5)
+            self.assertIsNone(other.poll())                        # the neighbour survived the cleanup
+        finally:
+            mine.kill()
+            other.kill()
+
+    def test_queue_skips_clean_runs_orders_by_scenario_and_ignores_unclean(self):
+        from eval import level3_queue as Q
+        with tempfile.TemporaryDirectory() as d:
+            rows = [{"scenario": sc, "split": "heldout", "arm": arm, "config": os.path.join(d, f"l3-{arm}-{sc}.yaml")}
+                    for sc in (2002, 2001) for arm in ("A0", "baseline")]
+            json.dump({"runs": rows}, open(os.path.join(d, "matrix.json"), "w"))
+            for arm, sc, meta in (("baseline", 2001, {"fog_exit_code": 0, "leftover_after_cleanup": []}),
+                                  ("A0", 2001, {"fog_exit_code": 0, "leftover_after_cleanup": [123]}),
+                                  ("baseline", 2002, {"fog_exit_code": 1, "leftover_after_cleanup": []})):
+                os.makedirs(os.path.join(d, "results", f"l3-{arm}-{sc}"))
+                json.dump(meta, open(os.path.join(d, "results", f"l3-{arm}-{sc}", "run_meta.json"), "w"))
+            jobs = Q.build_jobs(d, repeats=["baseline:2001"])
+            self.assertEqual([j["tag"] for j in jobs], ["l3-A0-2001", "l3-baseline-2002", "l3-A0-2002", "l3-baseline-2001"])
+            self.assertEqual(jobs[-1]["kind"], "repeat")
+            self.assertIn("results_repeat", jobs[-1]["out"])
+
+
 if __name__ == "__main__":
     unittest.main()

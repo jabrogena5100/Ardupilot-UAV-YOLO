@@ -205,27 +205,132 @@ def _kill_group(p, sig=signal.SIGTERM):
         pass
 
 
-def run_one(config: str, python: str, out_dir: str, workdir: str, sitl_boot_s: float = 45.0) -> dict:
+# ---------------------------------------------------------------- parallel slots
+# A SLOT is one concurrent run. Slot-specific values change only where the run talks to its own processes (ports, SITL instance, sysid, tmux
+# server); every scientific key is copied unchanged. Sequential runs (slot=None) use the original ports and are byte-for-byte the old behaviour.
+
+def slot_plan(slot: int, n_agents: int = 1) -> dict:
+    inst = 1 + 10 * slot
+    return {"slot": slot, "gossip_port": 5005 + slot, "camera_port": PORT_CAMERA + slot, "instance_base": inst, "sysid_base": inst,
+            "agent_ports": [14555 + 10 * slot + k for k in range(n_agents)], "tmux_socket": f"l3-slot{slot}", "session": f"l3-slot{slot}"}
+
+
+def slot_config(cfg: dict, plan: dict) -> dict:
+    """Copy of `cfg` with only the communication endpoints replaced. `unslot(slot_config(c, p)) == unslot(c)` is tested."""
+    c = copy.deepcopy(cfg)
+    c.setdefault("comms", {})["port"] = plan["gossip_port"]
+    pc = c["perception"]
+    pc["camera_service"]["port"] = plan["camera_port"]
+    pc["frame_source"]["url"] = f"http://127.0.0.1:{plan['camera_port']}"
+    for a, port in zip(c["agents"], plan["agent_ports"]):
+        a["conn"] = f"udp:127.0.0.1:{port}"
+    return c
+
+
+def unslot(cfg: dict) -> dict:
+    """`cfg` with the slot-specific endpoint keys removed: what must be identical between a config and its slot copy."""
+    c = copy.deepcopy(cfg)
+    c.get("comms", {}).pop("port", None)
+    pc = c.get("perception", {})
+    pc.get("camera_service", {}).pop("port", None)
+    pc.get("frame_source", {}).pop("url", None)
+    for a in c.get("agents", []):
+        a.pop("conn", None)
+    return c
+
+
+def _tagged_pids(tag: str) -> set:
+    """PIDs whose environment carries this run's L3_RUN_TAG: everything the run started, including tmux-spawned SITL, and nothing else."""
+    needle = f"L3_RUN_TAG={tag}".encode()
+    out = set()
+    for d in os.listdir("/proc"):
+        if not d.isdigit() or int(d) == os.getpid():
+            continue
+        try:
+            with open(f"/proc/{d}/environ", "rb") as f:
+                env = f.read().split(b"\0")
+        except OSError:
+            continue
+        if needle in env:
+            out.add(int(d))
+    return out
+
+
+def _bind_free(port: int, kind: int) -> bool:
+    """Plain bind (no SO_REUSE*): fails when anything, including a multicast listener that set SO_REUSEADDR, already holds the port."""
+    with socket.socket(socket.AF_INET, kind) as s:
+        if kind == socket.SOCK_STREAM:                        # TCP: ignore TIME_WAIT left by this slot's previous run, still refuse a live listener
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        try:
+            s.bind(("127.0.0.1" if kind == socket.SOCK_STREAM else "", port))
+            return True
+        except OSError:
+            return False
+
+
+def slot_ports_in_use(plan: dict) -> list:
+    """This slot's own ports that are already taken (empty = safe to start). Other slots' ports are none of its business."""
+    bad = []
+    if not _bind_free(plan["gossip_port"], socket.SOCK_DGRAM):
+        bad.append(("gossip/udp", plan["gossip_port"]))
+    if not _port_free(plan["camera_port"]):
+        bad.append(("camera/tcp", plan["camera_port"]))
+    for k, port in enumerate(plan["agent_ports"]):
+        if not _bind_free(port, socket.SOCK_DGRAM):
+            bad.append(("agent/udp", port))
+        sitl = 5760 + 10 * (plan["instance_base"] + k)
+        if not _bind_free(sitl, socket.SOCK_STREAM):
+            bad.append(("sitl/tcp", sitl))
+    return bad
+
+
+def _signal_pids(pids, sig):
+    for pid in pids:
+        try:
+            os.kill(pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass
+
+
+def run_one(config: str, python: str, out_dir: str, workdir: str, sitl_boot_s: float = 45.0, slot: int = None) -> dict:
+    orig_config = config
     cfg = yaml.safe_load(open(config))
     agents = cfg.get("agents", [])
     n = len(agents)
+    plan = None
+    if slot is not None:                                      # parallel: run from a slot copy of the config; the original is untouched
+        plan = slot_plan(slot, n)
+        cfg = slot_config(cfg, plan)
+        agents = cfg["agents"]
+        os.makedirs(os.path.join(out_dir, "slot_config"), exist_ok=True)
+        config = os.path.join(out_dir, "slot_config", os.path.basename(orig_config))
+        yaml.safe_dump(cfg, open(config, "w"), sort_keys=False)
     ori, grid = cfg["origin"], cfg.get("grid", {})
     maxs = float(cfg["fog_tracker"]["max_seconds"])
     gate_to = float(cfg["fire_model"].get("start_gate", {}).get("timeout_s", 420))
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(workdir, exist_ok=True)
-    leftovers = _pids(NAMES)
-    if leftovers:
-        raise RuntimeError(f"SITL/agent/fog processes already running {sorted(leftovers)}; refusing to start (and to kill them)")
-    cam_port = cfg["perception"]["camera_service"]["port"]
-    if not _port_free(cam_port):
-        raise RuntimeError(f"camera service port {cam_port} is in use")
-    env = dict(os.environ, PYTHONHASHSEED="0")
+    tag = f"{cfg['experiment_tag']}-{os.getpid()}-{int(time.time())}"
+    if plan is None:
+        leftovers = _pids(NAMES)
+        if leftovers:
+            raise RuntimeError(f"SITL/agent/fog processes already running {sorted(leftovers)}; refusing to start (and to kill them)")
+        cam_port = cfg["perception"]["camera_service"]["port"]
+        if not _port_free(cam_port):
+            raise RuntimeError(f"camera service port {cam_port} is in use")
+    else:
+        busy = slot_ports_in_use(plan)
+        if busy:
+            raise RuntimeError(f"slot {slot}: own ports already in use {busy}; refusing to start")
+    env = dict(os.environ, PYTHONHASHSEED="0", L3_RUN_TAG=tag)
     started = time.time()
-    meta = {"config": os.path.abspath(config), "config_sha256": _sha(config), "git_commit": _git("rev-parse", "HEAD"),
+    meta = {"config": os.path.abspath(orig_config), "config_sha256": _sha(orig_config), "git_commit": _git("rev-parse", "HEAD"),
             "git_dirty": bool(_git("status", "--porcelain", "--untracked-files=no")),
             "start_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(started)), "python": python, "pythonhashseed": "0",
             "thresholds_sha256": _sha(THR_PATH), "fire_sha256": _sha(FIRE_PATH), "scenarios_sha256": _sha(SC.PATH)}
+    if plan is not None:
+        meta.update({"slot": slot, "slot_plan": plan, "slot_config": os.path.abspath(config), "slot_config_sha256": _sha(config),
+                     "run_tag": tag, "scientific_config_identical": unslot(yaml.safe_load(open(orig_config))) == unslot(cfg)})
     procs, logs = [], []
 
     def popen(cmd, name, cwd):
@@ -239,8 +344,14 @@ def run_one(config: str, python: str, out_dir: str, workdir: str, sitl_boot_s: f
         fog_cmd = [python, "-u", os.path.join(ROOT, "fog_tracker.py"), "--origin-lat", str(ori["lat"]), "--origin-lon", str(ori["lon"]),
                    "--grid-miles", str(grid.get("miles", 1.0)), "--grid-cells", str(grid.get("cells", 10)), "--end-when", "time",
                    "--max-seconds", str(maxs), "--config", config]
+        if plan is not None:
+            fog_cmd += ["--gossip-port", str(plan["gossip_port"])]
         fog = popen(fog_cmd, "fog.log", ROOT)                     # fog first: it is the run clock and waits at the start gate
-        popen([sys.executable, os.path.join(ROOT, "launch_sitl_swarm.py"), "--count", str(n)], "sitl.log", workdir)
+        sitl_cmd = [sys.executable, os.path.join(ROOT, "launch_sitl_swarm.py"), "--count", str(n)]
+        if plan is not None:
+            sitl_cmd += ["--session", plan["session"], "--tmux-socket", plan["tmux_socket"], "--instance-base", str(plan["instance_base"]),
+                         "--sysid-base", str(plan["sysid_base"]), "--base-port", str(plan["agent_ports"][0])]
+        popen(sitl_cmd, "sitl.log", workdir)
         time.sleep(sitl_boot_s + 15 * max(0, n - 1))
         vd = cfg.get("vehicle_defaults", {})
         for a in agents:
@@ -248,6 +359,8 @@ def run_one(config: str, python: str, out_dir: str, workdir: str, sitl_boot_s: f
                    "--origin-lon", str(ori["lon"]), "--mission", a.get("mission", "grid_frontier"), "--alt", str(vd.get("alt", 120)),
                    "--vxy-max", str(vd.get("vxy_max", 15)), "--config", config, "--seed", str(a.get("seed", 0)),
                    "--strategy-tag", str(a.get("strategy_tag", "")), "--experiment-tag", cfg["experiment_tag"], "--verbose"]
+            if plan is not None:
+                cmd += ["--gossip-port", str(plan["gossip_port"])]
             if "partition" in a:
                 cmd += ["--partition-scheme", a["partition"]["scheme"], "--partition-n", str(a["partition"]["n"]),
                         "--partition-id", str(a["partition"]["id"])]
@@ -269,21 +382,24 @@ def run_one(config: str, python: str, out_dir: str, workdir: str, sitl_boot_s: f
     finally:
         for p in procs:
             _kill_group(p, signal.SIGTERM)
-        subprocess.run(["tmux", "kill-session", "-t", "sitl-swarm"], capture_output=True)
+        if plan is None:
+            subprocess.run(["tmux", "kill-session", "-t", "sitl-swarm"], capture_output=True)
+        else:                                                 # only this slot's private tmux server and the processes tagged by this run
+            subprocess.run(["tmux", "-L", plan["tmux_socket"], "kill-server"], capture_output=True)
+            _signal_pids(_tagged_pids(tag), signal.SIGTERM)
         time.sleep(3)
         for p in procs:
             _kill_group(p, signal.SIGKILL)
-        for pid in _pids({"arducopter", "mavproxy.py", "sim_vehicle.py"}):
-            try:
-                os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
+        if plan is None:
+            _signal_pids(_pids({"arducopter", "mavproxy.py", "sim_vehicle.py"}), signal.SIGTERM)
+        else:
+            _signal_pids(_tagged_pids(tag), signal.SIGKILL)
         for f in logs:
             f.close()
         time.sleep(2)
         meta["end_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         meta["wall_s"] = round(time.time() - started, 1)
-        meta["leftover_after_cleanup"] = sorted(_pids(NAMES))
+        meta["leftover_after_cleanup"] = sorted(_pids(NAMES) if plan is None else _tagged_pids(tag))
         json.dump(meta, open(os.path.join(out_dir, "run_meta.json"), "w"), indent=1)
 
 
@@ -303,6 +419,7 @@ def main():
     r.add_argument("--out", default="")
     r.add_argument("--workdir", default="")
     r.add_argument("--attempts", type=int, default=2)
+    r.add_argument("--slot", type=int, default=None, help="run as parallel slot N (own ports/instance/tmux server); default: sequential, original ports")
     a = ap.parse_args()
     if a.cmd == "plan":
         rows = plan(a.split, a.arms, a.out, a.agents, a.final_evaluation, a.seeds)
@@ -312,7 +429,7 @@ def main():
         out = a.out or os.path.join(os.path.dirname(os.path.abspath(a.config)), "results", tag)
         for attempt in range(1, a.attempts + 1):             # a run whose start gate never opened (SITL slow to get a fix) is retried clean
             try:
-                meta = run_one(a.config, a.python, out, a.workdir or os.path.join(out, "sitl_work"))
+                meta = run_one(a.config, a.python, out, a.workdir or os.path.join(out, "sitl_work"), slot=a.slot)
                 meta["attempt"] = attempt
                 json.dump(meta, open(os.path.join(out, "run_meta.json"), "w"), indent=1)
                 print(json.dumps(meta))
