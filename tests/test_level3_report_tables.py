@@ -119,6 +119,21 @@ class TestDocsConsistency(unittest.TestCase):
         for needle in ("26 clean", "15 of 56", "0.125", "reactive", "probability map", "repeated detection observations", "cannot be recovered", "not declared scientifically validated"):
             self.assertIn(needle.lower(), t.lower(), needle)
 
+    def test_fire_clock_confound_documented_everywhere(self):
+        for d, needles in (("docs/experiments/level3_final.md", ("fire-clock confound", "realized fire", "radius", "observed-only", "log lines")),
+                           ("docs/experiments/level3_methodology.md", ("## 16. fire-clock confound", "next_fire_step", "realized fire trajectory")),
+                           ("docs/handoffs/level3_final_audit.md", ("fire-clock", "resolved", "unresolved", "not declared")),
+                           ("docs/project-status.md", ("fire-clock",))):
+            t = text(d).lower()
+            for n in needles:
+                self.assertIn(n.lower(), t, (d, n))
+        for d in ("docs/experiments/level3_final.md", "docs/experiments/level3_methodology.md"):
+            self.assertNotIn("the scene, fire and detector are deterministic", text(d).lower(), d)
+
+    def test_baseline_first_detection_is_not_applicable_in_csv(self):
+        base = [r for r in rd("seed_summary.csv") if r["arm"] == "baseline"][0]
+        self.assertEqual((base["first_true_det_s"], base["first_true_det_s_n_observed"]), ("NA", "NA"))
+
     def test_no_significance_claims_for_scenarios(self):
         t = text("docs/experiments/level3_final.md")
         self.assertNotIn("p=0.0078", t)
