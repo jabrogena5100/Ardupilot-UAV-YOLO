@@ -18,6 +18,13 @@ Scope of this step: documentation and tooling only. Nothing was downloaded from 
 - Requirement: archive + extraction of the test subset + tool outputs is roughly archive size + 3 GB (test split about 4,183 of 25,097 images) + 1 GB headroom. At 17 GB that is about **21 GB > 17 GB free: not sufficient**. Extracting everything would need about 2x the archive size.
 - Action for the owner: free or attach at least **30 GB** (more if the real size exceeds 17 GB), then point `local_data/external_eval/` there (symlink). Nothing was deleted by this assessment.
 
+## 2a. Storage re-audit (2026-11-10, read-only: df, lsblk, du; nothing resized or deleted)
+- `/` is now `/dev/mapper/ubuntu--vg-ubuntu--lv`, 144G total, 40G used, **98G free** (disk `sda` 147.4G, LVM on `sda3` 145.4G). The 58 GB / 17 GB-free figures in section 2 are superseded.
+- `local_data/` is 7.4 GB; `local_data/external_eval/` does not exist yet. Same filesystem as the repo, so no symlink is needed.
+- Requirement: archive (estimated 17 GB, range 8-35 GB) + test-subset extraction ~3 GB + outputs/headroom ~1 GB. Even at the 35 GB upper bound with a full extraction (~2x archive = 70 GB) the 98 GB is enough, but keep >= 15 GB free afterwards. **G0 storage: pass (98 GB >= 30 GB).**
+- Recommended destination: `local_data/external_eval/raw/` (new empty directory, gitignored). Extract only the test split plus label files, with a Python `-I` script.
+- Download probe: the file-list API still returns `User Not Login` (HTTP 200, code 20001). **G0b remains blocked on the owner's Science Data Bank login**; no workaround attempted.
+
 ## 3. Class mapping
 - Record: two object labels, "fire" and "smoke". Target class for comparison = **smoke only** (our detectors have the single class `0: smoke`); fire boxes are dropped, never merged into smoke.
 - Tool: `eval/external_prep.py remap` reads the dataset's own class list, **refuses** anything but exactly {fire, smoke}, writes smoke as class 0, drops fire lines, and reports counts (tested with both id orders).
