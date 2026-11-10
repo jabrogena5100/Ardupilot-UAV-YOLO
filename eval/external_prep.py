@@ -12,15 +12,21 @@ import argparse, csv, gzip, hashlib, json, os, sys
 
 import numpy as np
 
-PREFIXES = ("FireAndSmoke", "NeitherFireNorSmoke", "Smoke", "Fire")   # longest-match first; FASDD file-name prefixes (record description)
+PREFIXES = ("FireAndSmoke", "NeitherFireNorSmoke", "Smoke", "Fire")   # canonical stratum names (the screening quotas use these)
+# Real FASDD_UAV file names (verified in FASDD_UAV.zip, 2026-11-10) are lower-camel: bothFireAndSmoke_UAV000003.jpg, neitherFireNorSmoke_UAV000004.jpg,
+# smoke_UAV000001.jpg, fire_UAV000005.jpg. Matching is case-insensitive on the file-name prefix and longest-match first; the capitalised
+# record-description spellings stay accepted. Both map to the canonical names above.
+_PREFIX_TO_STRATUM = (("bothfireandsmoke", "FireAndSmoke"), ("fireandsmoke", "FireAndSmoke"), ("neitherfirenorsmoke", "NeitherFireNorSmoke"),
+                      ("smoke", "Smoke"), ("fire", "Fire"))
 SMOKE_POS = {"Smoke", "FireAndSmoke"}
 IMG_EXT = (".jpg", ".jpeg", ".png", ".bmp")
 
 
 def stratum(name):
-    for p in PREFIXES:
-        if name.startswith(p):
-            return p
+    low = os.path.basename(name).lower()
+    for p, canon in _PREFIX_TO_STRATUM:
+        if low.startswith(p):
+            return canon
     return "UNKNOWN"
 
 

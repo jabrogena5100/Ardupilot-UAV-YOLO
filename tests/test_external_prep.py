@@ -34,6 +34,44 @@ class TestScreen(unittest.TestCase):
             E.screening_sample([n for n in names() if not n.startswith("Fire_")], 1)
 
 
+def real_names():
+    """File-name conventions of the real FASDD_UAV.zip (verified 2026-11-10): lower-camel prefixes, e.g. bothFireAndSmoke_UAV000003.jpg."""
+    out = []
+    for p, n in (("smoke", 60), ("bothFireAndSmoke", 60), ("fire", 80), ("neitherFireNorSmoke", 80)):
+        out += [f"{p}_UAV{i:06d}.jpg" for i in range(n)]
+    return out
+
+
+class TestRealFasddNames(unittest.TestCase):
+    def test_real_prefixes_map_to_canonical_strata(self):
+        self.assertEqual(E.stratum("bothFireAndSmoke_UAV000003.jpg"), "FireAndSmoke")
+        self.assertEqual(E.stratum("neitherFireNorSmoke_UAV000004.jpg"), "NeitherFireNorSmoke")
+        self.assertEqual(E.stratum("smoke_UAV000001.jpg"), "Smoke")
+        self.assertEqual(E.stratum("fire_UAV000005.jpg"), "Fire")
+        self.assertEqual(E.stratum("./images/bothFireAndSmoke_UAV000003.jpg"), "FireAndSmoke")   # list-file form
+        self.assertEqual(E.stratum("images/fire_UAV000005.jpg"), "Fire")
+        self.assertEqual(E.stratum("unknown_UAV000005.jpg"), "UNKNOWN")
+
+    def test_fire_does_not_swallow_fireandsmoke(self):
+        self.assertNotEqual(E.stratum("bothFireAndSmoke_UAV000003.jpg"), "Fire")
+        self.assertNotEqual(E.stratum("FireAndSmoke_3.jpg"), "Fire")
+
+    def test_screening_on_real_names_is_complete_and_keeps_real_names(self):
+        rows = E.screening_sample(real_names(), 20261109)
+        self.assertEqual(len(rows), 100)
+        counts = {}
+        for nm, st, _ in rows:
+            counts[st] = counts.get(st, 0) + 1
+            self.assertIn(nm, real_names())                          # names come back unchanged, not canonicalised
+            self.assertEqual(E.stratum(nm), st)
+        self.assertEqual(counts, {"Smoke": 20, "FireAndSmoke": 20, "Fire": 30, "NeitherFireNorSmoke": 30})
+        self.assertEqual(sum(x[2] for x in rows), 30)
+        self.assertEqual(rows, E.screening_sample(list(reversed(real_names())), 20261109))
+
+    def test_real_names_not_unknown(self):
+        self.assertFalse([n for n in real_names() if E.stratum(n) == "UNKNOWN"])
+
+
 class TestOverlap(unittest.TestCase):
     def test_dhash_and_match(self):
         rng = np.random.default_rng(0)
