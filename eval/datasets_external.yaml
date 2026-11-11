@@ -11,12 +11,16 @@
 status: proposed_not_frozen
 created: 2026-11-11
 
+# batch = 1 on purpose. Ultralytics letterboxes a batch to ONE common shape: with identical image sizes (all Boreal, synthetic and FireMan primary
+# images) it pads each image to its own minimal stride rectangle; with mixed sizes (FASDD has five) it pads every image to a full 640x640 square.
+# The 2x2 effectively used the minimal-rectangle mode, so batch 1 (one image per call) reproduces that mode for every image of every dataset, and the
+# machine used for the run has 2 GB of RAM. For uniform-shape sets (FireMan primary) the batch size does not change any prediction.
 settings:
   imgsz: 640
   conf: 0.001            # inference confidence floor (needed for AP); identical to the 2x2
   nms_iou: 0.7
   max_det: 300
-  batch: 32
+  batch: 1               # DEVIATION from the 2x2 (32), recorded 2026-11-11: see the note below
   seed: 0
   report_conf: [0.25]    # the Level 2 operating point (not the Level 3 per-arm thresholds)
 

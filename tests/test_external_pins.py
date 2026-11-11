@@ -50,7 +50,11 @@ class TestPins(unittest.TestCase):
         self.assertEqual(sorted(CFG["cells"]["models"]), sorted(want))
 
     def test_inference_settings_equal_the_2x2(self):
-        self.assertEqual(CFG["settings"], yaml.safe_load(open(os.path.join(ROOT, "eval", "datasets.yaml")))["settings"])
+        base = yaml.safe_load(open(os.path.join(ROOT, "eval", "datasets.yaml")))["settings"]
+        ext = dict(CFG["settings"])
+        self.assertEqual(ext.pop("batch"), 1)                      # the one documented deviation (rectangular letterbox per image, 2 GB RAM)
+        base.pop("batch")
+        self.assertEqual(ext, base)
 
     def test_datasets_separate_and_secondary_not_in_default_cells(self):
         self.assertEqual(CFG["cells"]["datasets"], ["fireman_primary", "fasdd_smoke_positive"])

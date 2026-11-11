@@ -16,7 +16,11 @@ import os
 import sys
 from typing import List
 
-from . import fireman_prep as P
+try:
+    from . import fireman_prep as P          # python3 -m eval.external_materialize / imported by tests
+except ImportError:                         # python3 eval/external_materialize.py
+    sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+    import fireman_prep as P
 
 
 def filelist_sha256(names: List[str]) -> str:
