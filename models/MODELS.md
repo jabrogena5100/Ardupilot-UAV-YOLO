@@ -120,7 +120,7 @@ Scripts: `eval/runpod/boreal_stage1_freeze_smoke.sh`, `eval/runpod/boreal_stage2
 
 Trained 2026-10-29; experiment `docs/experiments/boreal_v2_results.md`, split `docs/experiments/boreal_v2.md`. YOLOv8s from COCO `yolov8s.pt`, 100 epochs, imgsz 640, batch 32,
 deterministic, AdamW lr0 0.002 momentum 0.9 warmup_bias_lr 0.0, **`cache=ram` (documented speed-only deviation; v1 Model B had no cache)**, ultralytics 8.4.173, torch 2.8.0+cu128,
-RTX 4090 (secure, US-IL-1). Checkpoint = Ultralytics `best.pt` by fitness on the Boreal v2 val split. Train data: `boreal_v2` train (3,462 frames, 18 clips). **Not comparable with `real_boreal_best_v1*.pt`** (different train and test populations). Checkpoints are not in git; no local backup yet.
+RTX 4090 (secure, US-IL-1). Checkpoint = Ultralytics `best.pt` by fitness on the Boreal v2 val split. Train data: `boreal_v2` train (3,462 frames, 18 clips). **Not comparable with `real_boreal_best_v1*.pt`** (different train and test populations). Checkpoints are not in git. Local backup: `local_data/backups/boreal_v2/real_boreal_v2_best_seed{0,1,2}.pt` with `SHA256SUMS` and `PROVENANCE.txt` (all three hashes re-verified with `sha256sum -c` on 2026-11-11; correction of the earlier 'no local backup yet').
 
 | Checkpoint | Seed | RunPod path | SHA-256 |
 |---|---|---|---|

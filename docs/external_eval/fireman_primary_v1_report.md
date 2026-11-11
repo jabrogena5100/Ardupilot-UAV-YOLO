@@ -84,7 +84,7 @@
 
 ## By sensitivity
 
-**frames_within_2_of_a_keyframe (74 images)**
+**frames_within_2_of_an_inferred_annotation_keyframe (74 images)**
 
 | metric | Model A mean (SD) | Model B mean (SD) | B - A |
 |---|---|---|---|

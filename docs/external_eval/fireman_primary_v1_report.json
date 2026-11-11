@@ -1076,7 +1076,7 @@
    }
   },
   "sensitivity": {
-   "frames_within_2_of_a_keyframe": {
+   "frames_within_2_of_an_inferred_annotation_keyframe": {
     "n_images": 74,
     "family": {
      "A": {

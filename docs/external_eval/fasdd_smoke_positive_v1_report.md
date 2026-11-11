@@ -56,12 +56,28 @@
 | loc_mean_iou_tp | 0.912 (0.000) | 0.890 (0.009) | -0.022 |
 | detection_rate | 0.742 (0.003) | 0.772 (0.010) | 0.031 |
 
-## Cluster-level uncertainty (dHash64 scene clusters; paired bootstrap of Model B minus Model A on per-cluster mAP50)
+## Two estimands (do not mix them)
 
-- cluster_r6/all: 680 clusters, gate interval_and_test; B - A = -0.241, 95% interval [-0.270, -0.213], P(diff>0) 0.000; sign-flip p 0.0000; leave-one-cluster-out [-0.242, -0.240]
-- cluster_r6/tower_fixed_camera: 196 clusters, gate interval_and_test; B - A = -0.029, 95% interval [-0.047, -0.014], P(diff>0) 0.000; sign-flip p 0.0000; leave-one-cluster-out [-0.031, -0.024]
-- cluster_r6/ground_or_low_video_720p: 274 clusters, gate interval_and_test; B - A = -0.552, 95% interval [-0.598, -0.505], P(diff>0) 0.000; sign-flip p 0.0000; leave-one-cluster-out [-0.554, -0.550]
-- cluster_r6/uav_nadir_1080p: 212 clusters, gate interval_and_test; B - A = -0.036, 95% interval [-0.059, -0.014], P(diff>0) 0.001; sign-flip p 0.0024; leave-one-cluster-out [-0.040, -0.034]
-- cluster_r4/all: 897 clusters, gate interval_and_test; B - A = -0.274, 95% interval [-0.299, -0.249], P(diff>0) 0.000; sign-flip p 0.0000; leave-one-cluster-out [-0.275, -0.273]
-- cluster_r2/all: 1232 clusters, gate interval_and_test; B - A = -0.286, 95% interval [-0.308, -0.264], P(diff>0) 0.000; sign-flip p 0.0000; leave-one-cluster-out [-0.287, -0.285]
+- **Pooled AP** (headline above): all images of a subset ranked together, mean over seeds. No interval is computed for it.
+- **Cluster-macro AP**: AP inside each dHash64 scene cluster, then the unweighted mean over clusters. Weighting and confidence ranking differ from pooled AP (AP is nonlinear), so its value is a different number, not a refinement of the pooled one.
+- The bootstrap interval and sign-flip p below belong to the cluster-macro estimand only, are **conditional sensitivity analyses** (they assume the dHash groups behave as independent units, which is not demonstrated: similarity components are not videos, cameras or burn events), and are **not population-level inference**. Subsets the config restricts to descriptive reporting get point values only.
+- Bootstrap fraction = share of resamples with B - A > 0; it is neither a posterior probability nor the sign-flip p-value.
+
+| subset (cluster radius) | n clusters | pooled mAP50 A / B / B-A | cluster-macro mAP50 A / B / B-A | conditional interval (cluster-macro, percentile) | bootstrap B-A>0 | sign-flip |
+|---|---|---|---|---|---|---|
+| all (r6) | 680 | 0.408 / 0.224 / -0.184 | 0.523 / 0.282 / -0.241 | descriptive only (config restriction) | - | - |
+| tower_fixed_camera (r6) | 196 | 0.011 / 0.003 / -0.008 | 0.044 / 0.015 / -0.029 | [-0.047, -0.014] | 0/10000 | p-hat = 1.5e-05 (Monte Carlo, n_mc = 200000) |
+| ground_or_low_video_720p (r6) | 274 | 0.697 / 0.256 / -0.441 | 0.788 / 0.237 / -0.552 | descriptive only (config restriction) | - | - |
+| uav_nadir_1080p (r6) | 212 | 0.437 / 0.423 / -0.014 | 0.623 / 0.587 / -0.036 | [-0.059, -0.014] | 11/10000 | p-hat = 0.0024 (Monte Carlo, n_mc = 200000) |
+| all_excluding_ground_or_low_video_720p (r6) | 407 | 0.176 / 0.189 / +0.012 | 0.344 / 0.311 / -0.033 | [-0.047, -0.018] | 0/10000 | p-hat = 1.5e-05 (Monte Carlo, n_mc = 200000) |
+| all (r4) | 897 | 0.408 / 0.224 / -0.184 | 0.545 / 0.271 / -0.274 | descriptive only (config restriction) | - | - |
+| tower_fixed_camera (r4) | 236 | 0.011 / 0.003 / -0.008 | 0.050 / 0.016 / -0.034 | [-0.051, -0.020] | 0/10000 | p-hat = 5.0e-06 (MC floor, n_mc = 200000; not 0) |
+| ground_or_low_video_720p (r4) | 416 | 0.697 / 0.256 / -0.441 | 0.780 / 0.226 / -0.554 | descriptive only (config restriction) | - | - |
+| uav_nadir_1080p (r4) | 245 | 0.437 / 0.423 / -0.014 | 0.623 / 0.594 / -0.029 | [-0.051, -0.008] | 35/10000 | p-hat = 0.0068 (Monte Carlo, n_mc = 200000) |
+| all_excluding_ground_or_low_video_720p (r4) | 481 | 0.176 / 0.189 / +0.012 | 0.342 / 0.310 / -0.032 | [-0.045, -0.019] | 0/10000 | p-hat = 1e-05 (Monte Carlo, n_mc = 200000) |
+| all (r2) | 1232 | 0.408 / 0.224 / -0.184 | 0.562 / 0.276 / -0.286 | descriptive only (config restriction) | - | - |
+| tower_fixed_camera (r2) | 318 | 0.011 / 0.003 / -0.008 | 0.053 / 0.017 / -0.036 | [-0.050, -0.023] | 0/10000 | p-hat = 5.0e-06 (MC floor, n_mc = 200000; not 0) |
+| ground_or_low_video_720p (r2) | 640 | 0.697 / 0.256 / -0.441 | 0.787 / 0.265 / -0.522 | descriptive only (config restriction) | - | - |
+| uav_nadir_1080p (r2) | 274 | 0.437 / 0.423 / -0.014 | 0.627 / 0.602 / -0.025 | [-0.046, -0.003] | 118/10000 | p-hat = 0.026 (Monte Carlo, n_mc = 200000) |
+| all_excluding_ground_or_low_video_720p (r2) | 592 | 0.176 / 0.189 / +0.012 | 0.318 / 0.288 / -0.031 | [-0.043, -0.018] | 0/10000 | p-hat = 5.0e-06 (MC floor, n_mc = 200000; not 0) |
 
