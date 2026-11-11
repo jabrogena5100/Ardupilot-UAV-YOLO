@@ -1,0 +1,314 @@
+{
+ "schema": "fireman_video_metadata_v1",
+ "created": "2026-11-11",
+ "provenance": "Evidence in docs/external_eval/dataset_audit.md (FireMan sections). Tier verified_2023 = thermal partner video shows the on-screen date 2023-08-26; such a video cannot overlap Boreal (all Boreal burns are from 2022: Evo 2022-05-24, Heinola 2022-06-28, Karkkila 2022-07-06, Ruokolahti 2022-08-15). All other videos are 'unverified' because FireMan lists two 2022 dates (2022-07-06, 2022-08-16) that coincide within one day with Boreal's Karkkila and Ruokolahti burns, and no per-video date is published.",
+ "scene_clusters": "hash <= 6 bits AND thumbnail correlation >= 0.9 with >= 3 cross-video frame pairs (local_data/external_eval/fireman/work/scene_groups.json); clusters are ids of connected components, C01.. in order of first video name",
+ "videos": {
+  "test/video_001": {
+   "frames": 329,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 0,
+   "cluster": "C01",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "test/video_002": {
+   "frames": 4111,
+   "width": 640,
+   "height": 512,
+   "frames_with_smoke_box": 4111,
+   "cluster": "C02",
+   "tier": "verified_2023",
+   "date_evidence": "paired thermal video dji_video_002 (RGB-frame match NCC 1.00): on-screen 2023-08-26 12:29:24, N65.4728 E28.4248, Matrice 300 RTK"
+  },
+  "test/video_003": {
+   "frames": 964,
+   "width": 958,
+   "height": 764,
+   "frames_with_smoke_box": 964,
+   "cluster": "C03",
+   "tier": "unverified",
+   "date_evidence": "paired with dji_video_001 (NCC 1.00), false-colour thermal without on-screen date"
+  },
+  "test/video_004": {
+   "frames": 292,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 292,
+   "cluster": "C04",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "test/video_005": {
+   "frames": 313,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 313,
+   "cluster": "C05",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_001": {
+   "frames": 180,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 180,
+   "cluster": "C06",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_002": {
+   "frames": 570,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 570,
+   "cluster": "C07",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_003": {
+   "frames": 7703,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 7621,
+   "cluster": "C01",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_004": {
+   "frames": 3417,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 3073,
+   "cluster": "C01",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_005": {
+   "frames": 869,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 33,
+   "cluster": "C01",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_006": {
+   "frames": 840,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 840,
+   "cluster": "C01",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_007": {
+   "frames": 1469,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 1469,
+   "cluster": "C08",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_008": {
+   "frames": 1499,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 1499,
+   "cluster": "C09",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_009": {
+   "frames": 3008,
+   "width": 640,
+   "height": 512,
+   "frames_with_smoke_box": 3008,
+   "cluster": "C10",
+   "tier": "verified_2023",
+   "date_evidence": "paired thermal video dji_video_009 (NCC 1.00): on-screen 2023-08-26 12:20:39, N65.4563 E28.4142"
+  },
+  "train/video_010": {
+   "frames": 5446,
+   "width": 640,
+   "height": 512,
+   "frames_with_smoke_box": 5446,
+   "cluster": "C11",
+   "tier": "verified_2023",
+   "date_evidence": "paired thermal video dji_video_007 (NCC 0.999): on-screen 2023-08-26 12:00:17, N65.4658 E28.4436"
+  },
+  "train/video_011": {
+   "frames": 5841,
+   "width": 640,
+   "height": 512,
+   "frames_with_smoke_box": 5841,
+   "cluster": "C12",
+   "tier": "verified_2023",
+   "date_evidence": "paired thermal video dji_video_008 (NCC 0.996): on-screen 2023-08-26 12:06:46, N65.4703 E28.4403"
+  },
+  "train/video_012": {
+   "frames": 2756,
+   "width": 958,
+   "height": 760,
+   "frames_with_smoke_box": 2691,
+   "cluster": "C13",
+   "tier": "unverified",
+   "date_evidence": "weakly matched to dji_video_010 (NCC 0.84), no on-screen date"
+  },
+  "train/video_013": {
+   "frames": 723,
+   "width": 958,
+   "height": 764,
+   "frames_with_smoke_box": 516,
+   "cluster": "C14",
+   "tier": "unverified",
+   "date_evidence": "paired with dji_video_011/013 (NCC 1.00/0.998), no on-screen date"
+  },
+  "train/video_014": {
+   "frames": 2537,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 2537,
+   "cluster": "C15",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_015": {
+   "frames": 8530,
+   "width": 958,
+   "height": 768,
+   "frames_with_smoke_box": 7376,
+   "cluster": "C16",
+   "tier": "unverified",
+   "date_evidence": "weakly matched to dji_video_012 (NCC 0.73), no on-screen date"
+  },
+  "train/video_016": {
+   "frames": 373,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 373,
+   "cluster": "C17",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_017": {
+   "frames": 327,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 327,
+   "cluster": "C18",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_018": {
+   "frames": 1811,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 0,
+   "cluster": "C19",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_019": {
+   "frames": 607,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 607,
+   "cluster": "C20",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_020": {
+   "frames": 630,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 630,
+   "cluster": "C21",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_021": {
+   "frames": 953,
+   "width": 1920,
+   "height": 1080,
+   "frames_with_smoke_box": 953,
+   "cluster": "C22",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_022": {
+   "frames": 953,
+   "width": 1920,
+   "height": 1080,
+   "frames_with_smoke_box": 953,
+   "cluster": "C23",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_023": {
+   "frames": 2281,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 2281,
+   "cluster": "C24",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "train/video_024": {
+   "frames": 4915,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 4915,
+   "cluster": "C25",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "val/video_001": {
+   "frames": 1409,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 1409,
+   "cluster": "C26",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "val/video_002": {
+   "frames": 1053,
+   "width": 640,
+   "height": 512,
+   "frames_with_smoke_box": 1053,
+   "cluster": "C27",
+   "tier": "verified_2023",
+   "date_evidence": "paired thermal videos dji_video_003/005/006 (RGB-frame match NCC 1.00): on-screen 2023-08-26 12:14:17-12:14:41, N65.4746-65.4759 E28.4367-28.4380"
+  },
+  "val/video_003": {
+   "frames": 1327,
+   "width": 1920,
+   "height": 1080,
+   "frames_with_smoke_box": 1151,
+   "cluster": "C28",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "val/video_004": {
+   "frames": 1204,
+   "width": 3840,
+   "height": 2160,
+   "frames_with_smoke_box": 1204,
+   "cluster": "C29",
+   "tier": "unverified",
+   "date_evidence": "no on-screen date or other dating evidence found; recording year unknown (README lists 2022-07-06, 2022-08-16, 2023-06-14, 2023-08-26)"
+  },
+  "val/video_005": {
+   "frames": 631,
+   "width": 640,
+   "height": 512,
+   "frames_with_smoke_box": 631,
+   "cluster": "C30",
+   "tier": "unverified",
+   "date_evidence": "paired with dji_video_004 (NCC 1.00) but its thermal frames carry no on-screen date"
+  }
+ }
+}
