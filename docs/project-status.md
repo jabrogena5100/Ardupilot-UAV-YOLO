@@ -1,6 +1,6 @@
 # Project Status — ECE 496 AI-Enabled Autonomous Wildfire Monitoring
 
-**Last updated:** 2026-11-09 (Level 3 final evaluation complete, awaiting Codex audit; earlier: Codex REVISE accepted: Boreal split found NOT video-disjoint, Level 2 v2 report corrected, Level 3 observation contract drafted; Level 3 not started; awaiting second Codex review)
+**Last updated:** 2026-11-11 (final-audit correction phase: Codex final audit returned REVISE; claims narrowed, estimands separated, docs reconciled; report draft v1 at `docs/report/final_report.md`; no new experiment, no spend). Levels 1-3 are complete and frozen as `baseline-L1-3-v1`; external validation (FireMan primary, FASDD smoke-positive) has been run and is exploratory and provisional.
 
 This file is the primary source for current progress and immediate next tasks. `CLAUDE.md` holds the rules; `models/MODELS.md` is authoritative for checkpoint provenance. Always verify claims here against the repo (`git status`, `wc -l`, hashes) before acting.
 
@@ -55,7 +55,7 @@ Level 3 then compares how the resulting perception models affect autonomous moni
 
 ## Level 2 — Cross-domain evaluation
 
-The evaluation harness is implemented (2026-10-27) but not yet validated on real checkpoints. State of the pieces:
+The evaluation harness is implemented, validated against Model B and used for all Level 2, Level 3 and external results (this paragraph was stale until 2026-11-11). State of the pieces:
 
 * De facto unified annotation format: YOLO txt (`cls cx cy w h`, normalized), single class `0: smoke`, enforced for both domains by `eval/validate_dataset.py`. There is no separate formal schema document or shared loader yet.
 * Frozen splits: Boreal (`/workspace/splits/boreal_v1/` on the RunPod volume, hashes in `models/MODELS.md`) and `synth_smoke_v1` (hashes in `docs/datasets/synth_smoke_v1.md`). Test views `test_pos` and `test_all` are reported separately.
@@ -254,7 +254,7 @@ The owner cleared the `synth_smoke_v1` edge-touch review (about 0.76 / 0.76 / 0.
 
 The generated YAML/list files contain the generation pod's absolute paths, so runs use path-rewritten copies (`data_rw.yaml`; the harness reads image directories directly); never edit the hashed originals. The pre-declared diagnostic (Model A on Boreal test, grouped by edge-touching vs not) was run: recall 0.873 edge-touching (n=142) vs 0.497 not (n=571), reported as consistent with, not proof of, the mismatch.
 
-### Priority 1 — Independent review of the Level 2 protocol (next; blocks Level 3)
+### Priority 1 — Independent review of the Level 2 protocol (DONE: Level 2 review, Level 3 audits and the final Codex audit are complete; kept for history)
 
 **2026-10-29 update:** Codex returned REVISE; the correction phase is done (`docs/experiments/level2_v2_audit.md`): split memberships reconstructed from a pod scan of the source dataset (shared clips found, no exact duplicates), report corrections applied, backup manifest repaired, provenance limits documented, `docs/experiments/level3_observation_contract.md` drafted (proposal only, nothing implemented). **Next: second Codex review of that package.** Open decisions for the owner: (a) report Level 2 with the documented overlap and sensitivity, or build a clip-level version-2 Boreal split and retrain Model B (about $0.9 per seed on a 4090; the frozen split itself must not be edited, a v2 would be a new versioned split); (b) real-domain negatives and cell-level truth for Level 3 (contract sections 3 and 6). Do not implement `mapping/probability_map.py` before the contract's section 5 is measured.
 
@@ -281,7 +281,7 @@ Thin YOLO wrapper implementing `observe()`; wire Model B (and later Model A) in 
 
 ### Priority 5 — `mapping/probability_map.py`
 
-Log-odds belief grid; blocked on Level 2 confusion matrices. Then swap only `PriorityPlanner.score()`'s body.
+Log-odds belief grid; **not built** (future work; Level 3 flew the reactive `max(conf)` policy). Level 2 confusion statistics now exist, so it is no longer blocked. Then swap only `PriorityPlanner.score()`'s body.
 
 ### Priority 6 — Optional demo vehicle (`sim/fake_vehicle.py`)
 
@@ -567,3 +567,16 @@ Six frozen checkpoints run on the 750 pinned FireMan primary frames (local CPU, 
 
 ## 2026-11-11 FASDD smoke-positive primary inference and report (supersedes the 'FASDD BLOCKED' line above)
 The FASDD test images were copied from the RunPod volume export (pod job `eval/runpod/fasdd_pod_job.py`), the six frozen checkpoints ran on the 2,149 pinned smoke-positive images (local CPU; baseline verifier passed before and after), and the report was generated. **B - A mAP50 = -0.184 pooled (cluster bootstrap -0.241, 95% [-0.270, -0.213], 680 clusters): Model A beats Model B, the reverse of Level 2 and FireMan.** Driven by the 720p ground/low-video group (-0.44); UAV nadir is a tie (-0.014); tower cameras about 0. G5 fails (mixed platforms), G2/G3 owner review still PENDING. Details: `docs/external_eval/fasdd_smoke_positive_v1_findings.md`. Fixed an out-of-memory bug in `eval/external_stats.py::sign_flip_test` (chunked Monte Carlo; this is what crashed the laptop). No paid spend this step; RunPod pod/volume state not re-read this session. Next: owner review of the visual-review sheets, Codex audit of the external results, then the 24-page report.
+
+
+## 2026-11-11 Final-audit correction phase (Codex REVISE accepted; no experiment, no GPU, no spend)
+**Corrections completed**
+* FASDD: unsupported population-level significance and "gate passed" language withdrawn; `eval/external_report.py` now honors the config's descriptive-only restriction for the 720p group (and any subset containing it: point values only), adds an "all excluding 720p" sensitivity, reports **pooled AP** and **cluster-macro AP** as separate estimands (pooled -0.184 vs cluster-macro -0.241 on all FASDD; on the non-720p subset the sign differs: +0.012 pooled, -0.033 cluster-macro), and labels bootstrap/sign-flip results conditional sensitivity analyses. Nadir wording: pooled means differ by -0.014, equivalence not tested. Image-list hash corrected to `66e72fa2...911b5c` (verified). Reports regenerated from the saved predictions (`docs/external_eval/*_report.{md,json}`); original predictions untouched.
+* Statistics: Monte Carlo p-values carry their floor 1/(n_mc+1) (never 0.0000); bootstrap fraction is labeled as neither posterior nor p. 3 new tests (57 tests in the touched modules pass).
+* Level 3: reading rule added to `docs/experiments/level3_final.md`; abstract and conclusions in the report describe behaviour under the implemented reactive policy only.
+* FireMan: "far better than on Boreal" replaced (A 0.46 vs 0.51 is slightly lower, B also falls 0.90 -> 0.68); "keyframe" renamed "inferred annotation keyframe" (slope-change inference, not explicit flags).
+* External protocol status: `eval/datasets_external.yaml` is now `used_unfrozen_not_preregistered` with a `protocol_record` (decisions before inference, amendments after results, unresolved reviews, not_claimed). Preregistration is not claimed.
+* Backups: `models/MODELS.md` and `boreal_v2_results.md` no longer say Boreal-v2 has no local backup (`local_data/backups/boreal_v2/`, `sha256sum -c` OK for all three).
+* Baseline: three pinned documentation files changed (hashes in `docs/baseline/AMENDMENTS.md`); `freeze_baseline.py --verify` reports exactly those three and no checkpoint, config or raw-artifact mismatch.
+**Remaining owner-only tasks:** FASDD 30 spot-check rows (`screening_v2`), FASDD overlap sheets `pairs_01-03` (G3), FireMan primary 12 spot frames and `fireman_pixcheck_v1` pairs, the 1280x720 UAV-or-ground question; G2/G3 and G5 stay provisional/failed until then.
+**Report:** draft v1 at `docs/report/final_report.md` with two figures (`eval/report_figures.py`) and a reference list marking what was and was not verified.
