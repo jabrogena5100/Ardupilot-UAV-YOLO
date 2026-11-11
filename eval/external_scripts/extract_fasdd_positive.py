@@ -26,7 +26,7 @@ def extract(zip_path, out, pinned_list=LIST, hashes=HASHES, expect_boxes=EXPECT_
     want = sorted(x.strip()[:-4] for x in open(pinned_list) if x.strip())
     if pos != want:
         raise SystemExit(f"positive list differs from {pinned_list}: {len(pos)} vs {len(want)}")
-    md5 = json.load(gzip.open(hashes))["fasdd"] if hashes else None
+    md5 = json.load((gzip.open if hashes.endswith(".gz") else open)(hashes))["fasdd"] if hashes else None
     if os.path.exists(out) or os.path.exists(out + "_FAILED"):
         raise SystemExit(f"{out} (or {out}_FAILED) exists; refusing to overwrite")
     tmp = out + "_partial"
@@ -59,5 +59,7 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     ap.add_argument("--zip", required=True)
     ap.add_argument("--out", required=True)
+    ap.add_argument("--hashes", default=HASHES, help="MD5 record (.json or .json.gz) of the screened copy; default is the local one")
+    ap.add_argument("--list", default=LIST)
     a = ap.parse_args()
-    print(json.dumps(extract(a.zip, a.out)))
+    print(json.dumps(extract(a.zip, a.out, pinned_list=a.list, hashes=a.hashes)))

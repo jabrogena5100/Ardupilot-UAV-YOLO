@@ -6,7 +6,7 @@ Raw run: `local_data/external_eval/runs/ext_v1_fireman_primary` (gitignored; log
 Full tables: `fireman_primary_v1_report.md` / `.json`.
 
 ## Reading rules
-One burn event, 5 strict clusters. **Descriptive only: no interval, no test, no replication or generalization claim.** FASDD is evaluated and reported separately (not yet run; blocked, see `readiness.md`).
+One burn event, 5 strict clusters. **Descriptive only: no interval, no test, no replication or generalization claim.** FASDD is evaluated and reported separately: `fasdd_smoke_positive_v1_findings.md` (direction reversed, B - A -0.18).
 
 ## Result (mean over 3 seeds, SD over seeds in brackets)
 | metric | Model A | Model B | B - A |

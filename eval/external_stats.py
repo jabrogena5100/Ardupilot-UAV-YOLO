@@ -144,8 +144,9 @@ def sign_flip_test(diffs: Sequence[float], seed: int = 0, n_mc: int = 200000) ->
         method = "exact"
     else:
         rng = np.random.default_rng(seed)
-        signs = rng.choice((-1.0, 1.0), size=(n_mc, n))
-        stat = np.abs((signs * d).mean(axis=1))
+        # chunked so memory stays bounded (n_mc x n float64 is ~1 GB for ~700 clusters; the 2 GB laptop ran out of RAM)
+        step = max(1, 4_000_000 // n)
+        stat = np.concatenate([np.abs((rng.choice((-1.0, 1.0), size=(min(step, n_mc - i), n)) * d).mean(axis=1)) for i in range(0, n_mc, step)])
         method = "monte_carlo"
     p = float((np.sum(stat >= obs - 1e-12) + (0 if method == "exact" else 1)) / (len(stat) + (0 if method == "exact" else 1)))
     return {"n": n, "mean_diff": float(d.mean()), "p": p, "method": method}
