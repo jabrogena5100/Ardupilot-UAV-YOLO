@@ -72,6 +72,25 @@ def smoke_yolo(frame: dict, tol: float = CLIP_TOL_PX) -> Tuple[List[str], dict]:
     return lines, issues
 
 
+def keyframe_distances(frames: List[dict], tol: float = 0.02) -> Dict[int, Optional[int]]:
+    """Distance (in frames) from each frame to the nearest slope change of the single-smoke-box coordinates, i.e. to the nearest probable CVAT keyframe.
+    Between keyframes CVAT interpolates linearly, so coordinates move exactly linearly (|second difference| < tol px); a slope change marks a keyframe.
+    Frames without exactly one smoke box break the series. None for every frame when the video has no slope change (one static or one linear box)."""
+    fr = sorted(frames, key=lambda f: f["id"])
+    pts = []
+    for f in fr:
+        b = [x for x in f["boxes"] if x[0] == SMOKE_LABEL]
+        pts.append(b[0][1:] if len(b) == 1 else None)
+    kf = []
+    for i in range(1, len(fr) - 1):
+        a, b, c = pts[i - 1], pts[i], pts[i + 1]
+        if a is None or b is None or c is None:
+            continue
+        if max(abs(a[k] - 2 * b[k] + c[k]) for k in range(4)) >= tol:
+            kf.append(i)
+    return {f["id"]: (min(abs(i - k) for k in kf) if kf else None) for i, f in enumerate(fr)}
+
+
 def select_frames(frame_ids: Iterable[int], k: int) -> List[int]:
     ids = sorted(frame_ids)
     n = len(ids)

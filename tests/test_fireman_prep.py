@@ -48,6 +48,24 @@ class TestConvert(unittest.TestCase):
                 P.smoke_yolo(P.parse_cvat(xml([(0, 100, 100, [box])]))[0])
 
 
+class TestKeyframes(unittest.TestCase):
+    def test_slope_changes_are_keyframes(self):
+        # box moves linearly for frames 0-5, then changes direction at frame 5, then linearly again until 10
+        xs = [0, 2, 4, 6, 8, 10, 9, 8, 7, 6, 5]
+        fr = P.parse_cvat(xml([(i, 100, 100, [("smoke_region", x, 10, x + 20, 50)]) for i, x in enumerate(xs)]))
+        d = P.keyframe_distances(fr)
+        self.assertEqual(d[5], 0)
+        self.assertEqual((d[4], d[6], d[3], d[8]), (1, 1, 2, 3))
+
+    def test_no_slope_change_gives_none(self):
+        fr = P.parse_cvat(xml([(i, 100, 100, [("smoke_region", 10, 10, 50, 50)]) for i in range(6)]))      # static box
+        self.assertTrue(all(v is None for v in P.keyframe_distances(fr).values()))
+
+    def test_frames_without_a_single_box_break_the_series(self):
+        fr = P.parse_cvat(xml([(0, 100, 100, [("smoke_region", 0, 0, 10, 10)]), (1, 100, 100, []), (2, 100, 100, [("smoke_region", 30, 0, 40, 10)]), (3, 100, 100, [("smoke_region", 90, 0, 99, 10)])]))
+        self.assertTrue(all(v is None for v in P.keyframe_distances(fr).values()))
+
+
 class TestSelection(unittest.TestCase):
     def test_all_frames_when_few(self):
         self.assertEqual(P.select_frames(range(5), 10), [0, 1, 2, 3, 4])
