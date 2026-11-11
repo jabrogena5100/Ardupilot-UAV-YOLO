@@ -59,6 +59,43 @@ class TestReportPieces(unittest.TestCase):
             self.assertLess(r["sign_flip"]["p"], 0.01)
 
 
+class TestRestrictionsAndEstimands(unittest.TestCase):
+    def test_restricted_subset_gets_point_values_only(self):
+        with tempfile.TemporaryDirectory() as d:
+            names, gts = make_run(d, n_clusters=40)
+            preds, g = R.load_run(d, "ds")
+            co = {n: f"c{i // 3}" for i, n in enumerate(names)}
+            r = R.cluster_analysis(preds, g, co, names, n_boot=100, allow_inference=False)
+            self.assertEqual(r["gate"], "descriptive_only_by_config")
+            for k in ("bootstrap", "sign_flip", "leave_one_cluster_out"):
+                self.assertNotIn(k, r)
+            self.assertIn("B_minus_A", r["cluster_macro_mAP50"]); self.assertEqual(r["estimand"], "cluster_macro_mAP50")
+
+    def test_config_restriction_blocks_all_and_adds_exclusion_subset(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_run(d, n_clusters=40)
+            cfg = os.path.join(d, "cfg.yaml")
+            yaml.safe_dump({"datasets": {"ds": {"clusters": os.path.join(d, "clusters.json")}},
+                            "analysis": {"gates": {"platform_groups": {"uav_nadir_1080p": {"inference": "descriptive_only"}}}}}, open(cfg, "w"))
+            out = os.path.join(d, "report")
+            R.main(["--run-dir", d, "--dataset", "ds", "--config", cfg, "--out", out, "--n-boot", "100"])
+            ca = json.load(open(os.path.join(out, "report.json")))["cluster_analysis"]
+            self.assertEqual(ca["cluster_r6/all"]["gate"], "descriptive_only_by_config"); self.assertNotIn("bootstrap", ca["cluster_r6/all"])
+            self.assertEqual(ca["cluster_r6/uav_nadir_1080p"]["gate"], "descriptive_only_by_config")
+            self.assertIn("bootstrap", ca["cluster_r6/tower_fixed_camera"])
+            self.assertIn("bootstrap", ca["cluster_r6/all_excluding_uav_nadir_1080p"])
+            md = open(os.path.join(out, "report.md")).read()
+            self.assertIn("Pooled AP", md); self.assertIn("not population-level inference", md); self.assertNotIn("p 0.0000", md)
+
+    def test_monte_carlo_p_is_never_reported_as_zero(self):
+        from eval import external_stats as S
+        r = S.sign_flip_test(np.full(30, 0.05), seed=0, n_mc=2000)
+        self.assertGreater(r["p"], 0); self.assertAlmostEqual(r["p_floor"], 1 / 2001)
+        txt = S.format_p(r)
+        self.assertIn("floor", txt); self.assertNotIn("0.0000", txt)
+        self.assertIn("exact", S.format_p(S.sign_flip_test([0.1, 0.1, 0.1, 0.1])))
+
+
 class TestEndToEnd(unittest.TestCase):
     def test_report_for_a_fasdd_like_run(self):
         with tempfile.TemporaryDirectory() as d:

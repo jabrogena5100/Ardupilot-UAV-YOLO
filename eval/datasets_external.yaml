@@ -1,5 +1,8 @@
-# Config for eval/run_matrix.py — EXTERNAL evaluation (FASDD_UAV, FireMan-UAV-RGBT). PROPOSED, NOT FROZEN: it becomes binding only when the
-# owner approves it (docs/external_eval/fireman_protocol_proposal.md section 6). No inference has been run with it.
+# Config for eval/run_matrix.py — EXTERNAL evaluation (FASDD_UAV, FireMan-UAV-RGBT).
+# STATUS (corrected 2026-11-11 after the final Codex audit): this file was written as a proposal and was NEVER owner-approved or frozen, and it was NOT
+# preregistered: it was committed (cdfa8e7) before the first inference run, but the owner never signed it off, and it was amended and the analysis code
+# was changed after results were seen (see `protocol_record` below). Treat every external number as exploratory and descriptive.
+# Inference HAS been run with it (FireMan primary and FASDD smoke-positive, six frozen checkpoints, local CPU, 2026-11-11).
 #
 # Same schema, settings and metric code path as eval/datasets.yaml (the 2x2). Nothing here changes eval/run_matrix.py, eval/metrics.py,
 # the six checkpoints or any Level 2 / Level 3 artifact. FireMan and FASDD are separate datasets and are never pooled.
@@ -8,8 +11,22 @@
 #           ${EXTERNAL_ROOT}/fireman_primary_v1/{images,labels}/test, fireman_secondary_v1/..., fasdd_uav_smoke_pos_v1/...
 # Datasets are pinned by image count and the sha256 of "\n".join(sorted(image file names)) (run_matrix definition); a mismatch aborts.
 
-status: proposed_not_frozen
+status: used_unfrozen_not_preregistered
 created: 2026-11-11
+protocol_record:
+  version: external_v1 (this file at the commit that carries this record; earlier states are in git history, first commit cdfa8e7)
+  decisions_before_inference:       # visible in git history before the first external prediction file existed
+    - dataset pins (image lists, hashes, FireMan primary = 5 videos dated 2023-08-26, FASDD smoke-positive = 2,149 images), the six frozen checkpoints, the 2x2 settings, batch 1
+    - cluster-count gates (20 for an interval, 8 for an exact test) and the 'replicates / consistent / contradicts' reading rule
+  amendments_after_results_were_seen:
+    - 2026-11-11 external_stats.sign_flip_test Monte Carlo made memory-chunked (laptop out of memory); same definition, no change to any value
+    - 2026-11-11 (final audit) external_report: the 720p group and any subset containing it are now descriptive-only as this file always said; pooled AP and cluster-macro AP are reported as separate estimands; Monte Carlo p reported with its floor; 'keyframe' renamed 'inferred annotation keyframe'
+    - 2026-11-11 (final audit) the cluster-count gate is NOT evidence that dHash clusters are independent units: cluster analyses are conditional sensitivity analyses, not population inference
+  unresolved_reviews:               # owner-only, still open; the external-validation status stays PROVISIONAL until they are done
+    - G2 independent human annotation review (FASDD 30 spot-check rows; FireMan primary 12 spot frames)
+    - G3 overlap check by a human (Boreal vs FASDD pairs_01-03; FireMan vs Boreal/FASDD pixcheck pairs_01-03)
+    - 1280x720 FASDD platform (UAV or ground) and G5
+  not_claimed: [preregistration, population-level significance for FASDD, replication of the Level 2 direction, external validity of any ranking]
 
 # batch = 1 on purpose. Ultralytics letterboxes a batch to ONE common shape: with identical image sizes (all Boreal, synthetic and FireMan primary
 # images) it pads each image to its own minimal stride rectangle; with mixed sizes (FASDD has five) it pads every image to a full 640x640 square.
@@ -45,7 +62,7 @@ datasets:
     annotation_handling: &fireman_labels
       - smoke_region rectangle -> class 0 (smoke); fire_region, lake, human, building, vehicle and all tags are dropped
       - box overshoot of at most 2 px is clipped and counted; larger overshoot, inverted or empty boxes stop the conversion
-      - boxes are CVAT keyframes plus linear interpolation (96-99% of frames): treated as noisy, never corrected; sensitivity set = frames within 2 frames of a keyframe
+      - boxes are CVAT keyframes plus linear interpolation (96-99% of frames): treated as noisy, never corrected; sensitivity set = frames within 2 frames of an INFERRED keyframe (coordinate slope change; no explicit keyframe flag was read)
       - a frame with no smoke box is NOT a verified negative; primary has no such frame (750 of 750 have a box), so no false-positive rate exists for it
     independence:
       burn_events: 1                    # all five videos were filmed 2023-08-26 12:00-12:29 within about 2 km
@@ -119,7 +136,7 @@ analysis:
     not_reported: [false_positive_rate, image_level_fp]     # no verified negatives in either external set
   units:
     fireman_primary: "descriptive per video; the unit of independence is the burn day (1), with 2-5 scene clusters at most"
-    fasdd_smoke_positive: "dHash64 scene clusters; primary radius 6 (680 clusters, largest 3.2% of images), radius 2 (1,232) and 4 (897) as sensitivity; clusters overstate independence for the 720p group"
+    fasdd_smoke_positive: "dHash64 scene clusters; primary radius 6 (680 clusters, largest 3.2% of images), radius 2 (1,232) and 4 (897) as sensitivity; clusters overstate independence for the 720p group; dHash components are similarity groups, not demonstrated videos, cameras or burn events, so every cluster analysis is a conditional sensitivity analysis"
   gates:                                   # statistics are used only where the number of independent clusters supports them
     min_clusters_for_interval: 20          # cluster bootstrap CI and the replication reading
     min_clusters_for_exact_test: 8         # exact sign-flip test, interval labelled 'wide'
@@ -134,5 +151,5 @@ analysis:
     consistent_not_established: "same sign, interval contains 0, or the dataset fails the cluster gate"
     contradicts: "opposite sign"
     note: "FireMan primary can never reach 'replicates' (one burn day). Descriptive findings (per-video values, effect sizes) are always labelled descriptive."
-  sensitivity: [fireman_primary_vs_primary_plus_secondary, keyframe_near_frames_only, fasdd_radius_2_and_4, fasdd_platform_groups, fasdd_without_720p_group]
+  sensitivity: [fireman_primary_vs_primary_plus_secondary, frames_near_inferred_annotation_keyframes, fasdd_radius_2_and_4, fasdd_platform_groups, fasdd_without_720p_group]
   provenance_unresolved: docs/external_eval/fireman_protocol_proposal.md#7-unresolved-fireman-provenance

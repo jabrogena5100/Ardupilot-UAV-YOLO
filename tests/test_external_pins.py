@@ -60,7 +60,8 @@ class TestPins(unittest.TestCase):
         self.assertEqual(CFG["cells"]["datasets"], ["fireman_primary", "fasdd_smoke_positive"])
         self.assertNotIn("fireman_secondary", CFG["cells"]["datasets"])
         self.assertFalse(CFG["datasets"]["fireman_primary"]["inference_allowed"])
-        self.assertEqual(CFG["status"], "proposed_not_frozen")
+        self.assertEqual(CFG["status"], "used_unfrozen_not_preregistered")
+        self.assertIn("preregistration", CFG["protocol_record"]["not_claimed"])
 
     def test_fireman_tiers_in_the_manifests(self):
         meta = json.load(open(os.path.join(ROOT, "docs/external_eval/fireman_video_metadata.json")))["videos"]

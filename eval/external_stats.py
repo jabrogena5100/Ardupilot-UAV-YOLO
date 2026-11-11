@@ -149,7 +149,26 @@ def sign_flip_test(diffs: Sequence[float], seed: int = 0, n_mc: int = 200000) ->
         stat = np.concatenate([np.abs((rng.choice((-1.0, 1.0), size=(min(step, n_mc - i), n)) * d).mean(axis=1)) for i in range(0, n_mc, step)])
         method = "monte_carlo"
     p = float((np.sum(stat >= obs - 1e-12) + (0 if method == "exact" else 1)) / (len(stat) + (0 if method == "exact" else 1)))
-    return {"n": n, "mean_diff": float(d.mean()), "p": p, "method": method}
+    out = {"n": n, "mean_diff": float(d.mean()), "p": p, "method": method}
+    if method == "monte_carlo":
+        out["n_mc"] = len(stat)
+        out["p_floor"] = 1.0 / (len(stat) + 1)          # smallest value the estimator can return; a Monte Carlo p is never 0
+    return out
+
+
+def format_p(res: dict, short: bool = False) -> str:
+    """Human-readable p: exact tests with 4 significant digits; Monte Carlo as an estimate with its floor (never 'p = 0.0000')."""
+    p = res.get("p")
+    if p is None:
+        return "n/a"
+    if res.get("method") == "monte_carlo":
+        floor = res["p_floor"]
+        if p <= floor * (1 + 1e-9):
+            if short:
+                return f"p-hat = {p:.1e} (MC floor, n_mc = {res['n_mc']}; not 0)"
+            return f"p-hat = {p:.1e} (Monte Carlo floor 1/(n_mc+1), n_mc = {res['n_mc']}; no draw reached the observed statistic, so p is at most of that order, not zero)"
+        return f"p-hat = {p:.2g} (Monte Carlo, n_mc = {res['n_mc']})"
+    return f"p = {p:.4g} (exact)"
 
 
 def leave_one_cluster_out(diffs: Sequence[float]) -> dict:
