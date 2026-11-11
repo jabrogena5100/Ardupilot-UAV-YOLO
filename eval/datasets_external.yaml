@@ -1,0 +1,134 @@
+# Config for eval/run_matrix.py — EXTERNAL evaluation (FASDD_UAV, FireMan-UAV-RGBT). PROPOSED, NOT FROZEN: it becomes binding only when the
+# owner approves it (docs/external_eval/fireman_protocol_proposal.md section 6). No inference has been run with it.
+#
+# Same schema, settings and metric code path as eval/datasets.yaml (the 2x2). Nothing here changes eval/run_matrix.py, eval/metrics.py,
+# the six checkpoints or any Level 2 / Level 3 artifact. FireMan and FASDD are separate datasets and are never pooled.
+# ${VAR}: BACKUPS = local_data/backups (checkpoints, hashes pinned below and in docs/baseline/baseline_v1.json);
+#         EXTERNAL_ROOT = a directory that holds the harness views created by eval/external_materialize.py:
+#           ${EXTERNAL_ROOT}/fireman_primary_v1/{images,labels}/test, fireman_secondary_v1/..., fasdd_uav_smoke_pos_v1/...
+# Datasets are pinned by image count and the sha256 of "\n".join(sorted(image file names)) (run_matrix definition); a mismatch aborts.
+
+status: proposed_not_frozen
+created: 2026-11-11
+
+settings:
+  imgsz: 640
+  conf: 0.001            # inference confidence floor (needed for AP); identical to the 2x2
+  nms_iou: 0.7
+  max_det: 300
+  batch: 32
+  seed: 0
+  report_conf: [0.25]    # the Level 2 operating point (not the Level 3 per-arm thresholds)
+
+datasets:
+  fireman_primary:
+    domain: real
+    role: external_test_exploratory
+    images_dir: ${EXTERNAL_ROOT}/fireman_primary_v1/images/test
+    n_images: 750
+    filelist_sha256: dcfeaa5ec375aab9fbb37ea3e305f6d71f1232d3a666026645f18e2dec2b7e1e
+    manifest: eval/fireman_frames_primary_v1.json          # file sha256 below; names SHA-256 inside the manifest 2e10684ac8058fe39db1e016ed59ce60302b0514cecf97197f17a5bbcc5e6059
+    manifest_file_sha256: 040b079fa78e769ff39cb422978a5e41ccac60ffe7008958fc266fcb8fb6065a
+    video_metadata: docs/external_eval/fireman_video_metadata.json
+    video_metadata_file_sha256: 06d1281da90a893e9ae067230226c4614129933deec93425eae14aaefc5a773b
+    eligibility:
+      - RGB frames of FireMan-UAV-RGBT v1.0.0-beta.2 Multiclass.zip (Zenodo 10.5281/zenodo.13732947, CC BY 4.0), annotation XML only
+      - video tier verified_2023 only (thermal partner shows the on-screen date 2023-08-26; cannot overlap Boreal, which is all 2022)
+      - up to 150 evenly spaced frames per video (rule in eval/fireman_prep.py); 5 videos, 750 frames
+    exclusions:
+      - the 29 provenance-unverified videos (50,412 frames) -> dataset fireman_secondary (descriptive, not primary)
+      - all thermal data, Binary.zip, frames not in the manifest
+    annotation_handling: &fireman_labels
+      - smoke_region rectangle -> class 0 (smoke); fire_region, lake, human, building, vehicle and all tags are dropped
+      - box overshoot of at most 2 px is clipped and counted; larger overshoot, inverted or empty boxes stop the conversion
+      - boxes are CVAT keyframes plus linear interpolation (96-99% of frames): treated as noisy, never corrected; sensitivity set = frames within 2 frames of a keyframe
+      - a frame with no smoke box is NOT a verified negative; primary has no such frame (750 of 750 have a box), so no false-positive rate exists for it
+    independence:
+      burn_events: 1                    # all five videos were filmed 2023-08-26 12:00-12:29 within about 2 km
+      scene_clusters_strict: 5          # hash <= 6 bits and correlation >= 0.9: no two videos share frames
+      scene_clusters_loose: 2           # video pairs with >= 15% of frame pairs correlating >= 0.9 are merged (test/002, train/009, train/010, train/011 | val/002)
+      effective_frames_total: 23        # sum over videos of the integrated-autocorrelation sample size of the smoke-box area (3.4, 5.3, 6.3, 3.0, 4.9)
+    inference_allowed: false            # descriptive only (see analysis.gates)
+  fireman_secondary:
+    domain: real
+    role: external_test_provenance_unverified
+    images_dir: ${EXTERNAL_ROOT}/fireman_secondary_v1/images/test
+    n_images: 4350
+    filelist_sha256: a0bd6f730e5b00f15d9b4b3f61728a2acc5935a700d14f1287e83d18f83ab9f0
+    manifest: eval/fireman_frames_secondary_v1.json
+    manifest_file_sha256: 99e64a28abe7a4e65e409ef01fb5b8b39c9866440fe70fb6c670d7397a07d780
+    video_metadata: docs/external_eval/fireman_video_metadata.json
+    video_metadata_file_sha256: 06d1281da90a893e9ae067230226c4614129933deec93425eae14aaefc5a773b
+    eligibility:
+      - same source and frame rule as fireman_primary, tier unverified (29 videos, 3,802 of the 4,350 frames carry a smoke box)
+    exclusions:
+      - EXCLUDED FROM THE PRIMARY ANALYSIS: recording dates unknown; FireMan's 2022 dates (2022-07-06, 2022-08-16) fall on or one day after Boreal's Karkkila (2022-07-06) and Ruokolahti (2022-08-15) burns
+      - not part of default `cells`; run only with an explicit --cells selection after the owner approves, and report separately with the provenance caveat
+    annotation_handling: *fireman_labels
+    inference_allowed: false
+  fasdd_smoke_positive:
+    domain: real
+    role: external_test_mixed_platform
+    images_dir: ${EXTERNAL_ROOT}/fasdd_uav_smoke_pos_v1/images/test
+    n_images: 2149
+    filelist_sha256: d496f4589d8fbe75b9f68b79d8e2a6097e6f2a89377fe6c4d391b66c02887e7b
+    image_list: eval/fasdd_uav_test_smoke_positive_v1.txt
+    image_list_file_sha256: 66e72fa23f85ceb77a9ff448449dd55d7aeb88025d02c2f127a55d45fe911b5c
+    clusters: eval/fasdd_uav_test_smoke_positive_clusters_v1.json   # dHash64 clusters at radius 2/4/6 and platform-by-size per image
+    clusters_file_sha256: 366f50f05aef111b7d6e3155a94f1c3480a05c31a10e4bdf50e13a75bd59a322
+    eligibility:
+      - the official FASDD_UAV test split (4,181 images; sealed copy fasdd_uav_test_v1, zip SHA-256 7f4202a8...cbd0b2), smoke-positive images only
+      - file-name prefixes smoke_ and bothFireAndSmoke_ (846 + 1,303 = 2,149 images, all with at least one smoke box)
+    exclusions:
+      - 1,997 empty-label images: NOT verified negatives (about 10% of the screened ones show visible unlabeled smoke, upper bound 20%; gate G2)
+      - 35 fire-only images (no smoke box)
+      - the zip's train and val splits (not used; nobody trains on FASDD)
+    annotation_handling:
+      - original YOLO labels kept; smoke-only set maps FASDD class 1 -> 0 and drops fire (class 0) boxes; no box is edited
+      - no false-positive rate is reported (no verified negatives)
+    platform_labels:
+      source: image size, validated visually (see docs/external_eval/readiness.md section 2i)
+      tower_fixed_camera: {sizes: [3072x2048, 2048x1536, 1600x1200], n: 718, trust: high}        # 0 exceptions in 161 viewed
+      uav_nadir_1080p: {sizes: [1920x1080], n: 306, trust: moderate}                             # 0 exceptions in 40 viewed
+      ground_or_low_video_720p: {sizes: [1280x720], n: 1125, trust: platform_unknown}            # ground-level or low oblique grass-fire video; UAV or ground cannot be told
+    failed_gates: "G5 (not UAV-only: 74 of 100 screened images were fixed tower cameras); G2 open (loose and incomplete boxes, unlabeled smoke in empty-label images)"
+    inference_allowed: true
+
+models:        # the six frozen checkpoints of the Level 3 baseline (docs/baseline/baseline_v1.json); never overwritten
+  model_a:       {train_domain: synthetic, family: A, seed: 0, checkpoint: "${BACKUPS}/synth_smoke_a_v1/synth_smoke_a_v1/synth_smoke_best_v1.pt", sha256: 1da10c4814a905d92deec2d9c36185f872eabea447d47c389b9b065468009564}
+  model_a_seed1: {train_domain: synthetic, family: A, seed: 1, checkpoint: "${BACKUPS}/level2_v2_seeds/synth_smoke_a_v1_seed1/synth_smoke_best_v1_seed1.pt", sha256: 31c4528e37c54f779cdbfbf02d8e325877108696f3608391c0490b22ec34a454}
+  model_a_seed2: {train_domain: synthetic, family: A, seed: 2, checkpoint: "${BACKUPS}/level2_v2_seeds/synth_smoke_a_v1_seed2/synth_smoke_best_v1_seed2.pt", sha256: 3d5a31689ab212434b206949090c948a4de0b4b653abf8d0099619529146556a}
+  model_bv2:       {train_domain: real, family: B, seed: 0, checkpoint: "${BACKUPS}/boreal_v2/real_boreal_v2_best_seed0.pt", sha256: 090c0f4cbe2718d2b084a41b8a3736fa27b673bc66b20c64672b13c83c299a05}
+  model_bv2_seed1: {train_domain: real, family: B, seed: 1, checkpoint: "${BACKUPS}/boreal_v2/real_boreal_v2_best_seed1.pt", sha256: 5a9616cefddd3bca6eccf31d0691f7b1a2fadb572f84cf7948c85296644e9388}
+  model_bv2_seed2: {train_domain: real, family: B, seed: 2, checkpoint: "${BACKUPS}/boreal_v2/real_boreal_v2_best_seed2.pt", sha256: c4d443a8af919c6b00e4319b117a5dfbe90bd8b29750c75e3970a9389ae097ef}
+
+# FireMan and FASDD are separate cells and are summarised separately. fireman_secondary is deliberately absent.
+cells:
+  models: [model_a, model_a_seed1, model_a_seed2, model_bv2, model_bv2_seed1, model_bv2_seed2]
+  datasets: [fireman_primary, fasdd_smoke_positive]
+
+# ---- read by eval/external_stats.py and the report, not by run_matrix --------------------------------------------------------------
+analysis:
+  metrics:
+    primary: mAP50                         # IoU 0.5, 101-point AP, same code path as the 2x2
+    secondary: [mAP50-95, precision_at_0.25, recall_at_0.25, max_f1, mean_conf_tp, loc_mean_iou_tp]   # mAP50-95 is flagged: box style differs from Boreal
+    not_reported: [false_positive_rate, image_level_fp]     # no verified negatives in either external set
+  units:
+    fireman_primary: "descriptive per video; the unit of independence is the burn day (1), with 2-5 scene clusters at most"
+    fasdd_smoke_positive: "dHash64 scene clusters; primary radius 6 (680 clusters, largest 3.2% of images), radius 2 (1,232) and 4 (897) as sensitivity; clusters overstate independence for the 720p group"
+  gates:                                   # statistics are used only where the number of independent clusters supports them
+    min_clusters_for_interval: 20          # cluster bootstrap CI and the replication reading
+    min_clusters_for_exact_test: 8         # exact sign-flip test, interval labelled 'wide'
+    below_min: descriptive_only            # per-video / per-cluster values, no interval, no test, no replication claim
+    platform_groups:
+      tower_fixed_camera: {clusters_r6: 196, inference: allowed, caveat: "fixed cameras repeat the same views"}
+      uav_nadir_1080p: {clusters_r6: 212, inference: allowed, caveat: "label by image size, 40 viewed"}
+      ground_or_low_video_720p: {clusters_r6: 274, inference: descriptive_only, caveat: "few source videos; dHash clusters overstate independence; platform unknown"}
+  bootstrap: {n_boot: 10000, seed: 20261111, alpha: 0.05, seeds_averaged_inside_replicate: true, seed_sd_reported_separately: true}
+  reading:
+    replicates: "sign of (Model B - Model A) equals the Level 2 sign AND the interval excludes 0, on a dataset that passes the cluster gate"
+    consistent_not_established: "same sign, interval contains 0, or the dataset fails the cluster gate"
+    contradicts: "opposite sign"
+    note: "FireMan primary can never reach 'replicates' (one burn day). Descriptive findings (per-video values, effect sizes) are always labelled descriptive."
+  sensitivity: [fireman_primary_vs_primary_plus_secondary, keyframe_near_frames_only, fasdd_radius_2_and_4, fasdd_platform_groups, fasdd_without_720p_group]
+  provenance_unresolved: docs/external_eval/fireman_protocol_proposal.md#7-unresolved-fireman-provenance
