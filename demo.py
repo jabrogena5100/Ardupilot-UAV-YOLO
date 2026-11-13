@@ -81,14 +81,17 @@ def main() -> int:
 
     shown = "localhost" if a.host in ("127.0.0.1", "0.0.0.0") else a.host
     url = f"http://{shown}:{a.port}"
-    print(f"[demo] REPLAY of recorded Level 3 runs (not a live simulation); source: {src}")
-    print(f"[demo] open {url}   (Ctrl+C to stop)")
+    print(f"[demo] REPLAY of recorded Level 3 runs (not a live simulation); source: {src}", flush=True)
+    print(f"[demo] open {url}   (Ctrl+C to stop)", flush=True)
     if not a.no_browser:
         threading.Timer(1.5, lambda: webbrowser.open(url)).start()
 
     if src == "full":
-        return subprocess.call([sys.executable, os.path.join(ROOT, "dashboard", "replay_server.py"),
-                                "--host", a.host, "--port", str(a.port)])
+        try:
+            return subprocess.call([sys.executable, os.path.join(ROOT, "dashboard", "replay_server.py"),
+                                    "--host", a.host, "--port", str(a.port)])
+        except KeyboardInterrupt:  # Ctrl+C also reaches the child, which prints its own "stopping"
+            return 0
     srv = ThreadingHTTPServer((a.host, a.port), functools.partial(Quiet, directory=SNAP_DIR))
     try:
         srv.serve_forever()
