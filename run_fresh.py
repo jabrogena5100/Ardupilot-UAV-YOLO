@@ -54,6 +54,17 @@ def preflight(arm_ids, python: str) -> list:
     for tool in ("tmux", "sim_vehicle.py"):
         if not shutil.which(tool):
             bad.append(f"`{tool}` not found on PATH (see docs/PROFESSOR_GUIDE.md section 5)")
+    sv = shutil.which("sim_vehicle.py")
+    if sv:
+        ap_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(sv))))
+        if not os.path.exists(os.path.join(ap_root, "build", "sitl", "bin", "arducopter")):
+            bad.append(f"ArduPilot SITL copter is not built ({ap_root}/build/sitl/bin/arducopter missing): "
+                       "cd there && ./waf configure --board sitl && ./waf copter")
+        loc = os.path.join(ap_root, "Tools", "autotest", "locations.txt")
+        if os.path.exists(loc) and not any(l.startswith("UH=") for l in open(loc)):
+            bad.append(f"start location UH is not defined: echo 'UH=21.296868,-157.816036,100,270' >> {loc}")
+    if not shutil.which("mavproxy.py"):
+        bad.append("`mavproxy.py` not found on PATH: activate the virtual environment that has `pip install -r requirements-sim.txt`")
     for mod in ("yaml", "numpy", "cv2", "PIL", "pymavlink"):
         r = subprocess.run([python, "-c", f"import {mod}"], capture_output=True)
         if r.returncode:
@@ -73,6 +84,13 @@ def preflight(arm_ids, python: str) -> list:
     if not LP._port_free(LP.PORT_CAMERA):
         bad.append(f"TCP port {LP.PORT_CAMERA} (camera service) is in use")
     return bad
+
+
+def tail(path: str, n: int = 15) -> str:
+    try:
+        return "".join(open(path, errors="replace").readlines()[-n:])
+    except OSError:
+        return f"(no {path})"
 
 
 def main() -> int:
@@ -104,6 +122,12 @@ def main() -> int:
     if problems:
         return 2
 
+    if os.path.isdir(os.path.join(out, "results")) and os.listdir(os.path.join(out, "results")):
+        print(f"[fresh] {out}/results already holds results; refusing to mix runs. Use --out with a new directory.", file=sys.stderr)
+        return 2
+    if a.dashboard and not LP._port_free(a.dashboard_port):
+        print(f"[fresh] dashboard port {a.dashboard_port} is in use; choose --dashboard-port or stop the other program.", file=sys.stderr)
+        return 2
     plan_dir = os.path.join(out, "plan")
     LP.plan(split, ids, plan_dir, 1, final=(split == "heldout"), seeds=[a.scenario])
     dash = None
@@ -121,7 +145,9 @@ def main() -> int:
             r = subprocess.run([a.python, os.path.join(ROOT, "eval", "level3_pairs.py"), "run", "--config", cfg, "--python", a.python,
                                 "--out", res], start_new_session=False)
             if r.returncode:
-                print(f"[fresh] {arm} FAILED (exit {r.returncode}); see {res}/fog.log and sitl.log", file=sys.stderr)
+                print(f"[fresh] {arm} FAILED (exit {r.returncode}). Last lines of {res}/sitl.log:\n{tail(res + '/sitl.log')}"
+                      f"\nLast lines of fog.log:\n{tail(res + '/fog.log')}\n[fresh] Likely causes: SITL did not boot (see PROFESSOR_GUIDE 7.2/7.3), "
+                      "the start gate never opened on a slow machine, or a port is taken.", file=sys.stderr)
                 rc = 1
                 break
             end = glob.glob(os.path.join(res, "experiment_end_*.txt"))

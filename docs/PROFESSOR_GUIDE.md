@@ -394,6 +394,16 @@ hardware for all arms. The replay needs about 50 MB.
 * `docs/report/final_report.md`: the report draft. `CLAUDE.md`: the project rules (research integrity, frozen artifacts).
 * Frozen items you should not edit: test splits, `synth_smoke_v1`, checkpoints, `eval/level3_*.json`, the recorded runs.
 
+### Manual browser checklist (2 minutes; use this if you want to confirm the page on your own machine)
+
+1. `python3 demo.py`; the page title is "Wildfire Monitoring: Level 3 Replay" and a yellow "REPLAY OF SAVED RUNS - NOT LIVE" badge is visible.
+2. Three map panels (Baseline, Model A, Model B) with a dark grid. Press F12, Console tab: there should be no red errors.
+3. Press **Play** at 30x: the clock `t = ... s / 600` counts up, blue cells appear, a white dot with a trail moves, orange fire cells appear.
+4. Drag the slider to the end: green/red circles with numbers appear on the Model A and B maps (none on the baseline); the table below lists all three arms.
+5. Click **UAV's view (hide truth)**: the orange/grey cells disappear and "fire ground truth" is unticked. Click **Show everything**: they return.
+6. Choose scenario 2004 from the drop-down; click a **Jump to** button (the clock jumps). Click **Single run**, then **Restart** (clock back to 0).
+7. Ctrl+C in the terminal: the server stops.
+
 ## 9. Verification record
 
 Tested on the project machine (Ubuntu 24.04, Python 3.10.18 venv, 1.9 GB RAM, 4 vCPU), 2026-11-13:
@@ -402,7 +412,15 @@ Tested on the project machine (Ubuntu 24.04, Python 3.10.18 venv, 1.9 GB RAM, 4 
   snapshot is served (HTTP 200, 2.6 MB page, correct title), source printed as `snapshot`; `check_setup.py` from the clone ends "tier 1 READY".
 * **Tested:** `python3 demo.py` in the working tree (source `full`): HTTP 200; Ctrl+C (SIGINT to the process group) exits with code 0 and no
   `replay_server` process remains.
-* **Tested:** `run_fresh.py --arm all --dry-run` (prerequisite listing, both with and without the YOLO environment).
+* **Tested:** `run_fresh.py` error handling. In a clean clone with a stripped `PATH` it reports, without starting anything, each missing item with its fix
+  (`sim_vehicle.py`, `mavproxy.py`, Python modules, `ultralytics`/`torch`, each missing weights file; it also checks the SITL build, the `UH` location,
+  tmux, leftover SITL processes and busy ports) and exits 1 (dry run) or 2; an unknown scenario lists the valid ones; a run that fails to launch prints the tail of
+  `sitl.log` and `fog.log` plus likely causes and exits 1 (that last path was checked with a simulated failure, not a real SITL crash).
+* **Tested (browser):** the replay snapshot from a clean clone was driven in headless Chromium (Playwright): no console errors, page errors or failed
+  requests, no request leaves localhost; the scenario menu lists all 8 scenarios and each of the three seeds; Play at 30x advanced the clock, the slider reached 600 s, the three
+  maps and the four charts changed and were non-blank, "UAV's view (hide truth)" unticks the fire layer, "Jump to" moved the clock, Single run and Restart worked.
+  The embedded data was checked against the sources: 56 runs, every run's recorded metrics equal `per_run.csv`, every detections list equals the run's `detections_*.csv`,
+  and re-exporting from the raw runs gives a file **byte-identical** to the committed snapshot.
 * **Tested:** a **fresh baseline run**, `python3 run_fresh.py --arm baseline --dashboard --python ~/venvs/yolo-cpu/bin/python`, scenario 2001: it
   planned the config, booted SITL, flew 600 s, wrote the files listed in 5.2, exited with code 0 after 705 s, and left no SITL, MAVProxy,
   fog, agent, dashboard or tmux process behind. The live dashboard answered at http://localhost:8080 during the run (HTTP 200; `/api/state` showed
