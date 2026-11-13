@@ -260,7 +260,7 @@ function drawMap(cv, d, t) {
   if ($("l-inv").checked && d.investigation) {
     g.lineWidth = 2; g.setLineDash([5, 3]); g.font = "bold 11px sans-serif"; g.textAlign = "left";
     for (const tg of d.investigation.targets) {
-      const [x, y] = cxy(tg.i, tg.j), col = tg.near_fire === false ? "#e040fb" : "#3de0e0";
+      const [x, y] = cxy(tg.i, tg.j), col = !$("l-fire").checked ? "#e8e8e8" : (tg.near_fire === false ? "#e040fb" : "#3de0e0");  // truth hidden: no hindsight colouring
       g.strokeStyle = col; g.strokeRect(x + 5, y + 5, C - 10, C - 10);
       g.setLineDash([]); g.fillStyle = col; g.fillText(String(tg.order), x + 8, y + 17); g.setLineDash([5, 3]);
     }
@@ -275,7 +275,7 @@ function drawMap(cv, d, t) {
     }
     for (const a of agg.values()) {
       const [x, y] = cxy(a.q.i, a.q.j), cx = x + C / 2, cy = y + C / 2, r = Math.min(C * 0.42, 5 + 2.2 * Math.sqrt(a.n));
-      const fp = a.q.correct === 0, col = fp ? "244,86,74" : "53,208,127", fresh = t - a.last < 15;
+      const fp = a.q.correct === 0, col = !$("l-fire").checked ? "232,200,90" : (fp ? "244,86,74" : "53,208,127"), fresh = t - a.last < 15;  // truth hidden: the UAV cannot tell true from false
       g.fillStyle = `rgba(${col},${0.25 + 0.55 * a.best})`; g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
       g.lineWidth = fresh ? 3 : 1; g.strokeStyle = `rgb(${col})`; g.stroke();
       g.fillStyle = "#fff"; g.font = "11px ui-monospace,monospace"; g.textAlign = "center";
@@ -317,7 +317,7 @@ function liveText(d, t) {
   if (m.detector_enabled === false) s += ` · <span class="dim">no detector</span>`;
   else if (d.detections) {
     const so = d.detections.filter((q) => q.t <= t), tp = so.filter((q) => q.correct === 1).length;
-    s += ` · <span class="g-det">detections so far: ${tp} true / ${so.length - tp} false</span>`;
+    s += $("l-fire").checked ? ` · <span class="g-det">detections so far: ${tp} true / ${so.length - tp} false</span>` : ` · <span class="g-det">detections so far: ${so.length} (true/false is judged against the hidden fire)</span>`;
   }
   return s;
 }

@@ -33,7 +33,7 @@
               <b>Model A</b> is a smoke detector trained on synthetic images; <b>Model B</b> is trained on real (Boreal) images.
               Both use the same reactive rule: when the detector reports smoke, fly to that cell and investigate before resuming the patrol.</p>
             <p><b>How to read it.</b> Orange/grey cells are the <i>true fire</i>, which the UAV cannot see directly (hide it with “UAV’s view”).
-              Blue cells are what the UAV has flown over. Green and red circles are detector observations; cyan and magenta boxes are the cells it was sent to investigate.
+              Blue cells are what the UAV has flown over. Green and red circles are detector observations, coloured by comparing them with the true fire <i>after the fact</i> (the UAV itself cannot tell them apart; “UAV’s view” turns them neutral); cyan and magenta boxes are the cells it was sent to investigate.
               Press <b>Play</b>, or drag the slider; all panels share one clock.</p>
             <p class="caveat"><b>Limits.</b> Single UAV only. The policy is reactive and detection-triggered; there is no probability map.
               8 scenarios on 4 ignition cells: results are descriptive, not statistical claims.
@@ -66,7 +66,7 @@
             <label class="g-pri"><input type="checkbox" id="l-inv" checked /> investigation targets</label>
           </span>
           <span class="presets">
-            <button id="pre-uav" title="Hide the fire truth: shows only what the UAV has covered and detected">UAV’s view (hide truth)</button>
+            <button id="pre-uav" title="Hide the fire truth: shows only what the UAV has covered, detected and chosen to investigate. Detections and investigation boxes turn neutral because telling true from false needs the hidden fire.">UAV’s view (hide truth)</button>
             <button id="pre-all">Show everything</button>
           </span>
           <span id="jumps" class="jumps"></span>
