@@ -415,7 +415,7 @@ simulated wildfire. **It is not an experiment and produces no result.** All rese
 It is a *new* simulation (like section 5), not a replay; the replay on port 8081 is a different program and is unaffected.
 
 ```bash
-source ~/venvs/wildfire/bin/activate          # the environment from 2.2 (needs ArduPilot SITL, tmux, requirements-sim.txt; no weights, no GPU)
+source ~/venvs/wildfire/bin/activate          # the environment from 2.2: needs ArduPilot SITL, tmux and requirements-sim.txt (this puts mavproxy.py on PATH); no weights, no GPU
 python3 demo_multi.py --drones 4              # then open  http://localhost:8080/multi.html
 ```
 

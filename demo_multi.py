@@ -151,7 +151,12 @@ def main() -> int:
     meta_path = os.path.join(out, "demo_meta.json")
     json.dump(build_meta(cfg, a), open(meta_path, "w"), indent=1)
 
-    shown = "localhost" if a.host in ("127.0.0.1", "0.0.0.0") else a.host
+    shown = "localhost" if a.host == "127.0.0.1" else a.host
+    if a.host == "0.0.0.0":                      # reachable from other machines: print an address they can use
+        try:
+            shown = subprocess.run(["hostname", "-I"], capture_output=True, text=True).stdout.split()[0]
+        except (IndexError, OSError):
+            shown = "localhost"
     url = f"http://{shown}:{a.port}"
     dash = subprocess.Popen([a.python, os.path.join(ROOT, "dashboard", "server.py"), "--host", a.host, "--port", str(a.port),
                              "--demo-meta", meta_path], start_new_session=True)
