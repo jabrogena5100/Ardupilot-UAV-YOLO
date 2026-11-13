@@ -51,3 +51,31 @@ table.sum td.na { color: var(--bad); }
 #dets table { width: 100%; border-collapse: collapse; }
 #dets td, #dets th { padding: 2px 8px; text-align: right; }
 #dets .fp { color: var(--bad); } #dets .tp { color: var(--drone); }
+
+/* ---- demo additions ---- */
+.explain { padding: 10px 14px; margin-bottom: var(--pad); }
+.explain summary, .notes summary { cursor: pointer; font-weight: 600; }
+.ex-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 18px; font-size: 13px; line-height: 1.45; }
+.ex-grid p { margin: 8px 0 0; }
+.ex-grid .caveat { border-left: 3px solid var(--warn); padding-left: 10px; }
+.layerbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px var(--pad); margin-top: 8px; font-size: 13px; }
+.layerbar button, .jump { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+.layerbar button:hover, .jump:hover { border-color: var(--traverse); }
+.jumps { flex: 1 1 100%; font-size: 12px; color: var(--ink-dim); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.g-truth { color: #ff8a5c; } .g-uav { color: #7db8ff; } .g-det { color: #4fe39a; } .g-pri { color: #3de0e0; }
+.controls label { font-size: 13px; color: var(--ink-dim); }
+.legend4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 16px; font-size: 12px; margin-top: 8px; }
+.legend4 > div { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.legend4 .dim, .dim { color: var(--ink-dim); }
+.legend4 .sw { display: inline-block; width: 14px; height: 12px; margin-right: 6px; vertical-align: middle; }
+.banner { padding: 8px var(--pad); margin-top: 8px; font-size: 13px; }
+.mapbox .live { font-size: 12px; margin-top: 4px; min-height: 16px; }
+td.cap { color: var(--warn); } td.cap sup { font-size: 9px; margin-left: 3px; }
+.tscroll { overflow-x: auto; }
+table.sum th { font-size: 12px; vertical-align: bottom; }
+.sumh { margin: 0 0 6px; font-size: 14px; }
+.notes { padding: 10px 14px; margin-top: var(--pad); }
+#notice .miss.dim { border-left-color: var(--line); } #notice .miss.dim b { color: var(--ink); }
+#runlist select { width: 100%; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 5px; font: inherit; }
+#runlist .hint { font-size: 11px; color: var(--ink-dim); margin-top: 4px; line-height: 1.35; } #runlist .hint.warn { color: var(--warn); }
+#runlist .sel-l { display: block; font-size: 12px; color: var(--ink-dim); margin-top: 6px; }

@@ -3,18 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Level 3 Run Replay</title>
+    <title>Wildfire Monitoring: Level 3 Replay</title>
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="replay.css" />
   </head>
   <body>
     <header>
-      <h1>Level 3 run replay <small>saved results only</small></h1>
+      <h1>Autonomous wildfire monitoring: Level 3 replay <small>recorded ArduPilot SITL runs</small></h1>
       <div class="head-right">
         <nav class="tabs">
-          <button id="tab-replay" class="on">Replay</button>
-          <button id="tab-compare">Compare arms</button>
+          <button id="tab-compare" class="on">Compare arms</button>
+          <button id="tab-replay">Single run</button>
         </nav>
+        <span class="badge badge-warn" title="Nothing here is simulated live: every frame is read from files saved by the finished experiments.">REPLAY of saved runs · not live</span>
         <span class="badge badge-ok">read-only</span>
       </div>
     </header>
@@ -23,36 +24,77 @@
       <aside id="runlist" class="panel"></aside>
 
       <section id="stage">
+        <details id="explain" class="panel explain" open>
+          <summary>What am I looking at?</summary>
+          <div class="ex-grid">
+            <p><b>The task.</b> One UAV flies a 1 mile × 1 mile area (a 10 × 10 grid) and has to find a wildfire it was not told about.
+              The fire is simulated; the UAV sees the world only through a camera whose images are fed to a neural network.</p>
+            <p><b>Three arms, same scenario.</b> <b>Baseline</b> flies a fixed coverage patrol with no detector.
+              <b>Model A</b> is a smoke detector trained on synthetic images; <b>Model B</b> is trained on real (Boreal) images.
+              Both use the same reactive rule: when the detector reports smoke, fly to that cell and investigate before resuming the patrol.</p>
+            <p><b>How to read it.</b> Orange/grey cells are the <i>true fire</i>, which the UAV cannot see directly (hide it with “UAV’s view”).
+              Blue cells are what the UAV has flown over. Green and red circles are detector observations; cyan and magenta boxes are the cells it was sent to investigate.
+              Press <b>Play</b>, or drag the slider; all panels share one clock.</p>
+            <p class="caveat"><b>Limits.</b> Single UAV only. The policy is reactive and detection-triggered; there is no probability map.
+              8 scenarios on 4 ignition cells: results are descriptive, not statistical claims.
+              Model A is tested on the same synthetic imagery style it was trained on; Model B is not. Smoke is a flat billboard, not a volume.</p>
+          </div>
+        </details>
+
         <div class="panel controls">
-          <button id="play">Play</button>
-          <select id="speed">
-            <option value="5">5x</option>
-            <option value="20" selected>20x</option>
-            <option value="60">60x</option>
-          </select>
-          <input id="slider" type="range" min="0" max="600" step="1" value="0" />
+          <button id="restart" title="Back to t = 0 and play (Home)">⟲ Restart</button>
+          <button id="play" title="Space">Play</button>
+          <label>speed
+            <select id="speed">
+              <option value="1">1×</option>
+              <option value="5">5×</option>
+              <option value="10">10×</option>
+              <option value="30" selected>30×</option>
+              <option value="60">60×</option>
+              <option value="120">120×</option>
+            </select>
+          </label>
+          <input id="slider" type="range" min="0" max="600" step="1" value="0" aria-label="timeline" />
           <span id="clock" class="mono">t = 0 s</span>
+        </div>
+        <div class="panel layerbar">
           <span class="layers">
-            <label><input type="checkbox" id="l-cov" checked /> coverage</label>
-            <label><input type="checkbox" id="l-fire" checked /> fire</label>
-            <label><input type="checkbox" id="l-det" checked /> detections</label>
-            <label><input type="checkbox" id="l-trail" checked /> UAV path</label>
+            <label class="g-truth"><input type="checkbox" id="l-fire" checked /> fire ground truth</label>
+            <label class="g-uav"><input type="checkbox" id="l-cov" checked /> UAV coverage</label>
+            <label class="g-uav"><input type="checkbox" id="l-trail" checked /> UAV path</label>
+            <label class="g-det"><input type="checkbox" id="l-det" checked /> detector observations</label>
+            <label class="g-pri"><input type="checkbox" id="l-inv" checked /> investigation targets</label>
           </span>
+          <span class="presets">
+            <button id="pre-uav" title="Hide the fire truth: shows only what the UAV has covered and detected">UAV’s view (hide truth)</button>
+            <button id="pre-all">Show everything</button>
+          </span>
+          <span id="jumps" class="jumps"></span>
         </div>
-        <div id="notice"></div>
+        <div class="legend legend4">
+          <div><b class="g-truth">Ground truth (not visible to the UAV)</b>
+            <span><i class="sw sw-burning"></i>burning cell</span>
+            <span><i class="sw sw-burnt"></i>burnt out</span>
+            <span><i class="sw" style="border:2px solid #ffc61a;background:none"></i>ignition cell</span></div>
+          <div><b class="g-uav">UAV</b>
+            <span><i class="sw sw-visited"></i>cell already covered</span>
+            <span><i class="sw" style="background:#fff;border-radius:50%"></i>UAV position + heading</span>
+            <span><i class="sw" style="background:rgba(255,255,255,.55);height:2px;margin-top:6px"></i>flight path</span></div>
+          <div><b class="g-det">Detector observations</b>
+            <span><i class="sw" style="background:#35d07f;border-radius:50%"></i>true (fire within 1 cell)</span>
+            <span><i class="sw" style="background:#f4564a;border-radius:50%"></i>false positive</span>
+            <span class="dim">size = repeat count, number = best confidence</span></div>
+          <div><b class="g-pri">Reactive priority decisions</b>
+            <span><i class="sw" style="border:2px dashed #3de0e0;background:none"></i>investigated, fire nearby</span>
+            <span><i class="sw" style="border:2px dashed #e040fb;background:none"></i>investigated, no fire (false priority)</span>
+            <span class="dim">whole-run summary; timing not recorded</span></div>
+        </div>
+        <div id="banner"></div>
         <div id="maps"></div>
-        <div class="legend">
-          <span><i class="sw sw-visited"></i>visited</span>
-          <span><i class="sw sw-burning"></i>burning</span>
-          <span><i class="sw sw-burnt"></i>burnt</span>
-          <span><i class="sw" style="background:#35d07f"></i>true detection</span>
-          <span><i class="sw" style="background:#f4564a"></i>false positive</span>
-          <span><i class="sw" style="background:#fff;border-radius:50%"></i>UAV</span>
-          <span><i class="sw" style="border:2px solid #ffc61a;background:none"></i>ignition cell</span>
-        </div>
         <div id="summary"></div>
         <div id="charts"></div>
         <div id="dets" class="panel"></div>
+        <details id="notes" class="panel notes"><summary>Data notes and caveats</summary><div id="notice"></div></details>
       </section>
     </div>
     <script src="replay.js"></script>

@@ -27,13 +27,20 @@ CACHE = os.path.join(L3, "_replay_cache")
 
 # pilot directory -> (label, note). Order is display order.
 PILOTS = {
+    "final": ("FINAL held-out evaluation (56 runs, single UAV, 600 s)",
+              "The completed Level 3 paired evaluation reported in docs/experiments/level3_final.md: 8 scenarios x 7 arms, oracle off, one UAV."),
     "pilot2": ("pilot 2 (corrected)", "Current pilot: geofence sign fix, ignition v2, Model B v2 thresholds."),
     "pilot": ("pilot 1 (superseded)",
               "Superseded: run before the geofence-sign fix and ignition v2; coverage baseline never reached the fire "
               "(docs/experiments/level3_methodology.md sec. 10, 12)."),
 }
-ARM_ORDER = {"baseline": 0, "A0": 1, "B2s0": 2}
-ARM_LABEL = {"baseline": "Baseline (no detector)", "A0": "Model A (synth, seed 0)", "B2s0": "Model B v2 (real, seed 0)"}
+ARM_ORDER = {"baseline": 0, "A0": 1, "A1": 2, "A2": 3, "B2s0": 4, "B2s1": 5, "B2s2": 6}
+ARM_LABEL = {"baseline": "Baseline (no detector)",
+             "A0": "Model A (synthetic-trained, seed 0)", "A1": "Model A (synthetic-trained, seed 1)", "A2": "Model A (synthetic-trained, seed 2)",
+             "B2s0": "Model B (real-trained, seed 0)", "B2s1": "Model B (real-trained, seed 1)", "B2s2": "Model B (real-trained, seed 2)"}
+FAMILY = {"baseline": "baseline", "A0": "A", "A1": "A", "A2": "A", "B2s0": "B", "B2s1": "B", "B2s2": "B"}
+T_END = 600.0
+INV_RE = re.compile(r"mode=INVESTIGATE\u2192(\d+),(\d+)")
 TAG_RE = re.compile(r"^l3-(?P<arm>[A-Za-z0-9]+?)-(?P<scn>\d+)$")
 
 
@@ -298,8 +305,9 @@ def load_run(run_id: str) -> Optional[Dict[str, Any]]:
     if cell_rows is None:
         missing["coverage_cells"] = "fog_cells csv missing"
     else:
+        # fog writes visited_first_t = 0.0 for cells that were never visited; that is "no visit", not "visited at t=0"
         cells = [{"i": int(r["i"]), "j": int(r["j"]), "visited": int(r["visited"]),
-                  "first_t": _f(r["visited_first_t"]), "visits": _f(r["visits"])} for r in cell_rows]
+                  "first_t": _f(r["visited_first_t"]) if int(r["visited"]) else None, "visits": _f(r["visits"])} for r in cell_rows]
 
     # ---- detections ----
     det_path = _first(glob.glob(os.path.join(d, "detections_*.csv")))
@@ -321,8 +329,83 @@ def load_run(run_id: str) -> Optional[Dict[str, Any]]:
         missing["trajectory"] = ("no trajectory cache (not built, or build failed: run dashboard/replay_build.py and read its output)" if desc["has_telemetry"]
                                  else "no sitl_work/mav.tlog saved for this run: UAV path cannot be shown")
 
+    inv = investigation(d, fire, missing)
+    rec = recorded_metrics(pilot, tag)
+    if rec is None and pilot == "final":
+        missing["recorded_metrics"] = "no row for this run in analysis/per_run.csv"
+    meta["family"] = FAMILY.get(desc["arm"])
     return {"desc": desc, "meta": meta, "end": end, "fire": fire, "burn_s": burn_s, "fire_t": fire_t,
-            "fire_check": fire_check, "coverage_t": cov_t, "cells": cells, "detections": dets, "trajectory": traj, "missing": missing}
+            "fire_check": fire_check, "coverage_t": cov_t, "cells": cells, "detections": dets, "trajectory": traj,
+            "investigation": inv, "recorded": rec, "missing": missing}
+
+
+def investigation(d: str, fire: Optional[List[Dict[str, Any]]], missing: Dict[str, str]) -> Optional[Dict[str, Any]]:
+    """Cells the UAV was sent to investigate, from the agent HUD log (mode=INVESTIGATE->i,j).
+
+    The HUD lines carry NO timestamps (docs/experiments/level3_final.md sec. 7), so targets are
+    returned in first-appearance order with a line count, and are NOT placed on the time axis.
+    `near_fire` uses the same rule as eval/level3_analyze.py: within Chebyshev distance 1 of a cell
+    that burned at any time in the run (judged in hindsight; the UAV did not know this).
+    """
+    log = os.path.join(d, "agent_A.log")
+    if not os.path.exists(log):
+        missing["investigation"] = "agent_A.log not saved for this run: investigation targets unknown"
+        return None
+    burned = {(c["i"], c["j"]) for c in (fire or [])}
+    order: List[List[int]] = []
+    count: Dict[tuple, int] = {}
+    with open(log, errors="replace") as f:
+        for line in f:
+            m = INV_RE.search(line)
+            if not m:
+                continue
+            c = (int(m.group(1)), int(m.group(2)))
+            if c not in count:
+                order.append(list(c))
+            count[c] = count.get(c, 0) + 1
+    targets = []
+    for k, c in enumerate(order):
+        near = any(max(abs(c[0] - b[0]), abs(c[1] - b[1])) <= 1 for b in burned) if fire is not None else None
+        targets.append({"i": c[0], "j": c[1], "order": k + 1, "hud_lines": count[tuple(c)], "near_fire": near})
+    return {"targets": targets, "timed": False,
+            "note": "Agent HUD lines are not timestamped, so investigation targets are shown for the whole run, not on the timeline. "
+                    "HUD lines are roughly one per second of INVESTIGATE mode (approximate)."}
+
+
+_PER_RUN: Dict[str, Any] = {}
+
+
+def recorded_metrics(pilot: str, tag: str) -> Optional[Dict[str, Any]]:
+    """Row from the recorded analysis table (final only). Blank cell -> None; nothing is imputed."""
+    if pilot != "final":
+        return None
+    # the committed, audit-corrected table; local_data/level3/final/analysis/per_run.csv is an older, stale copy
+    path = os.path.join(ROOT, "docs", "experiments", "level3_final", "per_run.csv")
+    try:
+        mt = os.path.getmtime(path)
+    except OSError:
+        return None
+    if path not in _PER_RUN or _PER_RUN[path][0] != mt:
+        rows = _csv(path)
+        if rows is None:
+            return None
+        _PER_RUN[path] = (mt, {r["tag"]: r for r in rows})
+    r = _PER_RUN[path][1].get(tag)
+    if r is None:
+        return None
+    first = _f(r.get("first_true_det_s")); ign = _f(r.get("ign_first_visit_s"))
+    no_det = FAMILY.get(r.get("arm")) == "baseline"   # no detector: "first true detection" does not exist, it is not censored
+    return {
+        "first_true_det_s": first, "first_true_det_capped_s": None if no_det else (first if first is not None else T_END),
+        "first_true_det_censored": (first is None) and not no_det, "first_true_det_na": no_det,
+        "ign_first_visit_s": ign, "ign_first_visit_capped_s": ign if ign is not None else T_END,
+        "ign_first_visit_censored": ign is None,
+        "visited_frac": _f(r.get("visited_frac")), "det_true": _f(r.get("det_true")), "det_false": _f(r.get("det_false")),
+        "fire_cells": _f(r.get("fire_cells")), "fire_cells_visited": _f(r.get("fire_cells_visited")),
+        "inv_true_s": _f(r.get("inv_true_s")), "inv_false_s": _f(r.get("inv_false_s")),
+        "n_investigate_targets": _f(r.get("n_investigate_targets")),
+        "source": "docs/experiments/level3_final/per_run.csv (eval/level3_analyze.py output, audit-corrected)",
+    }
 
 
 def _series(path: Optional[str], cols: List[str], missing: Dict[str, str], key: str, step_s: float = 2.0):

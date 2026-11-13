@@ -2,7 +2,7 @@
 """
 dashboard/replay_export.py — write ONE self-contained HTML file of the replay dashboard.
 
-    python3 dashboard/replay_export.py --pilot pilot2 --out replay_pilot2_standalone.html
+    python3 dashboard/replay_export.py --pilot final --out replay_final_standalone.html
 
 Inlines style.css, replay.css, replay.js and the saved run data (same JSON the server
 would return). No network, no localhost, no API. Read-only on results; the trajectory
@@ -27,10 +27,10 @@ def _r(n):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--pilot", action="append", default=None, help="repeatable; default pilot2")
+    ap.add_argument("--pilot", action="append", default=None, help="repeatable; default final")
     ap.add_argument("--out", required=True)
     a = ap.parse_args()
-    pilots = a.pilot or ["pilot2"]
+    pilots = a.pilot or ["final"]
 
     L = rd.discover()
     L["runs"] = [r for r in L["runs"] if r["pilot"] in pilots]
@@ -46,8 +46,10 @@ def main():
     html = html.replace('<link rel="stylesheet" href="replay.css" />', "<style>\n" + _r("replay.css") + "\n</style>")
     html = html.replace('<script src="replay.js"></script>',
                         "<script>window.__REPLAY_EMBEDDED__ = " + blob + ";</script>\n<script>\n" + _r("replay.js") + "\n</script>")
-    html = html.replace("<small>saved results only</small>",
-                        "<small>saved results only · standalone snapshot of " + ", ".join(pilots) + "</small>")
+    html = html.replace("<small>recorded ArduPilot SITL runs</small>",
+                        "<small>recorded ArduPilot SITL runs · standalone snapshot of " + ", ".join(pilots) + "</small>")
+    for needle in ("window.__REPLAY_EMBEDDED__", "standalone snapshot"):  # fail loudly if the template changed under us
+        assert needle in html, f"export template no longer contains {needle!r}"
     with open(a.out, "w") as f:
         f.write(html)
     print(f"wrote {a.out}: {os.path.getsize(a.out)} bytes, {len(runs)} runs, {len(L['planned'])} planned")
