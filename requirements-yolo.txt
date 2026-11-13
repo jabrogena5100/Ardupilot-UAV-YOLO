@@ -1,0 +1,5 @@
+# Additional packages for the Model A / Model B arms (CPU inference only; the final runs used these versions).
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.8.0+cpu
+torchvision==0.23.0+cpu
+ultralytics==8.4.173
