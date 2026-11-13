@@ -180,6 +180,7 @@ The projection implementation must be reusable by `sim/camera.py` so that synthe
 * vanilla HTML/CSS/JavaScript in `dashboard/static/`, no build step or CDN
 * browser polls `/api/state` every 250 ms, draws to a `<canvas>` grid
 * no FastAPI/WebSockets/Leaflet/Cesium; a georeferenced map view would be a deliberate dashboard rebuild
+* **Demo / replay (2026-11-13):** `dashboard/replay_server.py` (port 8081) replays the 56 final Level 3 runs (replay of saved files, not live); instructions and on-screen limits in `docs/demo.md`; tests in `tests/test_replay_final.py`
 
 ---
 
@@ -580,3 +581,11 @@ The FASDD test images were copied from the RunPod volume export (pod job `eval/r
 * Baseline: three pinned documentation files changed (hashes in `docs/baseline/AMENDMENTS.md`); `freeze_baseline.py --verify` reports exactly those three and no checkpoint, config or raw-artifact mismatch.
 **Remaining owner-only tasks:** FASDD 30 spot-check rows (`screening_v2`), FASDD overlap sheets `pairs_01-03` (G3), FireMan primary 12 spot frames and `fireman_pixcheck_v1` pairs, the 1280x720 UAV-or-ground question; G2/G3 and G5 stay provisional/failed until then.
 **Report:** draft v1 at `docs/report/final_report.md` with two figures (`eval/report_figures.py`) and a reference list marking what was and was not verified.
+
+## 2026-11-13 Browser demonstration of the final Level 3 runs (presentation only; no experiment, no spend)
+* Extended the existing read-only replay dashboard (`dashboard/replay_*.py`, `static/replay.*`) to the 56 final runs: experiment/scenario/seed selectors, synchronized baseline vs Model A vs Model B compare view, play/pause/restart/speed/scrub, layer toggles with a "UAV's view (hide truth)" preset, legend separating ground truth / UAV coverage / detector observations / reactive priority decisions, recorded-metrics table (capped times flagged as lower bounds, baseline first detection `n/a`). Launch and use: `docs/demo.md`.
+* Metrics come from the committed audit-corrected `docs/experiments/level3_final/per_run.csv`. The gitignored `local_data/level3/final/analysis/per_run.csv` is a **stale pre-correction copy** (B2s0-2014 `det_true` 76 vs corrected 67); the dashboard does not read it.
+* Bug fixed in the loader: `fog_cells_*.csv` writes `visited_first_t = 0.0` for never-visited cells, which the old replay would have drawn as covered at t = 0. Unvisited cells now have no visit time.
+* Investigation targets come from `agent_A.log` (no timestamps), so they are shown as an untimed whole-run summary, "fire nearby" judged in hindsight with the analysis rule (Chebyshev 1 of any ever-burned cell); counts agree with `per_run.csv` for all 56 runs (tested).
+* UAV paths for all 56 runs cached from the tlogs; start-gate alignment median 3.3 s vs fog first-visit times, one cell per run off by up to 87 s (unexplained, as in the pilots).
+* Nothing frozen was touched: `freeze_baseline.py --verify` reports only the three already-amended documentation files.
