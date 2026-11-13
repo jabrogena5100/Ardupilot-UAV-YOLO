@@ -44,6 +44,7 @@ from comms.gossip import GossipBus  # noqa: E402
 STATIC_DIR = os.path.join(HERE, "static")
 MAX_DETECTIONS = 200
 STALE_AFTER_S = 10.0
+MAX_TRAIL = 4000          # positions kept per UAV for /api/trails (about 33 min at 2 Hz)
 
 
 class Mirror:
@@ -57,6 +58,7 @@ class Mirror:
         self.detections: List[Dict[str, Any]] = []
         self.ended: Optional[str] = None
         self.packets = 0
+        self.trails: Dict[str, List[List[float]]] = {}   # sys -> [[t, lat, lon], ...], every 0.5 s of received POSE, bounded
 
     def ingest(self, m: Dict[str, Any]) -> None:
         typ = m.get("type")
@@ -80,6 +82,13 @@ class Mirror:
                     "last_t": m.get("t", time.time()),
                 })
                 self.agents[sid] = a
+                if m.get("lat") is not None and m.get("lon") is not None:
+                    tr = self.trails.setdefault(sid, [])
+                    tt = float(m.get("t", time.time()))
+                    if not tr or tt - tr[-1][0] >= 0.5:
+                        tr.append([tt, m["lat"], m["lon"]])
+                        if len(tr) > MAX_TRAIL:
+                            del tr[:-MAX_TRAIL]
 
             elif typ == schema.DETECTION:
                 self.detections.append({
@@ -141,7 +150,7 @@ def rx_loop(mirror: Mirror, group: str, port: int, stop: threading.Event) -> Non
     bus.close()
 
 
-def make_handler(mirror: Mirror):
+def make_handler(mirror: Mirror, demo_meta: Optional[Dict[str, Any]] = None):
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code: int, ctype: str, body: bytes) -> None:
             self.send_response(code)
@@ -160,6 +169,19 @@ def make_handler(mirror: Mirror):
             if path == "/api/state":
                 self._send(200, "application/json",
                            json.dumps(mirror.view(), default=str).encode())
+                return
+
+            if path == "/api/trails":     # positions actually received, so a page opened mid-run can draw the whole track
+                with mirror._lock:
+                    body = json.dumps(mirror.trails).encode()
+                self._send(200, "application/json", body)
+                return
+
+            if path == "/api/demo":      # only present for the multi-UAV demonstration (demo_multi.py passes --demo-meta)
+                if demo_meta is None:
+                    self._send(404, "text/plain", b"no demo metadata")
+                else:
+                    self._send(200, "application/json", json.dumps(demo_meta).encode())
                 return
 
             if path in ("/", "/index.html"):
@@ -194,7 +216,13 @@ def main() -> None:
     ap.add_argument("--host", default="0.0.0.0")
     ap.add_argument("--gossip-group", default="239.255.0.1")
     ap.add_argument("--gossip-port", type=int, default=5005)
+    ap.add_argument("--demo-meta", default="",
+                    help="JSON file served at /api/demo (used only by demo_multi.py for the multi-UAV page)")
     args = ap.parse_args()
+    demo_meta = None
+    if args.demo_meta:
+        with open(args.demo_meta) as f:
+            demo_meta = json.load(f)
 
     if not os.path.isdir(STATIC_DIR):
         print(f"[dash] ERROR: {STATIC_DIR} is missing (need index.html, app.js, style.css)")
@@ -206,7 +234,7 @@ def main() -> None:
                          daemon=True)
     t.start()
 
-    srv = ThreadingHTTPServer((args.host, args.port), make_handler(mirror))
+    srv = ThreadingHTTPServer((args.host, args.port), make_handler(mirror, demo_meta))
     print(f"[dash] http://localhost:{args.port}   (Ctrl+C to stop)")
     try:
         srv.serve_forever()

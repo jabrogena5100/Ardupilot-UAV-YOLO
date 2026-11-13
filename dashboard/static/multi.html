@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Multi-UAV Architecture Demonstration</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      .demo-banner { background: #3a2a00; border-bottom: 2px solid var(--warn); color: #ffd98a; padding: 10px var(--pad); font-weight: 600; line-height: 1.35; }
+      .demo-banner span { font-weight: 400; color: #f1d9a8; }
+      .wrap { display: grid; grid-template-columns: minmax(320px, 680px) minmax(300px, 1fr); gap: var(--pad); padding: var(--pad); align-items: start; }
+      @media (max-width: 1000px) { .wrap { grid-template-columns: 1fr; } }
+      canvas#map { width: 100%; height: auto; aspect-ratio: 1; background: #05080c; border-radius: var(--radius); display: block; }
+      .big-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; margin: 10px 0 0; }
+      .big-stats .stat { background: var(--panel-2); border-radius: 6px; padding: 8px 10px; }
+      .big-stats .k { color: var(--ink-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+      .big-stats .v { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .uav { display: grid; grid-template-columns: 14px 1fr; gap: 4px 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+      .uav:first-of-type { border-top: 0; }
+      .uav .dot { width: 14px; height: 14px; border-radius: 50%; margin-top: 3px; }
+      .uav .name { font-weight: 700; } .uav .kv { color: var(--ink-dim); font-size: 12px; }
+      .uav.stale .name::after { content: "  (no recent telemetry)"; color: var(--bad); font-weight: 400; font-size: 12px; }
+      .legend2 { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--ink-dim); margin-top: 8px; }
+      .legend2 i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 5px; vertical-align: -2px; }
+      .note { font-size: 12.5px; color: var(--ink-dim); } .note b { color: var(--ink); }
+      h2 { margin: 0 0 6px; font-size: 14px; }
+      .panel { margin-bottom: var(--pad); }
+      .status { font-size: 13px; margin-top: 8px; } .status.bad { color: var(--warn); }
+    </style>
+  </head>
+  <body>
+    <div class="demo-banner" id="banner">MULTI-UAV ARCHITECTURE DEMONSTRATION — Four simulated ArduPilot drones performing grid coverage.
+      <span>This demonstration is separate from the validated single-UAV research experiments.</span></div>
+    <header>
+      <h1>Autonomous Wildfire Monitoring — Multi-UAV Demonstration</h1>
+      <div class="head-right"><span id="conn" class="badge badge-bad">connecting</span></div>
+    </header>
+    <div class="wrap">
+      <section class="panel" style="padding: var(--pad)">
+        <h2>Monitoring region (1 mile × 1 mile, 10 × 10 cells)</h2>
+        <canvas id="map" width="720" height="720"></canvas>
+        <div class="legend2" id="mapkey">
+          <span><i style="background:rgba(70,130,200,.55)"></i>visited cell</span>
+          <span><i style="background:#05080c;border:1px solid #333"></i>not yet visited</span>
+          <span><i style="background:rgba(255,87,34,.85)"></i>burning (simulated fire)</span>
+          <span><i style="background:rgba(90,97,105,.7)"></i>burnt out</span>
+          <span><i style="border:2px dashed #ddd;background:none"></i>assigned region (dashed border)</span>
+          <span><i style="border:2px solid #ddd;background:none"></i>cell a UAV is flying to</span>
+        </div>
+        <div class="big-stats" id="stats"></div>
+        <div class="status" id="status"></div>
+      </section>
+      <section>
+        <div class="panel" style="padding: var(--pad)"><h2>Legend and live telemetry</h2><div id="fleet"></div></div>
+        <div class="panel" style="padding: var(--pad)"><h2>Smoke detections</h2><div class="note" id="dets"></div></div>
+        <div class="panel" style="padding: var(--pad)"><h2>What is real, what is illustrative</h2>
+          <div class="note" id="truth"></div></div>
+      </section>
+    </div>
+    <script src="multi.js"></script>
+  </body>
+</html>
