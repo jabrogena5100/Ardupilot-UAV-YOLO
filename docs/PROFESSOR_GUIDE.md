@@ -408,6 +408,42 @@ hardware for all arms. The replay needs about 50 MB.
 6. Choose scenario 2004 from the drop-down; click a **Jump to** button (the clock jumps). Click **Single run**, then **Restart** (clock back to 0).
 7. Ctrl+C in the terminal: the server stops.
 
+## 8b. Four-UAV demonstration (optional; separate from the research)
+
+**What it is.** A live demonstration that the project's multi-UAV architecture works: four ArduPilot SITL copters fly a grid-coverage mission together over a
+simulated wildfire. **It is not an experiment and produces no result.** All research results (the 56 recorded runs and the report) are single-UAV and are unchanged.
+It is a *new* simulation (like section 5), not a replay; the replay on port 8081 is a different program and is unaffected.
+
+```bash
+source ~/venvs/wildfire/bin/activate          # the environment from 2.2 (needs ArduPilot SITL, tmux, requirements-sim.txt; no weights, no GPU)
+python3 demo_multi.py --drones 4              # then open  http://localhost:8080/multi.html
+```
+
+* **Time:** about 2 minutes of startup (four SITL boots), then the mission (`--duration`, default 900 simulated seconds, about 17 minutes of wall clock). The page shows
+  "Starting up" until the UAVs connect.
+* **Stop:** Ctrl+C (or `kill` the launcher). It stops fog, the four agents, four SITL/MAVProxy processes, the tmux session and the dashboard; tested: exit code 0 in about 6 s with no leftover process.
+  When the mission ends the SITL processes stop and the dashboard keeps showing the final state until you press Ctrl+C (`--exit-when-done` quits instead).
+* **Options:** `--port`, `--host 0.0.0.0` (VM, see 7.4), `--no-browser`, `--dry-run` (prerequisite check), `--ignite i,j`, `--duration`. Output files go to a new `local_data/demo_multi/<timestamp>/`.
+* **Resources (measured on the 1.9 GB / 4 vCPU project VM):** about 1.25 GB in use while running, 40 MB of swap, so it fits, with little headroom; close other programs. On a 1-vCPU VM it is untested.
+  Four SITL instances is the supported maximum here; if it is too heavy for your machine the lighter alternative is the single-UAV runs of section 5 or the replay.
+
+**What you see:** a red-amber banner "MULTI-UAV ARCHITECTURE DEMONSTRATION ...", the 10 x 10 map with four numbered, coloured UAVs (cyan 1, yellow 2, violet 3, green 4) and their trajectories,
+each UAV's assigned quadrant (dashed border in its colour), the cell each is flying to (solid square), visited cells (blue), the simulated fire spreading (orange burning, grey burnt),
+the elapsed simulation time and coverage percentage, a legend with each UAV's live telemetry, and a "what is real / what is illustrative" panel.
+
+| Element | Source |
+|---|---|
+| UAV positions, altitude, heading, speed, mode | **Real ArduPilot SITL telemetry** (MAVLink), one SITL instance per UAV (MAVLink system ids 1 to 4) |
+| Trajectories | The positions the dashboard actually received (kept by `dashboard/server.py`, `/api/trails`); nothing interpolated or scripted |
+| Quadrant assignment, target choice, coverage map, run clock | The project's own code: `mission/partitions.py` (quadrants), `swarm_agent.py` (`grid_frontier`), `fog_tracker.py` |
+| Fire and its spread | **Simulated** (the 2-D cellular automaton in `wildfire_sim.py`), owned by the ground station; the UAVs never see it and no detector runs, so it does not influence their flight |
+| Smoke detections | **None.** No detector runs in this demo, so the panel says so; a detection would appear only if the system produced one |
+| Fire parameters, duration, altitude 60 m, speed 15 m/s | Illustrative display settings (the fire rate equals the Level 3 setting, copied, not edited) |
+
+**Not validated:** no performance claim is made; multi-UAV behaviour was not experimentally validated; no probability map; all four UAVs start at the same SITL home point and nothing models collisions.
+The trails show real flight, including turns, transit across other regions and overshoot; the quadrant is the set of cells a UAV may *choose as targets*, not a fence.
+"Region cells visited" counts cells visited by any UAV. The coverage percentage is the fog tracker's shared map.
+
 ## 9. Verification record
 
 Tested on the project machine (Ubuntu 24.04, Python 3.10.18 venv, 1.9 GB RAM, 4 vCPU), 2026-11-13:

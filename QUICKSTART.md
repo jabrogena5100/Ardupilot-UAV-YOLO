@@ -38,6 +38,15 @@ The `--branch` matters: the demo is not on `main`. (If `git clone` is not possib
 Reload; try `python3 demo.py --no-browser` and open the address by hand; confirm with `python3 check_setup.py`.
 More in [docs/PROFESSOR_GUIDE.md](docs/PROFESSOR_GUIDE.md) section 7.
 
+## Optional: four-drone live demonstration (needs ArduPilot SITL; see the guide, section 8b)
+
+```bash
+python3 demo_multi.py --drones 4        # then open http://localhost:8080/multi.html ; Ctrl+C stops it
+```
+
+Four simulated ArduPilot copters cover a grid over a simulated fire (about 2 min startup, then about 15 min). It is a **demonstration of the multi-UAV architecture,
+not a research experiment**, and is separate from the replay above. Needs the setup of guide section 2.2; no weights or GPU.
+
 ## Honest limits
 
 Replay only. Single UAV; multi-UAV behaviour was **not** experimentally validated. There is **no probability map**; the
