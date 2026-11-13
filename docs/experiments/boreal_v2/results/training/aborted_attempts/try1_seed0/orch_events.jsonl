@@ -1,0 +1,10 @@
+{"cmd_argv0": "bash", "event": "start", "git_commit": "16f7e60fb029823945907eadacc63aa9782b01ec", "hard_timeout_s": 16200, "pod_id": "kv3imy4lnltlea", "run_name": "boreal_v2_train_eval", "t": "2026-10-29T19:15:08Z"}
+{"event": "job_finished", "exit_code": 3, "status": "failed", "t": "2026-10-29T19:36:56Z", "wall_seconds": 1307}
+{"attempt": 1, "error": "POST /pods/kv3imy4lnltlea/stop -> HTTP 403", "event": "stop_error", "t": "2026-10-29T19:36:57Z"}
+{"attempt": 2, "error": "POST /pods/kv3imy4lnltlea/stop -> HTTP 403", "event": "stop_error", "t": "2026-10-29T19:36:59Z"}
+{"attempt": 3, "error": "POST /pods/kv3imy4lnltlea/stop -> HTTP 403", "event": "stop_error", "t": "2026-10-29T19:37:04Z"}
+{"attempt": 4, "error": "POST /pods/kv3imy4lnltlea/stop -> HTTP 403", "event": "stop_error", "t": "2026-10-29T19:37:12Z"}
+{"attempt": 5, "error": "POST /pods/kv3imy4lnltlea/stop -> HTTP 403", "event": "stop_error", "t": "2026-10-29T19:37:28Z"}
+{"attempt": 6, "error": "POST /pods/kv3imy4lnltlea/stop -> HTTP 403", "event": "stop_error", "t": "2026-10-29T19:37:59Z"}
+{"event": "STOP_FAILED", "pod_id": "kv3imy4lnltlea", "t": "2026-10-29T19:38:29Z"}
+{"event": "SHUTDOWN_UNCONFIRMED", "note": "pod may still be billing; off-pod watchdog must stop it", "pod_id": "kv3imy4lnltlea", "t": "2026-10-29T19:38:29Z"}

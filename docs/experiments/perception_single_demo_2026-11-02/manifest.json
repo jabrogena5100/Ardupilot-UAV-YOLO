@@ -1,0 +1,16 @@
+{
+  "tag": "perception-single-demo",
+  "stamp": "20261102-015838",
+  "models": [
+    {
+      "key": "weights",
+      "path": "local_data/backups/boreal_v2/real_boreal_v2_best_seed0.pt",
+      "exists": true,
+      "size_bytes": 22501098,
+      "mtime": "2026-11-02 01:35:37"
+    }
+  ],
+  "model_tag": "real_boreal_v2_seed0",
+  "conf_threshold": 0.25,
+  "perception_enabled": true
+}

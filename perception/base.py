@@ -78,11 +78,12 @@ def from_config(cfg: Optional[Dict[str, Any]], grid: Any = None) -> Any:
 
         perception:
           enabled: true
-          weights: models/synthetic_best.pt
-          model_tag: synthetic_v1
-          conf_threshold: 0.45
+          weights: local_data/backups/boreal_v2/real_boreal_v2_best_seed0.pt   # default; sha256 verified
+          model_tag: real_boreal_v2_seed0
+          conf_threshold: 0.25                       # provisional operating point
           rate_hz: 1.0
-          camera: {fov_deg: 78, tilt_deg: 30}
+          camera: {hfov_deg: 78, pitch_deg: 90}      # pitch = degrees below the horizon; 90 = nadir
+          strict: false                              # true: raise instead of falling back to NullPerception
 
     Returns NullPerception when disabled, when the section is missing, or when
     the real implementation cannot be imported. That last case is deliberate:
@@ -104,6 +105,8 @@ def from_config(cfg: Optional[Dict[str, Any]], grid: Any = None) -> Any:
     try:
         return YoloPerception(cfg, grid=grid)
     except Exception as e:
+        if cfg.get("strict", False):
+            raise
         print(f"[perception] WARN: detector failed to initialise ({e}). "
               f"Falling back to NullPerception.")
         return NullPerception()

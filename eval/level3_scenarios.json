@@ -1,0 +1,133 @@
+{
+ "calibration": [
+  {
+   "seed": 1001,
+   "split": "calibration",
+   "texture_slot": 0,
+   "ignition": [
+    2,
+    2
+   ],
+   "fire_seed": 1001
+  },
+  {
+   "seed": 1002,
+   "split": "calibration",
+   "texture_slot": 0,
+   "ignition": [
+    3,
+    1
+   ],
+   "fire_seed": 1002
+  },
+  {
+   "seed": 1003,
+   "split": "calibration",
+   "texture_slot": 1,
+   "ignition": [
+    1,
+    1
+   ],
+   "fire_seed": 1003
+  },
+  {
+   "seed": 1005,
+   "split": "calibration",
+   "texture_slot": 1,
+   "ignition": [
+    0,
+    0
+   ],
+   "fire_seed": 1005
+  }
+ ],
+ "heldout": [
+  {
+   "seed": 2001,
+   "split": "heldout",
+   "texture_slot": 4,
+   "ignition": [
+    3,
+    2
+   ],
+   "fire_seed": 2001
+  },
+  {
+   "seed": 2002,
+   "split": "heldout",
+   "texture_slot": 4,
+   "ignition": [
+    2,
+    1
+   ],
+   "fire_seed": 2002
+  },
+  {
+   "seed": 2004,
+   "split": "heldout",
+   "texture_slot": 4,
+   "ignition": [
+    1,
+    0
+   ],
+   "fire_seed": 2004
+  },
+  {
+   "seed": 2005,
+   "split": "heldout",
+   "texture_slot": 3,
+   "ignition": [
+    3,
+    2
+   ],
+   "fire_seed": 2005
+  },
+  {
+   "seed": 2006,
+   "split": "heldout",
+   "texture_slot": 3,
+   "ignition": [
+    0,
+    1
+   ],
+   "fire_seed": 2006
+  },
+  {
+   "seed": 2012,
+   "split": "heldout",
+   "texture_slot": 5,
+   "ignition": [
+    2,
+    1
+   ],
+   "fire_seed": 2012
+  },
+  {
+   "seed": 2014,
+   "split": "heldout",
+   "texture_slot": 5,
+   "ignition": [
+    1,
+    0
+   ],
+   "fire_seed": 2014
+  },
+  {
+   "seed": 2015,
+   "split": "heldout",
+   "texture_slot": 5,
+   "ignition": [
+    0,
+    1
+   ],
+   "fire_seed": 2015
+  }
+ ],
+ "heldout_sha256": "e852992cf0de59b6d5060878aec90e7d17beda8da90f9abb5cfd6b0884bad6fc",
+ "rules": "(checked by tests/test_level3_scenarios.py and by `verify()`):\n  * disjoint seeds,\n  * disjoint GROUND-TEXTURE slots: the test-split texture bank (6 slots) is partitioned, calibration slots {0,1,2},\n    held-out {3,4,5}, so no ground texture is rendered in both sets,\n  * disjoint ignition cells between sets (calibration: i+j even, held-out: i+j odd) and distinct within a set, all at Chebyshev distance >= 3 from the takeoff cell,\n  * the held-out list is hash-pinned in `level3_scenarios.json`.",
+ "amendment_1": {
+  "date": "2026-11-09",
+  "what": "held-out ignition cells v2 (HELD_IGNITION_V2); no held-out run existed",
+  "superseded_heldout_sha256": "558f728283b23bf0597379b04341a8d3c0feaa83798e42c390b3b6df8619ab7c"
+ }
+}

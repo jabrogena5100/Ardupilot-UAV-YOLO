@@ -1,0 +1,45 @@
+{
+  "name": "boreal_v2",
+  "partitions": {
+    "test": {
+      "boxes": 690,
+      "filelist_sha256": "9fa6dbc1d0eb9fa437e989be29afadc9a459f7850502f1c18c350379afcddc8f",
+      "images": 744,
+      "images_with_label_file": 679,
+      "median_box_area_fraction": 0.281130831496,
+      "per_site_prefix": {
+        "Empty-Images": 65,
+        "Heinola-Images": 255,
+        "Karkkila-Images": 354,
+        "Ruokolahti-Images": 70
+      }
+    },
+    "train": {
+      "boxes": 3480,
+      "filelist_sha256": "5b23b199965dfc47372e6100f4d5bfd41d57ef5b0b16b5ed83e91db056245c25",
+      "images": 3462,
+      "images_with_label_file": 3325,
+      "median_box_area_fraction": 0.4870815341,
+      "per_site_prefix": {
+        "Empty-Images": 132,
+        "Evo-Images": 642,
+        "Heinola-Images": 651,
+        "Karkkila-Images": 342,
+        "Ruokolahti-Images": 1695
+      }
+    },
+    "val": {
+      "boxes": 692,
+      "filelist_sha256": "8ef9e902bb24a720112bef32d20248d6aa33c17d67efc9771643daa87d252e2f",
+      "images": 748,
+      "images_with_label_file": 689,
+      "median_box_area_fraction": 0.290979511129,
+      "per_site_prefix": {
+        "Empty-Images": 59,
+        "Evo-Images": 289,
+        "Karkkila-Images": 400
+      }
+    }
+  },
+  "source": "/workspace/boreal/boreal_yolo"
+}

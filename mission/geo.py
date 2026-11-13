@@ -22,7 +22,7 @@ a working controller is not the kind of thing you do during a refactor.
 from __future__ import annotations
 
 import math
-from typing import Tuple
+from typing import Optional, Tuple
 
 R_EARTH = 6378137.0
 M_PER_MILE = 1609.344
@@ -42,6 +42,33 @@ def latlon_to_ne(lat_deg: float, lon_deg: float,
     dn = (lat - lat0) * R_EARTH
     de = (lon - lon0) * R_EARTH * math.cos(lat0)
     return dn, de
+
+
+def ne_to_latlon(n_m: float, e_m: float,
+                 lat0_deg: float, lon0_deg: float) -> Tuple[float, float]:
+    """Exact inverse of latlon_to_ne (same cos(lat0) form)."""
+    lat0 = math.radians(lat0_deg)
+    lat = lat0_deg + math.degrees(n_m / R_EARTH)
+    lon = lon0_deg + math.degrees(e_m / (R_EARTH * math.cos(lat0)))
+    return lat, lon
+
+
+def cell_index(n: float, e: float, half_side_m: float, cell_m: float, N: int) -> Optional[Tuple[int, int]]:
+    """Metres-from-origin -> (i, j), or None if outside the grid."""
+    x = e + half_side_m
+    y = n + half_side_m
+    if x < 0.0 or y < 0.0 or x >= 2 * half_side_m or y >= 2 * half_side_m:
+        return None
+    i = int(x // cell_m)
+    j = int(y // cell_m)
+    if 0 <= i < N and 0 <= j < N:
+        return (i, j)
+    return None
+
+
+def track_yaw(vx_n: float, vy_e: float, last: Optional[float], min_speed: float = 2.0) -> Optional[float]:
+    """Yaw (rad, compass bearing: 0 = north, pi/2 = east) that points the vehicle along its NED velocity; below min_speed keep `last`."""
+    return math.atan2(vy_e, vx_n) if math.hypot(vx_n, vy_e) >= min_speed else last
 
 
 def cheby_dist(a: Tuple[int, int], b: Tuple[int, int]) -> int:

@@ -39,7 +39,12 @@ DEFAULT_HDG_DEG = 90.0
 def have(cmd: str) -> bool:
     return shutil.which(cmd) is not None
 
+TMUX_PREFIX: list = []     # ["-L", "<socket>"] gives this launcher a private tmux server (parallel runs); empty = default server
+
+
 def run_quiet(cmd: list):
+    if cmd and cmd[0] == "tmux":
+        cmd = ["tmux", *TMUX_PREFIX, *cmd[1:]]
     subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 def kill_all_drones(session: str):
@@ -51,7 +56,7 @@ def kill_all_drones(session: str):
     print("[✅] All SITL/MAVProxy sessions terminated.\n")
 
 def tmux(cmd: list, check=True):
-    return subprocess.run(["tmux", *cmd], check=check)
+    return subprocess.run(["tmux", *TMUX_PREFIX, *cmd], check=check)
 
 def meters_to_deg_offsets(lat_deg: float, north_m: float, east_m: float):
     dlat = north_m / 111_320.0
@@ -83,6 +88,11 @@ def main():
     ap.add_argument("--loc", default="UH", help="ArduPilot location label (default: UH)")
     ap.add_argument("--base-port", dest="base_port", type=int, default=14555, help="Base UDP port for swarm_agent connections")
     ap.add_argument("--delay", type=float, default=15.0, help="Seconds between drone launches")
+    ap.add_argument("--instance-base", dest="instance_base", type=int, default=1,
+                    help="SITL instance (-I) of the first drone; later drones follow. Parallel runs need disjoint ranges (default 1)")
+    ap.add_argument("--sysid-base", dest="sysid_base", type=int, default=None, help="MAVLink sysid of the first drone (default: = --instance-base)")
+    ap.add_argument("--tmux-socket", dest="tmux_socket", default=None,
+                    help="tmux -L socket name: a private tmux server, so cleanup of one run cannot touch another's (default: the default server)")
     ap.add_argument("--killdrone", action="store_true", help="Kill all SITL and MAVProxy processes, then exit")
 
     # New QGroundControl IP option
@@ -96,6 +106,9 @@ def main():
     ap.add_argument("--radius-miles", type=float, default=5.0,
                     help="Random spawn radius in miles (default 5.0)")
     args = ap.parse_args()
+    if args.tmux_socket:
+        TMUX_PREFIX[:] = ["-L", args.tmux_socket]
+    sysid_base = args.sysid_base if args.sysid_base is not None else args.instance_base
 
     if args.killdrone:
         kill_all_drones(args.session)
@@ -116,8 +129,8 @@ def main():
         tmux(["send-keys", "-t", target, line, "C-m"])
 
     for i in range(args.count):
-        inst  = i + 1
-        sysid = i + 1
+        inst  = args.instance_base + i
+        sysid = sysid_base + i
         port  = args.base_port + i
 
         loc_arg = build_location_arg(args.randomspawn, rng, radius_m) if args.randomspawn else f"-L {args.loc}"

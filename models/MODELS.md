@@ -115,3 +115,17 @@ i.e. no further gain from more epochs is evident on val. Test scores exceed val 
 likely reflects the different site/box-size mix rather than better generalization.
 
 Scripts: `eval/runpod/boreal_stage1_freeze_smoke.sh`, `eval/runpod/boreal_stage2_train_eval.sh`.
+
+## real_boreal_v2_best_seed{0,1,2}.pt — Model B (real / Boreal v2 clip-disjoint split)
+
+Trained 2026-10-29; experiment `docs/experiments/boreal_v2_results.md`, split `docs/experiments/boreal_v2.md`. YOLOv8s from COCO `yolov8s.pt`, 100 epochs, imgsz 640, batch 32,
+deterministic, AdamW lr0 0.002 momentum 0.9 warmup_bias_lr 0.0, **`cache=ram` (documented speed-only deviation; v1 Model B had no cache)**, ultralytics 8.4.173, torch 2.8.0+cu128,
+RTX 4090 (secure, US-IL-1). Checkpoint = Ultralytics `best.pt` by fitness on the Boreal v2 val split. Train data: `boreal_v2` train (3,462 frames, 18 clips). **Not comparable with `real_boreal_best_v1*.pt`** (different train and test populations). Checkpoints are not in git. Local backup: `local_data/backups/boreal_v2/real_boreal_v2_best_seed{0,1,2}.pt` with `SHA256SUMS` and `PROVENANCE.txt` (all three hashes re-verified with `sha256sum -c` on 2026-11-11; correction of the earlier 'no local backup yet').
+
+| Checkpoint | Seed | RunPod path | SHA-256 |
+|---|---|---|---|
+| `real_boreal_v2_best_seed0.pt` | 0 | `/workspace/runs/boreal_v2_try3/real_boreal_v2_seed0/` (22,501,098 B) | `090c0f4cbe2718d2b084a41b8a3736fa27b673bc66b20c64672b13c83c299a05` |
+| `real_boreal_v2_best_seed1.pt` | 1 | `/workspace/runs/boreal_v2_try4/real_boreal_v2_seed1/` | `5a9616cefddd3bca6eccf31d0691f7b1a2fadb572f84cf7948c85296644e9388` |
+| `real_boreal_v2_best_seed2.pt` | 2 | `/workspace/runs/boreal_v2_try4/real_boreal_v2_seed2/` | `c4d443a8af919c6b00e4319b117a5dfbe90bd8b29750c75e3970a9389ae097ef` |
+
+Per-run config, args and results.csv: `docs/experiments/boreal_v2/results/training/`. Aborted attempts (`boreal_v2`, `boreal_v2_try2`, seed 1 of `boreal_v2_try3`) left partial run directories on the volume; they hold no accepted checkpoint and must not be cited.

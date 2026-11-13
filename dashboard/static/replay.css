@@ -1,0 +1,87 @@
+/* replay.css — extends style.css (variables, header, badge, panel, legend, layers). */
+header h1 small { font-weight: 400; font-size: 12px; color: var(--ink-dim); margin-left: 8px; }
+.tabs button, .controls button, .controls select {
+  background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+  border-radius: 6px; padding: 5px 12px; font: inherit; cursor: pointer;
+}
+.tabs button.on { background: var(--traverse); color: #05121f; border-color: var(--traverse); }
+
+.layout { display: grid; grid-template-columns: 320px 1fr; gap: var(--pad); padding: var(--pad); align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+#runlist { max-height: calc(100vh - 80px); overflow: auto; padding: 10px; }
+#runlist h3 { margin: 14px 0 4px; font-size: 12px; letter-spacing: .5px; text-transform: uppercase; color: var(--ink-dim); }
+#runlist h3:first-child { margin-top: 0; }
+#runlist .grp { font-size: 12px; color: var(--ink-dim); margin: 8px 0 2px; }
+.run { display: block; width: 100%; text-align: left; background: none; color: var(--ink); border: 1px solid transparent;
+  border-radius: 6px; padding: 5px 8px; font: inherit; cursor: pointer; }
+.run:hover { background: var(--panel-2); }
+.run.sel { border-color: var(--traverse); background: var(--panel-2); }
+.run .sub { display: block; font-size: 11px; color: var(--ink-dim); }
+.run.gone { color: var(--ink-dim); cursor: default; border: 1px dashed var(--line); }
+.run.gone:hover { background: none; }
+.tag { font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-left: 6px; text-transform: uppercase; }
+.tag.ok { background: rgba(53,208,127,.15); color: var(--drone); }
+.tag.bad { background: rgba(244,86,74,.15); color: var(--bad); }
+.tag.warn { background: rgba(255,176,32,.15); color: var(--warn); }
+
+.controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 8px var(--pad); }
+.controls input[type=range] { flex: 1 1 220px; }
+#notice .miss { margin-top: 10px; padding: 8px 12px; border-left: 3px solid var(--warn); background: rgba(255,176,32,.08);
+  border-radius: 4px; font-size: 13px; }
+#notice .miss b { color: var(--warn); }
+#maps { display: flex; flex-wrap: wrap; gap: var(--pad); margin-top: var(--pad); }
+.mapbox { flex: 1 1 300px; max-width: 560px; }
+.mapbox h2 { margin: 0 0 4px; font-size: 14px; }
+.mapbox canvas { width: 100%; aspect-ratio: 1; display: block; background: #05080c; border: 1px solid var(--line); border-radius: 6px; }
+.mapbox .nodata { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 20px;
+  border: 1px dashed var(--bad); border-radius: 6px; color: var(--ink-dim); font-size: 13px; }
+.legend { margin-top: 8px; }
+#summary, #charts { margin-top: var(--pad); }
+table.sum { border-collapse: collapse; width: 100%; font-size: 13px; }
+table.sum th, table.sum td { border-bottom: 1px solid var(--line); padding: 4px 8px; text-align: right; }
+table.sum th:first-child, table.sum td:first-child { text-align: left; }
+table.sum td.na { color: var(--bad); }
+#charts { display: flex; flex-wrap: wrap; gap: var(--pad); }
+.chart { flex: 1 1 340px; }
+.chart h2 { margin: 0 0 4px; font-size: 13px; font-weight: 600; }
+.chart canvas { width: 100%; height: 190px; display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.chart .key { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+.chart .key i { display: inline-block; width: 10px; height: 3px; margin: 0 4px 2px 8px; }
+#dets { margin-top: var(--pad); max-height: 260px; overflow: auto; font-size: 12px; }
+#dets table { width: 100%; border-collapse: collapse; }
+#dets td, #dets th { padding: 2px 8px; text-align: right; }
+#dets .fp { color: var(--bad); } #dets .tp { color: var(--drone); }
+
+/* ---- demo additions ---- */
+.explain { padding: 10px 14px; margin-bottom: var(--pad); }
+.explain summary, .notes summary { cursor: pointer; font-weight: 600; }
+.ex-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 4px 18px; font-size: 13px; line-height: 1.45; }
+.ex-grid p { margin: 8px 0 0; }
+.ex-grid .caveat { border-left: 3px solid var(--warn); padding-left: 10px; }
+.layerbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 8px var(--pad); margin-top: 8px; font-size: 13px; }
+.layerbar button, .jump { background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+.layerbar button:hover, .jump:hover { border-color: var(--traverse); }
+.jumps { flex: 1 1 100%; font-size: 12px; color: var(--ink-dim); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.g-truth { color: #ff8a5c; } .g-uav { color: #7db8ff; } .g-det { color: #4fe39a; } .g-pri { color: #3de0e0; }
+.controls label { font-size: 13px; color: var(--ink-dim); }
+.legend4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 8px 16px; font-size: 12px; margin-top: 8px; }
+.legend4 > div { display: flex; flex-direction: column; gap: 3px; padding: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+.legend4 .dim, .dim { color: var(--ink-dim); }
+.legend4 .sw { display: inline-block; width: 14px; height: 12px; margin-right: 6px; vertical-align: middle; }
+.banner { padding: 8px var(--pad); margin-top: 8px; font-size: 13px; }
+.mapbox .live { font-size: 12px; margin-top: 4px; min-height: 16px; }
+td.cap { color: var(--warn); } td.cap sup { font-size: 9px; margin-left: 3px; }
+.tscroll { overflow-x: auto; }
+table.sum th { font-size: 12px; vertical-align: bottom; }
+.sumh { margin: 0 0 6px; font-size: 14px; }
+.notes { padding: 10px 14px; margin-top: var(--pad); }
+#notice .miss.dim { border-left-color: var(--line); } #notice .miss.dim b { color: var(--ink); }
+#runlist select { width: 100%; background: var(--panel-2); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 5px; font: inherit; }
+#runlist .hint { font-size: 11px; color: var(--ink-dim); margin-top: 4px; line-height: 1.35; } #runlist .hint.warn { color: var(--warn); }
+#runlist .sel-l { display: block; font-size: 12px; color: var(--ink-dim); margin-top: 6px; }
+
+.titleblock { min-width: 0; max-width: 820px; }
+.titleblock h1 { margin: 0; }
+.subtitle { margin: 4px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--ink-dim); }
+.subtitle b { color: var(--ink); font-weight: 600; }
+.subtitle small { margin-left: 4px; }

@@ -24,3 +24,13 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Large local data (datasets, backups, checkpoints copies); never committed
+local_data/
+
+# SITL byproducts when launched from the repo root
+eeprom.bin
+mav.parm
+mav.tlog*
+terrain/
+logs/

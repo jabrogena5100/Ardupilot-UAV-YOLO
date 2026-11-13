@@ -23,18 +23,36 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import rp_common as C  # noqa: E402
 
 
+def stop_once(api, pod_id, log, attempt):
+    """REST stop first; if that is refused (the pod-injected key gets 403 on REST) fall back to GraphQL podStop. Logs which worked."""
+    try:
+        api.stop_pod(pod_id)
+        return "rest"
+    except C.RunPodError as e:
+        log.emit("stop_error", attempt=attempt, method="rest", error=str(e))
+    stop_gql = getattr(api, "stop_pod_graphql", None)
+    if stop_gql is not None:
+        try:
+            stop_gql(pod_id)
+            return "graphql"
+        except C.RunPodError as e:
+            log.emit("stop_error", attempt=attempt, method="graphql", error=str(e), detail=getattr(e, "detail", ""))
+    return None
+
+
 def stop_and_verify(api, pod_id, log, attempts=6, sleep=time.sleep):
     """Stop (not delete) the pod, then confirm via GET. Returns True when the pod reads as stopped."""
     for i in range(attempts):
-        try:
-            api.stop_pod(pod_id)
+        method = stop_once(api, pod_id, log, i + 1)
+        if method:
             sleep(1)
-            if C.is_stopped(api.get_pod(pod_id)):
-                log.emit("pod_stopped", attempt=i + 1)
-                return True
-            log.emit("stop_not_yet_confirmed", attempt=i + 1)
-        except C.RunPodError as e:
-            log.emit("stop_error", attempt=i + 1, error=str(e))
+            try:
+                if C.is_stopped(api.get_pod(pod_id)):
+                    log.emit("pod_stopped", attempt=i + 1, method=method)
+                    return True
+            except C.RunPodError as e:
+                log.emit("stop_error", attempt=i + 1, method="verify", error=str(e))
+            log.emit("stop_not_yet_confirmed", attempt=i + 1, method=method)
         sleep(min(2 ** (i + 1), 30))
     log.emit("STOP_FAILED", pod_id=pod_id)
     return False

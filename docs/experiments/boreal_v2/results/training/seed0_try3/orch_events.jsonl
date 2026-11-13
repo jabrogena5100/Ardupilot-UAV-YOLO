@@ -1,0 +1,3 @@
+{"cmd_argv0": "bash", "event": "start", "git_commit": "6d73d89d1ffd18a63ec9dee07fb362ca452b30c6", "hard_timeout_s": 16200, "pod_id": "vi2o551fcsho16", "run_name": "boreal_v2_try3_train_eval", "t": "2026-10-29T20:17:56Z"}
+{"event": "job_finished", "exit_code": 3, "status": "failed", "t": "2026-10-29T21:56:25Z", "wall_seconds": 5909}
+{"attempt": 1, "error": "POST /pods/vi2o551fcsho16/stop -> HTTP 403", "event": "stop_error", "method": "rest", "t": "2026-10-29T21:56:26Z"}

@@ -47,8 +47,10 @@ import argparse
 import math
 import os
 import random
+import queue
 import signal
 import sys
+import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
@@ -60,7 +62,7 @@ from comms import schema
 from comms.gossip import GossipBus
 from custom_vehicle import CustomVehicle
 from mapping.bitmap import CoverageBitmap
-from mission.geo import M_PER_MILE, clamp, cheby_dist, latlon_to_ne
+from mission.geo import M_PER_MILE, clamp, cheby_dist, latlon_to_ne, track_yaw
 from mission.grid_mission import GridCfg, GridMission
 from mission.partitions import allowed_cells
 from perception import base as perception_base
@@ -168,31 +170,53 @@ class Agent:
         self.model_tag = str(pcfg.get("model_tag", getattr(self.perception, "model_tag", "")))
         self.perception_period = 1.0 / max(0.05, float(pcfg.get("rate_hz", 1.0)))
         self._next_perception_t = 0.0
+        # async: observe() (HTTP render + YOLO, ~1 s on one core) runs in a worker thread so it can never stall the 10 Hz control
+        # loop. Default off (the original synchronous behaviour); the paired Level 3 configs turn it on for EVERY arm.
+        self.perception_async = bool(pcfg.get("async", False))
+        self._perc_in: "queue.Queue" = queue.Queue(maxsize=1)
+        self._perc_out: "queue.Queue" = queue.Queue()
+        self._perc_thread: Optional[threading.Thread] = None
         self.planner = PriorityPlanner(
             detection_ttl_s=float(pcfg.get("detection_ttl_s", 20.0)),
             conf_threshold=float(pcfg.get("conf_threshold", 0.45)),
+            investigate_cooldown_s=float(pcfg.get("investigate_cooldown_s", 0.0)),
         )
+        # Camera look direction = vehicle heading. Off by default (the vehicle then holds its takeoff yaw); the paired
+        # Level 3 configs turn it on for EVERY arm, baseline included, so flight behaviour is identical across arms.
+        self.yaw_to_track = bool((pcfg.get("camera") or {}).get("yaw_to_track", False))
+        self._yaw_cmd: Optional[float] = None
         self._belief_emit_period = 2.0
         self._last_belief_emit = 0.0
 
     # ================= setup / teardown =================
 
-    def ensure_ready(self) -> None:
-        self.v.wait_for_healthy(timeout=20.0, min_gps_fix=3)
-        self.v.set_mode("GUIDED")
-        self.v.wait_for_mode("GUIDED", timeout=10.0)
-        self.v.arm(True)
-        self.v.wait_for_armed(True, timeout=12.0)
-        self.v.takeoff(self.params.alt_target)
-        self.v.wait_for(
-            lambda s: (s.get("alt_rel_m") or 0.0) >= 0.9 * self.params.alt_target,
-            timeout=60.0,
-        )
-        try:
-            self.sysid = int(getattr(self.v, "target_system", 0) or 0)
-        except Exception:
-            self.sysid = 0
-        self._vp("READY: GUIDED / ARMED / altitude reached")
+    def ensure_ready(self, deadline_s: float = 300.0) -> None:
+        """Arm, take off and reach 0.9 x target altitude, retrying until `deadline_s`; raises RuntimeError if the vehicle never gets
+        there. (The wait_for_* calls only return False on timeout: a slow SITL EKF/GPS used to fall through and print READY on the ground.)"""
+        end = time.time() + deadline_s
+        attempt = 0
+        while time.time() < end:
+            attempt += 1
+            if not self.v.wait_for_healthy(timeout=60.0, min_gps_fix=3):
+                self._vp(f"READY attempt {attempt}: vehicle not healthy yet")
+                continue
+            self.v.set_mode("GUIDED")
+            self.v.wait_for_mode("GUIDED", timeout=10.0)
+            self.v.arm(True)
+            if not self.v.wait_for_armed(True, timeout=15.0):
+                self._vp(f"READY attempt {attempt}: not armed (pre-arm checks?)")
+                time.sleep(3.0)
+                continue
+            self.v.takeoff(self.params.alt_target)
+            if self.v.wait_for(lambda s: (s.get("alt_rel_m") or 0.0) >= 0.9 * self.params.alt_target, timeout=60.0):
+                try:
+                    self.sysid = int(getattr(self.v, "target_system", 0) or 0)
+                except Exception:
+                    self.sysid = 0
+                self._vp("READY: GUIDED / ARMED / altitude reached")
+                return
+            self._vp(f"READY attempt {attempt}: altitude {0.9 * self.params.alt_target:.0f} m not reached")
+        raise RuntimeError(f"vehicle never reached {self.params.alt_target} m within {deadline_s:.0f} s; refusing to fly the experiment")
 
     def _request_rtl(self) -> None:
         """One-shot: stop moving and hand the vehicle back to the autopilot."""
@@ -210,6 +234,9 @@ class Agent:
 
     def close(self) -> None:
         self._request_rtl()
+        self.stop = True
+        if self._perc_thread is not None:
+            self._perc_thread.join(timeout=5.0)
         try:
             self.perception.close()
         except Exception:
@@ -294,6 +321,8 @@ class Agent:
         flight quality depend on inference latency."""
         if not getattr(self.perception, "enabled", False):
             return
+        if self.perception_async:
+            self._drain_perception(mine, now)
         if now < self._next_perception_t:
             return
         self._next_perception_t = now + self.perception_period
@@ -303,12 +332,46 @@ class Agent:
             heading_deg=mine.get("hdg"), cell=self.cur_cell, t=now,
             sysid=int(self.sysid or 0),
         )
+        if self.perception_async:
+            if self._perc_thread is None:
+                self._perc_thread = threading.Thread(target=self._perception_worker, daemon=True, name="perception")
+                self._perc_thread.start()
+            try:
+                self._perc_in.put_nowait(pose)       # the worker is still busy with the previous frame: skip this one
+            except queue.Full:
+                pass
+            return
         try:
             detections = self.perception.observe(pose)
         except Exception as e:
             self._vp(f"PERCEPTION: observe failed ({e})")
             return
+        self._handle_detections(detections, mine, now)
 
+    def _perception_worker(self) -> None:
+        while not self.stop:
+            try:
+                pose = self._perc_in.get(timeout=0.2)
+            except queue.Empty:
+                continue
+            try:
+                self._perc_out.put((pose, self.perception.observe(pose), None))
+            except Exception as e:
+                self._perc_out.put((pose, [], e))
+
+    def _drain_perception(self, mine: Dict[str, Any], now: float) -> None:
+        """Main-thread side of the async path: deliver finished frames (broadcast, planner) without ever waiting for one."""
+        while True:
+            try:
+                _pose, detections, err = self._perc_out.get_nowait()
+            except queue.Empty:
+                return
+            if err is not None:
+                self._vp(f"PERCEPTION: observe failed ({err})")
+                continue
+            self._handle_detections(detections, mine, now)
+
+    def _handle_detections(self, detections, mine: Dict[str, Any], now: float) -> None:
         for d in detections:
             # Broadcast every detection, including weak ones. Fog scores them
             # all; filtering before the bus would hide false positives from
@@ -428,7 +491,8 @@ class Agent:
             d = math.hypot(push_n, push_e) + 1e-6
             if self.params.verbose:
                 print(f"[{self.name}|sys{self.sysid}] GEOFENCE: pushback")
-            return -3.0 * (push_n / d), -3.0 * (push_e / d)
+            # push_* already points INWARD (excess beyond the fence, negated); the previous `-3.0 *` drove the vehicle further out
+            return 3.0 * (push_n / d), 3.0 * (push_e / d)
 
         def taper(pos: float) -> float:
             return clamp((half - abs(pos)) / margin, 0.1, 1.0) if abs(pos) > (half - margin) else 1.0
@@ -536,7 +600,7 @@ class Agent:
                 me_n, me_e = latlon_to_ne(lat, lon, self.grid.cfg.lat0, self.grid.cfg.lon0)
                 vn, ve, d = self._velocity_to(goal_n, goal_e, me_n, me_e)
                 if d < self.planner.arrive_radius_m:
-                    self.planner.clear(hot)
+                    self.planner.clear(hot, now)
                 return vn, ve, self._alt_hold_vz(mine), f"INVESTIGATE→{hot[0]},{hot[1]}"
 
         # --- 6. pick a coverage target ---
@@ -663,7 +727,11 @@ class Agent:
                 # ---- command ----
                 if not self._rtl_requested:
                     try:
-                        self.v.send_ned_velocity(vx, vy, vz, body_frame=False)
+                        if self.yaw_to_track:
+                            self._yaw_cmd = track_yaw(vx, vy, self._yaw_cmd)       # NED: vx north, vy east -> compass bearing, rad
+                            self.v.send_ned_velocity(vx, vy, vz, body_frame=False, yaw=self._yaw_cmd)
+                        else:
+                            self.v.send_ned_velocity(vx, vy, vz, body_frame=False)
                     except Exception as e:
                         if self.params.verbose:
                             print(f"[{self.name}|sys{self.sysid}] WARN velocity: {e}")

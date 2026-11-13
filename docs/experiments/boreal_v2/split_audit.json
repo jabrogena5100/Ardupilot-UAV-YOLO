@@ -1,0 +1,192 @@
+{
+ "all_files_assigned_once": true,
+ "counts": {
+  "test": 744,
+  "train": 3462,
+  "val": 748
+ },
+ "dhash_cross_partition_pairs": {
+  "train&test": {
+   "<=0": 0,
+   "<=2": 3,
+   "<=4": 22,
+   "<=8": 381
+  },
+  "train&val": {
+   "<=0": 0,
+   "<=2": 0,
+   "<=4": 0,
+   "<=8": 83
+  },
+  "val&test": {
+   "<=0": 0,
+   "<=2": 0,
+   "<=4": 0,
+   "<=8": 16
+  }
+ },
+ "dhash_cross_partition_pairs_<=4_by_clip_pair": {
+  "heinola_dji_0028|heinola_dji_0048": 15,
+  "heinola_dji_0048|ruokolahti_dji_0089": 7
+ },
+ "dhash_within_clip_note": "adjacent frames of one clip are similar by design; only cross-partition pairs matter",
+ "filelist_sha256": {
+  "test": "9fa6dbc1d0eb9fa437e989be29afadc9a459f7850502f1c18c350379afcddc8f",
+  "train": "5b23b199965dfc47372e6100f4d5bfd41d57ef5b0b16b5ed83e91db056245c25",
+  "val": "8ef9e902bb24a720112bef32d20248d6aa33c17d67efc9771643daa87d252e2f"
+ },
+ "md5_duplicate_groups_total": 0,
+ "md5_groups_spanning_partitions": 0,
+ "pairwise_shared_videos": {
+  "train&test": [],
+  "train&val": [],
+  "val&test": []
+ },
+ "partitions": {
+  "test": {
+   "boxes": 690,
+   "boxes_per_positive_frame": 1.0162,
+   "clips": [
+    "heinola_dji_0033",
+    "heinola_dji_0038",
+    "heinola_dji_0048",
+    "karkkila_dji_0001",
+    "karkkila_dji_0002",
+    "karkkila_dji_0003",
+    "karkkila_dji_0020",
+    "ruokolahti_dji_0082"
+   ],
+   "clips_with_true_negatives": [
+    "heinola_dji_0048",
+    "karkkila_dji_0003"
+   ],
+   "frames": 744,
+   "frames_by_clip": {
+    "heinola_dji_0033": 230,
+    "heinola_dji_0038": 10,
+    "heinola_dji_0048": 62,
+    "karkkila_dji_0001": 69,
+    "karkkila_dji_0002": 125,
+    "karkkila_dji_0003": 44,
+    "karkkila_dji_0020": 134,
+    "ruokolahti_dji_0082": 70
+   },
+   "frames_by_site": {
+    "heinola": 302,
+    "karkkila": 372,
+    "ruokolahti": 70
+   },
+   "frames_with_boxes": 679,
+   "mixed_negative_clips": [
+    "heinola_dji_0048",
+    "karkkila_dji_0003"
+   ],
+   "pos_prevalence": 0.9126,
+   "true_negative_frames_(Empty-Images)": 65,
+   "unlabeled_nonempty_frames": 0
+  },
+  "train": {
+   "boxes": 3480,
+   "boxes_per_positive_frame": 1.0466,
+   "clips": [
+    "evodji_0001",
+    "evodji_0007",
+    "heinola_dji_0025",
+    "heinola_dji_0028",
+    "heinola_dji_0029",
+    "heinola_dji_0030",
+    "heinola_dji_0036",
+    "karkkila_dji_0004",
+    "karkkila_dji_0005",
+    "karkkila_dji_0006",
+    "ruokolahti_dji_0080",
+    "ruokolahti_dji_0081",
+    "ruokolahti_dji_0084",
+    "ruokolahti_dji_0085",
+    "ruokolahti_dji_0086",
+    "ruokolahti_dji_0087",
+    "ruokolahti_dji_0088",
+    "ruokolahti_dji_0089"
+   ],
+   "clips_with_true_negatives": [
+    "heinola_dji_0028",
+    "karkkila_dji_0006",
+    "ruokolahti_dji_0085"
+   ],
+   "frames": 3462,
+   "frames_by_clip": {
+    "evodji_0001": 314,
+    "evodji_0007": 328,
+    "heinola_dji_0025": 201,
+    "heinola_dji_0028": 267,
+    "heinola_dji_0029": 106,
+    "heinola_dji_0030": 143,
+    "heinola_dji_0036": 45,
+    "karkkila_dji_0004": 71,
+    "karkkila_dji_0005": 171,
+    "karkkila_dji_0006": 119,
+    "ruokolahti_dji_0080": 341,
+    "ruokolahti_dji_0081": 128,
+    "ruokolahti_dji_0084": 23,
+    "ruokolahti_dji_0085": 178,
+    "ruokolahti_dji_0086": 328,
+    "ruokolahti_dji_0087": 282,
+    "ruokolahti_dji_0088": 328,
+    "ruokolahti_dji_0089": 89
+   },
+   "frames_by_site": {
+    "evo": 642,
+    "heinola": 762,
+    "karkkila": 361,
+    "ruokolahti": 1697
+   },
+   "frames_with_boxes": 3325,
+   "mixed_negative_clips": [
+    "heinola_dji_0028",
+    "karkkila_dji_0006"
+   ],
+   "pos_prevalence": 0.9604,
+   "true_negative_frames_(Empty-Images)": 132,
+   "unlabeled_nonempty_frames": 5
+  },
+  "val": {
+   "boxes": 692,
+   "boxes_per_positive_frame": 1.0044,
+   "clips": [
+    "evodji_0009",
+    "heinola_dji_0024",
+    "karkkila_dji_0007",
+    "karkkila_dji_0008",
+    "karkkila_dji_0010"
+   ],
+   "clips_with_true_negatives": [
+    "heinola_dji_0024"
+   ],
+   "frames": 748,
+   "frames_by_clip": {
+    "evodji_0009": 289,
+    "heinola_dji_0024": 59,
+    "karkkila_dji_0007": 171,
+    "karkkila_dji_0008": 171,
+    "karkkila_dji_0010": 58
+   },
+   "frames_by_site": {
+    "evo": 289,
+    "heinola": 59,
+    "karkkila": 400
+   },
+   "frames_with_boxes": 689,
+   "mixed_negative_clips": [],
+   "pos_prevalence": 0.9211,
+   "true_negative_frames_(Empty-Images)": 59,
+   "unlabeled_nonempty_frames": 0
+  }
+ },
+ "total": 4954,
+ "video_disjoint": true,
+ "videos": {
+  "test": 8,
+  "train": 18,
+  "val": 5
+ }
+}

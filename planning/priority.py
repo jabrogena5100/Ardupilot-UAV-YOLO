@@ -64,6 +64,7 @@ class PriorityPlanner:
         conf_threshold: float = 0.45,
         arrive_radius_m: float = 1.0,
         repeat_bonus: float = 0.05,
+        investigate_cooldown_s: float = 0.0,
     ):
         self.detection_ttl_s = detection_ttl_s
         self.hazard_ttl_s = hazard_ttl_s
@@ -71,6 +72,11 @@ class PriorityPlanner:
         self.conf_threshold = conf_threshold
         self.arrive_radius_m = arrive_radius_m
         self.repeat_bonus = repeat_bonus
+        # After the UAV has flown to a flagged cell and cleared it, new detections of that cell are ignored for this long (they are
+        # still broadcast and scored by fog). 0 = off = the original behaviour, in which fresh detections of the same smoke re-flag
+        # the cell at once and the UAV can dwell on one fire indefinitely. The Level 3 configs set it identically for every arm.
+        self.investigate_cooldown_s = float(investigate_cooldown_s)
+        self.cooldown_until: Dict[Cell, float] = {}
 
         self.evidence: Dict[Cell, Evidence] = {}
         self.target: Optional[Cell] = None
@@ -88,6 +94,8 @@ class PriorityPlanner:
         if conf < self.conf_threshold:
             return False
         key = (int(i), int(j))
+        if now < self.cooldown_until.get(key, float("-inf")):
+            return False
         ev = self.evidence.get(key)
         if ev is None:
             self.evidence[key] = Evidence(conf, now + self.detection_ttl_s, cls, source, now)
@@ -125,10 +133,12 @@ class PriorityPlanner:
             return 0.0
         return min(1.0, ev.conf + self.repeat_bonus * (ev.hits - 1))
 
-    def clear(self, cell: Cell) -> None:
-        """Called on arrival: the cell has been looked at, drop it and move on."""
+    def clear(self, cell: Cell, now: Optional[float] = None) -> None:
+        """Called on arrival: the cell has been looked at, drop it and move on (and, with a cooldown, do not re-flag it for a while)."""
         self.evidence.pop(cell, None)
         self.investigated.add(cell)
+        if now is not None and self.investigate_cooldown_s > 0.0:
+            self.cooldown_until[cell] = float(now) + self.investigate_cooldown_s
         if self.target == cell:
             self.target = None
 

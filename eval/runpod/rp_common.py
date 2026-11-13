@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 
 API_BASE = "https://rest.runpod.io/v1"
+GRAPHQL_URL = "https://api.runpod.io/graphql"
 UA = "wildfire-orchestrator/1"  # the default urllib User-Agent is rejected with 403
 
 # Limits from CLAUDE.md "Autonomous Development and Compute Policy".
@@ -64,6 +65,25 @@ class RunPodAPI:
 
     def list_network_volumes(self):
         return self._call("GET", "/networkvolumes")
+
+    def stop_pod_graphql(self, pod_id):
+        """Stop via GraphQL `podStop`. The key RunPod injects into a pod gets HTTP 403 on REST stop but this mutation works with it
+        (observed 2026-10-29: pod EXITED 9 s after the call). Only the podStop mutation exists here; there is no delete path."""
+        if not re.fullmatch(r"[A-Za-z0-9]{6,40}", str(pod_id)):
+            raise RunPodError("bad pod id")
+        body = json.dumps({"query": 'mutation { podStop(input: {podId: "%s"}) { id desiredStatus } }' % pod_id}).encode()
+        req = urllib.request.Request(GRAPHQL_URL, data=body, method="POST", headers={
+            "Authorization": "Bearer " + self._key, "Content-Type": "application/json", "User-Agent": UA})
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as r:
+                res = json.loads(r.read() or b"{}")
+        except urllib.error.HTTPError as e:
+            raise RunPodError(f"graphql podStop -> HTTP {e.code}", code=e.code) from None
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            raise RunPodError(f"graphql podStop -> {type(e).__name__}") from None
+        if res.get("errors"):
+            raise RunPodError("graphql podStop -> errors", detail=str(res["errors"][0].get("message", ""))[:120])
+        return res.get("data", {})
 
     def billed_total(self):
         pods = self._call("GET", "/billing/pods")

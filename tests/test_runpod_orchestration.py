@@ -115,7 +115,7 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertFalse(out["created"])
         self.assertEqual(api.calls, [])
-        self.assertEqual(out["spec"]["env"]["ORCH_BUNDLE_B64"], "<set>")
+        self.assertEqual(out["spec"]["env"]["ORCH_BUNDLE_B64_0"], "<set>")
         self.assertRegex(out["spec"]["name"], r"^t_run__dl\d{10}$")
 
     def test_wrong_confirmation_creates_nothing(self):
@@ -140,6 +140,13 @@ class LauncherTests(unittest.TestCase):
         rc, out = L.launch(api, self.a(confirm_paid="t_run"), "abc")
         self.assertEqual(rc, 3)
         self.assertFalse(out["created"])
+
+    def test_create_failure_is_reported_without_leaking_spec(self):
+        class Boom(FakeAPI):
+            def create_pod(self, spec):
+                raise C.RunPodError("POST /pods -> HTTP 500", code=500, detail="no instances available")
+        rc, out = L.launch(Boom(), self.a(confirm_paid="t_run"), "abc")
+        self.assertEqual((rc, out["created"], out["create_error"]["detail"]), (3, False, "no instances available"))
 
     def test_stopped_pods_do_not_block(self):
         api = FakeAPI(pods=[{"id": "p0", "name": "old", "desiredStatus": "EXITED"}])
@@ -189,16 +196,53 @@ class InfraTests(unittest.TestCase):
         L.launch(api, self.a(confirm_paid="t_run"), "abc")
         spec = api.calls[0][1]
         with tempfile.TemporaryDirectory() as td:
-            env = {"PATH": os.environ["PATH"], "HOME": td, "TMPDIR": td, "ORCH_BUNDLE_B64": spec["env"]["ORCH_BUNDLE_B64"]}
+            env = {"PATH": os.environ["PATH"], "HOME": td, "TMPDIR": td,
+                   **{k: v for k, v in spec["env"].items() if k.startswith("ORCH_BUNDLE_B64_")}}
             r = subprocess.run(["bash", "-c", spec["dockerStartCmd"][-1]], cwd=td, env=env, capture_output=True, text=True,
                                timeout=60)
         self.assertEqual(r.returncode, 5, r.stderr)  # reached the supervisor; no key => refuses to run the job
         self.assertIn("refusing to run a job that cannot self-stop", r.stderr)
 
+    def test_bundle_hash_does_not_depend_on_the_clock(self):
+        import time as _t
+        real = _t.time
+        try:
+            _t.time = lambda: 1_700_000_000.0
+            a = L.make_bundle(["lifecycle_test_job.py"], ["docs/experiments/boreal_v2/split_audit.json"])
+            _t.time = lambda: 1_800_000_123.0            # a different second (and year): gzip headers must not change
+            b = L.make_bundle(["lifecycle_test_job.py"], ["docs/experiments/boreal_v2/split_audit.json"])
+        finally:
+            _t.time = real
+        self.assertEqual(a, b)
+
     def test_bundle_is_deterministic_and_small(self):
         b1, b2 = L.make_bundle(), L.make_bundle()
         self.assertEqual(b1, b2)
-        self.assertLess(len(b1), L.MAX_BUNDLE_B64)
+        self.assertEqual(len(b1[0]), 1)
+
+    def test_repo_bundle_is_chunked_extractable_and_excludes_data(self):
+        import io as _io
+        import base64 as _b64
+        import tarfile as _tf
+        chunks, sha = L.make_bundle(["lifecycle_test_job.py"], ["eval", "docs/experiments/boreal_v2"])
+        self.assertTrue(all(len(c) <= L.CHUNK_B64 for c in chunks))
+        tf = _tf.open(fileobj=_io.BytesIO(_b64.b64decode("".join(chunks))), mode="r:gz")
+        names = tf.getnames()
+        self.assertIn("pod_supervisor.py", names)
+        self.assertIn("repo/eval/run_matrix.py", names)
+        self.assertIn("repo/docs/experiments/boreal_v2/filelists.json", names)
+        self.assertFalse([n for n in names if n.endswith((".pt", ".gz", ".pyc")) or "__pycache__" in n], names)
+        self.assertEqual(L.make_bundle(["lifecycle_test_job.py"], ["eval", "docs/experiments/boreal_v2"])[1], sha)
+
+    def test_boreal_v2_job_pieces_present_in_bundle(self):
+        import io as _io
+        import base64 as _b64
+        import tarfile as _tf
+        chunks, _ = L.make_bundle([], ["eval", "docs/experiments/boreal_v2"])
+        names = _tf.open(fileobj=_io.BytesIO(_b64.b64decode("".join(chunks))), mode="r:gz").getnames()
+        for need in ("repo/eval/runpod/boreal_v2_train_eval.sh", "repo/eval/runpod/boreal_v2_materialize.py",
+                     "repo/eval/datasets_boreal_v2.yaml", "repo/eval/datasets.yaml", "repo/docs/experiments/boreal_v2/split_audit.json"):
+            self.assertIn(need, names)
 
     def test_bundle_rejects_files_outside_eval_runpod(self):
         with self.assertRaises(ValueError):
@@ -322,6 +366,74 @@ class SupervisorTests(unittest.TestCase):
             rc, d = self.run_sup([sys.executable, "-c", "print('hi')"], api, td)
             for name in os.listdir(d):
                 self.assertNotIn(SECRET, read(os.path.join(d, name)))
+
+
+class GraphqlFallbackTests(unittest.TestCase):
+    def test_supervisor_falls_back_to_graphql_when_rest_is_forbidden(self):
+        class RestForbidden(FakeAPI):
+            gql = 0
+
+            def stop_pod(self, pid):
+                raise C.RunPodError("POST /pods/x/stop -> HTTP 403", code=403)
+
+            def stop_pod_graphql(self, pid):
+                RestForbidden.gql += 1
+                self.pods[pid]["desiredStatus"] = "EXITED"
+        with tempfile.TemporaryDirectory() as td:
+            api = RestForbidden(pods=[{"id": "pod1", "desiredStatus": "RUNNING"}])
+            log = C.EventLog(os.path.join(td, "e.jsonl"))
+            self.assertTrue(S.stop_and_verify(api, "pod1", log, sleep=lambda s_: None))
+            ev = [json.loads(x) for x in read(os.path.join(td, "e.jsonl")).splitlines()]
+            self.assertEqual(RestForbidden.gql, 1)
+            self.assertIn(("pod_stopped", "graphql"), [(e["event"], e.get("method")) for e in ev])
+            self.assertIn("rest", [e.get("method") for e in ev if e["event"] == "stop_error"])
+
+    def test_both_methods_failing_is_logged_as_stop_failed(self):
+        class Dead(FakeAPI):
+            def stop_pod(self, pid):
+                raise C.RunPodError("x", code=403)
+
+            def stop_pod_graphql(self, pid):
+                raise C.RunPodError("y", code=500)
+        with tempfile.TemporaryDirectory() as td:
+            log = C.EventLog(os.path.join(td, "e.jsonl"))
+            self.assertFalse(S.stop_and_verify(Dead(pods=[{"id": "p", "desiredStatus": "RUNNING"}]), "p", log, sleep=lambda s_: None))
+            self.assertIn("STOP_FAILED", read(os.path.join(td, "e.jsonl")))
+
+    def test_graphql_client_sends_only_podstop_and_validates_ids(self):
+        sent = []
+        api = C.RunPodAPI(key=SECRET)
+        api.stop_pod_graphql.__func__  # exists
+        orig = C.urllib.request.urlopen
+
+        class R:
+            status = 200
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+
+            def read(self):
+                return b'{"data": {"podStop": {"id": "abc123", "desiredStatus": "EXITED"}}}'
+        C.urllib.request.urlopen = lambda req, timeout=0: (sent.append((req.full_url, req.data, dict(req.header_items()))), R())[1]
+        try:
+            self.assertIn("podStop", api.stop_pod_graphql("abc123"))
+            with self.assertRaises(C.RunPodError):
+                api.stop_pod_graphql('abc"}) { id } mutation { podTerminate(input:{podId:"x"})')    # injection attempt rejected before any request
+        finally:
+            C.urllib.request.urlopen = orig
+        self.assertEqual(len(sent), 1)
+        self.assertEqual(sent[0][0], "https://api.runpod.io/graphql")
+        self.assertIn(b"podStop", sent[0][1])
+        self.assertNotIn(SECRET.encode(), sent[0][1])
+
+    def test_only_podstop_mutation_exists_in_sources(self):
+        muts = set()
+        for fn in ("rp_common.py", "launch_job.py", "pod_supervisor.py", "watchdog.py"):
+            muts |= set(re.findall(r"mutation\s*\{\s*(\w+)", read(os.path.join(RP, fn))))
+        self.assertEqual(muts, {"podStop"})
 
 
 class WatchdogTests(unittest.TestCase):

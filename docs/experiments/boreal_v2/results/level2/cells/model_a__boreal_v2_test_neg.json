@@ -1,0 +1,159 @@
+{
+  "cell": "model_a__boreal_v2_test_neg",
+  "model": "model_a",
+  "train_domain": "synthetic",
+  "dataset": "boreal_v2_test_neg",
+  "checkpoint": "/workspace/runs/synth_smoke_a_v1/synth_smoke_best_v1.pt",
+  "checkpoint_sha256": "1da10c4814a905d92deec2d9c36185f872eabea447d47c389b9b065468009564",
+  "checkpoint_pinned": true,
+  "dataset_n_images": 65,
+  "dataset_filelist_sha256": "a41da4fb91fdc5bba5027895a2db3121a7ee97b7aa6ada120952dbdcedadf54e",
+  "settings": {
+    "imgsz": 640,
+    "conf": 0.001,
+    "nms_iou": 0.7,
+    "max_det": 300,
+    "batch": 32,
+    "seed": 0,
+    "report_conf": [
+      0.25
+    ]
+  },
+  "git": {
+    "commit": null,
+    "eval_sim_synthgen_dirty": null
+  },
+  "versions": {
+    "python": "3.12.3",
+    "numpy": "2.1.2",
+    "ultralytics": "8.4.173",
+    "torch": "2.8.0+cu128"
+  },
+  "argv": [
+    "/tmp/tmp.ZyXa2RGRqF/repo/eval/run_matrix.py",
+    "--config",
+    "/workspace/runs/boreal_v2_try4/datasets_boreal_v2_pinned.yaml",
+    "--out",
+    "/workspace/runs/boreal_v2_try4/level2_boreal_v2",
+    "--bootstrap",
+    "1000",
+    "--var",
+    "BOREAL_V2_SPLIT=/workspace/splits/boreal_v2",
+    "--var",
+    "SYNTH_ROOT=/workspace/synth_smoke_v1",
+    "--var",
+    "RUNS=/workspace/runs",
+    "--cells",
+    "model_a:boreal_v2_test,model_a:boreal_v2_test_pos,model_a:boreal_v2_test_neg,model_a:synth_test_pos,model_a:synth_test_all,model_a_seed1:boreal_v2_test,model_a_seed1:boreal_v2_test_pos,model_a_seed1:boreal_v2_test_neg,model_a_seed1:synth_test_pos,model_a_seed1:synth_test_all,model_a_seed2:boreal_v2_test,model_a_seed2:boreal_v2_test_pos,model_a_seed2:boreal_v2_test_neg,model_a_seed2:synth_test_pos,model_a_seed2:synth_test_all,model_bv2:boreal_v2_test,model_bv2:boreal_v2_test_pos,model_bv2:boreal_v2_test_neg,model_bv2:synth_test_pos,model_bv2:synth_test_all,model_bv2_seed1:boreal_v2_test,model_bv2_seed1:boreal_v2_test_pos,model_bv2_seed1:boreal_v2_test_neg,model_bv2_seed1:synth_test_pos,model_bv2_seed1:synth_test_all,model_bv2_seed2:boreal_v2_test,model_bv2_seed2:boreal_v2_test_pos,model_bv2_seed2:boreal_v2_test_neg,model_bv2_seed2:synth_test_pos,model_bv2_seed2:synth_test_all"
+  ],
+  "predictions_file": "model_a__boreal_v2_test_neg.json.gz",
+  "metrics": {
+    "n_images": 65,
+    "n_positive_images": 0,
+    "n_negative_images": 65,
+    "n_gt_boxes": 0,
+    "n_predictions": 137,
+    "mAP50": 0.0,
+    "mAP50-95": 0.0,
+    "AP50_by_class": {},
+    "max_f1": null,
+    "at_conf": {
+      "0.25": {
+        "conf_threshold": 0.25,
+        "tp": 0,
+        "fp": 11,
+        "fn": 0,
+        "precision": 0.0,
+        "recall": null,
+        "false_negative_rate": null,
+        "false_discovery_rate": 1.0,
+        "fp_per_image": 0.16923076923076924,
+        "mean_conf_tp": null,
+        "mean_conf_fp": 0.5384609049016779,
+        "image_fp_rate_on_empty": 0.13846153846153847,
+        "image_detection_rate_on_positive": null,
+        "loc_mean_iou_tp": null,
+        "loc_median_iou_tp": null
+      }
+    },
+    "loc_center_err_diag_mean": null,
+    "recall_by_edge_touch": {
+      "edge_touching": {
+        "n_gt": 0,
+        "recall": null,
+        "conf_threshold": 0.25
+      },
+      "not_edge_touching": {
+        "n_gt": 0,
+        "recall": null,
+        "conf_threshold": 0.25
+      }
+    },
+    "bootstrap": {
+      "n_resamples": 1000,
+      "seed": 0,
+      "conf_threshold": 0.25,
+      "level": 0.95,
+      "unit": "image",
+      "point": {
+        "mAP50": 0.0,
+        "mAP50-95": 0.0,
+        "precision": 0.0,
+        "recall": null,
+        "fp_per_image": 0.16923076923076924
+      },
+      "ci": {
+        "mAP50": [
+          0.0,
+          0.0
+        ],
+        "mAP50-95": [
+          0.0,
+          0.0
+        ],
+        "precision": [
+          0.0,
+          0.0
+        ],
+        "recall": null,
+        "fp_per_image": [
+          0.06153846153846154,
+          0.2923076923076923
+        ]
+      }
+    },
+    "bootstrap_cluster": {
+      "n_resamples": 1000,
+      "seed": 0,
+      "conf_threshold": 0.25,
+      "level": 0.95,
+      "unit": "cluster (2 clusters)",
+      "point": {
+        "mAP50": 0.0,
+        "mAP50-95": 0.0,
+        "precision": 0.0,
+        "recall": null,
+        "fp_per_image": 0.16923076923076924
+      },
+      "ci": {
+        "mAP50": [
+          0.0,
+          0.0
+        ],
+        "mAP50-95": [
+          0.0,
+          0.0
+        ],
+        "precision": [
+          0.0,
+          0.0
+        ],
+        "recall": null,
+        "fp_per_image": [
+          0.0,
+          0.6111111111111112
+        ]
+      }
+    }
+  }
+}
