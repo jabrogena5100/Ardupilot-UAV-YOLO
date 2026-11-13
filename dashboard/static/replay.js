@@ -35,8 +35,26 @@ async function api(url) {
   if (!r.ok) throw new Error(url + " -> " + r.status);
   return r.json();
 }
+function lateNote(rows) {
+  const l = rows.filter((p) => p.run && p.run.late_detections && p.run.late_detections.length);
+  if (!l.length) return "";
+  return " <b>Reporting window:</b> " + l.map((p) => { const r = p.run, n = r.late_detections.length, e = r.end || {};
+    return `${esc(r.meta.tag)}: ${n} detection record(s) stamped after ${r.meta.max_seconds || 600} s (${r.late_detections[0].t.toFixed(2)} to ${r.late_detections[n - 1].t.toFixed(2)} s) are not replayed and are not in the table above; the full log has ${r.detections.length + n} records` +
+      (e.det_true !== undefined ? ` (experiment_end totals ${e.det_true} true / ${e.det_false} false)` : "") + ".";
+  }).join(" ");
+}
 async function getRun(id) {
-  if (!S.cache.has(id)) S.cache.set(id, await api("/api/run?id=" + encodeURIComponent(id)));
+  if (!S.cache.has(id)) {
+    const r = await api("/api/run?id=" + encodeURIComponent(id));
+    // Reporting window: the analysis counts only detections stamped 0 <= t <= max_seconds (fog may log a few tenths of a second past the end).
+    // The replay timeline, charts and counters use the same window; the records stay in the data as `late_detections`, never deleted.
+    const T = Number(r.meta && r.meta.max_seconds) || 600;
+    if (Array.isArray(r.detections)) {
+      r.late_detections = r.detections.filter((q) => q.t > T);
+      r.detections = r.detections.filter((q) => q.t <= T);
+    }
+    S.cache.set(id, r);
+  }
   return S.cache.get(id);
 }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -153,6 +171,7 @@ function buildDom(ps) {
   if (ds === "final") {
     n += `<div class="miss dim"><b>Matched scenarios:</b> the initial fire is identical across arms, but the fire simulator steps on the wall clock, so the realized spread differs slightly between runs (more so in runs executed 2 at a time). See docs/experiments/level3_final.md section 2a.</div>`;
     n += `<div class="miss dim"><b>Untimed investigation targets:</b> the agent log has no timestamps, so investigation targets are a whole-run summary. “Fire nearby” is judged in hindsight (within 1 cell of any cell that burned at any time); the UAV did not know that when it chose the target.</div>`;
+    n += `<div class="miss dim"><b>Reporting window:</b> every count, chart and timeline here covers 0 to 600 s, the window used by the published analysis (docs/experiments/level3_final/per_run.csv, column det_after_window). Fog logs a few tenths of a second past the end; in the 56 runs exactly one run (l3-B2s0-2014) has such records (9 detections stamped 600.12 to 600.16 s, all scored true). They are kept in the data but excluded from playback, charts and the table, whose values (67 true / 28 false for that run) are the published window totals; the full log has 76 true / 28 false.</div>`;
     n += `<div class="miss dim"><b>Capped times:</b> a value shown as “≥ 600 s” means the event was not observed inside the 600 s window; the true time is at least that.</div>`;
   }
   $("notice").innerHTML = n;
@@ -213,8 +232,8 @@ function renderSummary(ps) {
   $("summary").innerHTML = `<div class="panel" style="padding:8px 12px"><h2 class="sumh">Recorded results for this scenario</h2><div class="tscroll"><table class="sum"><tr>${cols.map((c) => `<th>${c[0]}</th>`).join("")}</tr>` +
     rows.map((p) => { const m = metricsOf(p.run); return `<tr>${cols.map((c) => c[1](m, p.run, p)).join("")}</tr>`; }).join("") +
     `</table></div><div class="key" style="font-size:11px;color:var(--ink-dim);margin-top:6px">` +
-    (S.dataset === "final" ? `Values come from the saved run files and the recorded analysis table (analysis/per_run.csv). ` : `Pilot run, n = 1: illustrative only. `) +
-    `<sup>capped</sup> = not observed in the 600 s window; shown as a lower bound. “Investigation time” counts agent HUD lines (about 1 per second, approximate). A true detection means fire within 1 cell at the time of the observation; detection counts are repeated observations, not incidents. “n/a” = not recorded or not applicable.</div></div>`;
+    (S.dataset === "final" ? `Values come from the saved run files and the recorded analysis table (docs/experiments/level3_final/per_run.csv). ` : `Pilot run, n = 1: illustrative only. `) +
+    `<sup>capped</sup> = not observed in the 600 s window; shown as a lower bound. “Investigation time” counts agent HUD lines (about 1 per second, approximate). A true detection means fire within 1 cell at the time of the observation; detection counts are repeated observations, not incidents. “n/a” = not recorded or not applicable.${lateNote(rows)}</div></div>`;
 }
 
 function renderJumps(ps) {

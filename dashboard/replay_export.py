@@ -47,7 +47,7 @@ def main():
     html = html.replace('<script src="replay.js"></script>',
                         "<script>window.__REPLAY_EMBEDDED__ = " + blob + ";</script>\n<script>\n" + _r("replay.js") + "\n</script>")
     html = html.replace("<small>recorded ArduPilot SITL runs</small>",
-                        "<small>recorded ArduPilot SITL runs · standalone snapshot of " + ", ".join(pilots) + "</small>")
+                        "<small>· recorded ArduPilot SITL runs · standalone snapshot (" + ", ".join(pilots) + ")</small>")
     for needle in ("window.__REPLAY_EMBEDDED__", "standalone snapshot"):  # fail loudly if the template changed under us
         assert needle in html, f"export template no longer contains {needle!r}"
     with open(a.out, "w") as f:

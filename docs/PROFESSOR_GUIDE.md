@@ -192,6 +192,10 @@ this) and fog prints a loud banner if it is turned on. "UAV's view (hide truth)"
   cooldown). The live dashboard's "P(fire)" layer is that placeholder score, **not** a calibrated or Bayesian probability.
 * **Not a real fire or a real camera.** Smoke is a flat billboard on a 2.5-D rendered ground, not a volume. The fire is a
   cellular automaton on a 10 x 10 grid (1 mile square).
+* **Reporting window = 0 to 600 s.** Playback, charts and the table use the window of the published analysis. One run (`l3-B2s0-2014`) also has
+  9 detection records stamped 600.12 to 600.16 s (all scored true); they are kept in the data but not replayed, and the table shows the published window
+  totals (67 true / 28 false; the full log has 76 / 28). The page says so under the table and in "Data notes and caveats".
+* **In "UAV's view (hide truth)"** detections and investigation boxes turn neutral, because telling a true detection from a false one needs the hidden fire.
 * **Investigation boxes are untimed** (the agent log carries no timestamps), so they summarise the whole run and are not placed on the timeline.
 * The fire clock runs on wall time in fog, so the realised fire differs slightly between arms of one scenario
   (`docs/experiments/level3_final.md` section 2a). 8 scenarios on 4 ignition cells: results are descriptive; no significance claims.
@@ -396,7 +400,7 @@ hardware for all arms. The replay needs about 50 MB.
 
 ### Manual browser checklist (2 minutes; use this if you want to confirm the page on your own machine)
 
-1. `python3 demo.py`; the page title is "Wildfire Monitoring: Level 3 Replay" and a yellow "REPLAY OF SAVED RUNS - NOT LIVE" badge is visible.
+1. `python3 demo.py`; the page heading is "Autonomous Wildfire Monitoring — Experiment Replay" and a yellow "REPLAY OF SAVED RUNS - NOT LIVE" badge is visible.
 2. Three map panels (Baseline, Model A, Model B) with a dark grid. Press F12, Console tab: there should be no red errors.
 3. Press **Play** at 30x: the clock `t = ... s / 600` counts up, blue cells appear, a white dot with a trail moves, orange fire cells appear.
 4. Drag the slider to the end: green/red circles with numbers appear on the Model A and B maps (none on the baseline); the table below lists all three arms.

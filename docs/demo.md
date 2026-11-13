@@ -1,4 +1,4 @@
-# Browser demonstration: Level 3 replay
+# Browser demonstration: Autonomous Wildfire Monitoring — Experiment Replay
 
 A local web page that replays the **completed, frozen Level 3 experiments** (56 held-out runs: 8 scenarios x 7 arms,
 single UAV, 600 s, oracle off). It is a **replay of saved files, not a live simulation**: it starts no SITL, loads no
@@ -73,6 +73,12 @@ A missing value is shown as `n/a` with the reason; nothing is filled in. The bas
   is about 3 s (one cell per run differs by up to about 85 s, unexplained). Read path timing as plus or minus a few seconds.
 * 8 scenarios on 4 ignition cells, 3 seeds per detector family: descriptive, no significance claims; Model A is tested
   in-domain on synthetic imagery, Model B is not. Smoke is a flat billboard, not a volume.
+
+## Reporting window
+
+Playback, charts and counters cover 0 to 600 s, the window of the published analysis. `l3-B2s0-2014` has 9 further detection records stamped
+600.12 to 600.16 s; the loader keeps them as `late_detections` (not deleted), the table shows the published window totals (67 true / 28 false) and the page
+states that the full log has 76 / 28.
 
 ## Tests
 
