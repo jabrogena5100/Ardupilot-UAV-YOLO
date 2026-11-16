@@ -29,3 +29,4 @@
 {"event": "heartbeat_running_within_deadline", "name": "boreal_v2_try4_train_eval__dl1793328385", "pod_id": "lh2zdraedw4bpq", "seconds_to_deadline": 15225, "t": "2026-10-29T22:32:39Z"}
 {"event": "heartbeat_running_within_deadline", "name": "boreal_v2_try4_train_eval__dl1793328385", "pod_id": "lh2zdraedw4bpq", "seconds_to_deadline": 14617, "t": "2026-10-29T22:42:47Z"}
 {"event": "loop_end", "last_pass_rc": 0, "sticky_rc": 0, "t": "2026-10-30T03:31:14Z"}
+{"error": "GET /pods -> URLError", "event": "api_error", "t": "2026-11-16T18:53:11Z", "where": "list_pods"}
