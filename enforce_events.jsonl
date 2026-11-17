@@ -31,3 +31,4 @@
 {"event": "loop_end", "last_pass_rc": 0, "sticky_rc": 0, "t": "2026-10-30T03:31:14Z"}
 {"error": "GET /pods -> URLError", "event": "api_error", "t": "2026-11-16T18:53:11Z", "where": "list_pods"}
 {"error": "GET /pods -> URLError", "event": "api_error", "t": "2026-11-17T02:10:46Z", "where": "list_pods"}
+{"error": "GET /pods -> URLError", "event": "api_error", "t": "2026-11-17T10:41:31Z", "where": "list_pods"}
