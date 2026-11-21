@@ -43,3 +43,4 @@
 {"error": "GET /pods -> URLError", "event": "api_error", "t": "2026-11-20T04:00:10Z", "where": "list_pods"}
 {"error": "GET /pods -> URLError", "event": "api_error", "t": "2026-11-20T12:41:30Z", "where": "list_pods"}
 {"error": "GET /pods -> URLError", "event": "api_error", "t": "2026-11-20T20:43:57Z", "where": "list_pods"}
+{"error": "GET /pods -> URLError", "event": "api_error", "t": "2026-11-21T01:46:07Z", "where": "list_pods"}
